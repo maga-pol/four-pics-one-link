@@ -125,10 +125,15 @@ function pathPoint(t: number) {
 }
 
 function CircuitRace({ laps }: { laps: number }) {
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = (s - m * 60);
+    return `${m}:${sec.toFixed(2).padStart(5, "0")}`;
+  };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
-  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1 });
+  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
   const [result, setResult] = useState<{ rank: number; reward: number } | null>(null);
 
   useEffect(() => {
@@ -175,6 +180,7 @@ function CircuitRace({ laps }: { laps: number }) {
 
     let nitro = nitroCap;
     let last = performance.now();
+    const startedAt = performance.now();
     let raf = 0;
     let running = true;
     let finished = false;
@@ -256,6 +262,8 @@ function CircuitRace({ laps }: { laps: number }) {
         pos,
         total: cars.length,
         nitro: nitro / nitroCap,
+        elapsed: ((player.finishedAt ?? now) - startedAt) / 1000,
+        lapProgress: player.lap >= laps ? 1 : player.t,
       });
 
       if (player.finishedAt && !finished) {
@@ -441,9 +449,18 @@ function CircuitRace({ laps }: { laps: number }) {
         <canvas ref={canvasRef} className="block h-full w-full" />
 
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <span className="text-muted-foreground">LAP </span>
-            <span className="text-foreground">{hud.lap}/{laps}</span>
+          <div className="w-40 rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
+            <div className="flex items-center justify-between">
+              <span><span className="text-muted-foreground">LAP </span><span className="text-foreground">{hud.lap}/{laps}</span></span>
+              <span className="text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
+              <div className="h-full bg-gradient-to-r from-neon to-cyan-400" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
+            <span className="text-muted-foreground">TIME </span>
+            <span className="text-foreground">{formatTime(hud.elapsed)}</span>
           </div>
           <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
             <span className="text-muted-foreground">POS </span>
