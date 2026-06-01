@@ -254,31 +254,13 @@ function HomeHUD() {
                     </span>
                   </div>
 
-                  <div className="relative mt-3">
-                    <div className="absolute left-2 right-2 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border" />
-                    <div className="relative flex items-center justify-between">
-                      {t.stages.map((s, i) => (
-                        <div key={s.name} className="flex flex-col items-center gap-1">
-                          <div
-                            className={`grid h-5 w-5 place-items-center rounded-full border-2 text-[9px] font-black ${
-                              i === 0
-                                ? "border-neon bg-neon text-background animate-pulse-glow"
-                                : "border-border bg-background text-muted-foreground"
-                            }`}
-                          >
-                            {i + 1}
-                          </div>
-                          <span className={`text-[8px] uppercase tracking-wider ${i === 0 ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                            {s.name.split("-")[0]}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                    {t.description}
+                  </p>
 
                   <div className="mt-3 flex items-center justify-between text-[10px]">
                     <span className="text-muted-foreground">
-                      Stages · <span className="font-bold text-foreground">{t.stages.length}</span>
+                      Laps · <span className="font-bold text-foreground">{t.laps}</span>
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-lg bg-gradient-primary px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary-foreground shadow-button transition group-hover:scale-[1.03]">
                       Drive <ChevronRight className="h-3 w-3" />
