@@ -444,9 +444,18 @@ function CircuitRace({ laps }: { laps: number }) {
         <canvas ref={canvasRef} className="block h-full w-full" />
 
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <span className="text-muted-foreground">LAP </span>
-            <span className="text-foreground">{hud.lap}/{laps}</span>
+          <div className="w-40 rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
+            <div className="flex items-center justify-between">
+              <span><span className="text-muted-foreground">LAP </span><span className="text-foreground">{hud.lap}/{laps}</span></span>
+              <span className="text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
+              <div className="h-full bg-gradient-to-r from-neon to-cyan-400" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
+            <span className="text-muted-foreground">TIME </span>
+            <span className="text-foreground">{formatTime(hud.elapsed)}</span>
           </div>
           <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
             <span className="text-muted-foreground">POS </span>
