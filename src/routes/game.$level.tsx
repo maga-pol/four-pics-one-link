@@ -1,0 +1,276 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Lightbulb, Check, X, ArrowRight, Trophy, Flame } from "lucide-react";
+import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
+
+type Progress = { score: number; streak: number };
+const STORAGE_KEY = "gtc-progress";
+
+function loadProgress(): Progress {
+  if (typeof window === "undefined") return { score: 0, streak: 0 };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { score: 0, streak: 0 };
+    return JSON.parse(raw) as Progress;
+  } catch {
+    return { score: 0, streak: 0 };
+  }
+}
+function saveProgress(p: Progress) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+}
+
+export const Route = createFileRoute("/game/$level")({
+  head: () => ({
+    meta: [{ title: "Guess The Connection — Play" }],
+  }),
+  component: GamePage,
+});
+
+function GamePage() {
+  const { level: levelParam } = Route.useParams();
+  const navigate = useNavigate();
+  const levelNum = Math.max(1, Math.min(LEVELS.length, parseInt(levelParam, 10) || 1));
+  const level = LEVELS[levelNum - 1];
+
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<null | "correct" | "wrong">(null);
+  const [hintLevel, setHintLevel] = useState(0); // 0 none, 1 continent, 2 first letter
+  const [progress, setProgress] = useState<Progress>({ score: 0, streak: 0 });
+
+  useEffect(() => {
+    setProgress(loadProgress());
+  }, []);
+
+  useEffect(() => {
+    setInput("");
+    setResult(null);
+    setHintLevel(0);
+  }, [levelNum]);
+
+  function submit() {
+    if (result || !input.trim()) return;
+    const ok = isCorrect(input, level);
+    if (ok) {
+      const base = 100;
+      const hintPenalty = hintLevel * 20;
+      const newStreak = progress.streak + 1;
+      const streakBonus = Math.max(0, newStreak - 1) * 25;
+      const gained = Math.max(20, base - hintPenalty) + streakBonus;
+      const next = { score: progress.score + gained, streak: newStreak };
+      setProgress(next);
+      saveProgress(next);
+      setResult("correct");
+    } else {
+      const next = { score: progress.score, streak: 0 };
+      setProgress(next);
+      saveProgress(next);
+      setResult("wrong");
+    }
+  }
+
+  function nextLevel() {
+    if (levelNum >= LEVELS.length) {
+      navigate({ to: "/game/complete" });
+    } else {
+      navigate({ to: "/game/$level", params: { level: String(levelNum + 1) } });
+    }
+  }
+
+  const progressPct = (levelNum / LEVELS.length) * 100;
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-primary/20 blur-[120px] animate-float-slow" />
+      <div
+        className="pointer-events-none absolute -right-32 bottom-0 h-[28rem] w-[28rem] rounded-full bg-secondary/20 blur-[140px] animate-float-slow"
+        style={{ animationDelay: "-6s" }}
+      />
+
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-5">
+        {/* Top bar */}
+        <header className="flex items-center justify-between gap-3">
+          <Link
+            to="/"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground backdrop-blur-sm transition hover:text-foreground"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
+              <Trophy className="h-3.5 w-3.5 text-neon" />
+              <span>{progress.score}</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
+              <Flame className="h-3.5 w-3.5 text-orange-400" />
+              <span>{progress.streak}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Progress */}
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            <span>Level {levelNum} / {LEVELS.length}</span>
+            <span>{Math.round(progressPct)}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-card/60">
+            <div
+              className="h-full bg-gradient-primary transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Photos */}
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3">
+          {level.photoSeeds.map((seed, i) => (
+            <PhotoCard
+              key={seed}
+              url={getPhotoUrl(level.photoQuery, seed)}
+              index={i}
+            />
+          ))}
+        </div>
+
+        {/* Hint */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            disabled={!!result || hintLevel >= 2}
+            onClick={() => setHintLevel((h) => Math.min(2, h + 1))}
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/60 px-3 py-2 text-xs font-semibold text-muted-foreground backdrop-blur-sm transition hover:border-primary/60 hover:text-foreground disabled:opacity-40"
+          >
+            <Lightbulb className="h-3.5 w-3.5 text-neon" />
+            Hint {hintLevel > 0 ? `(${hintLevel}/2)` : ""}
+          </button>
+          <div className="text-xs text-muted-foreground">
+            {hintLevel >= 1 && (
+              <span>
+                Continent: <span className="text-foreground font-semibold">{level.continent}</span>
+              </span>
+            )}
+            {hintLevel >= 2 && (
+              <span className="ml-3">
+                First letter:{" "}
+                <span className="text-foreground font-semibold">
+                  {level.answer[0].toUpperCase()}
+                </span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Answer */}
+        <form
+          className="mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={!!result}
+              placeholder="Type the place…"
+              className="flex-1 rounded-2xl border border-border bg-card/60 px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground outline-none backdrop-blur-sm transition focus:border-primary/70 focus:shadow-glow disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={!!result || !input.trim()}
+              className="rounded-2xl bg-gradient-primary px-5 py-3.5 text-sm font-bold text-primary-foreground shadow-button transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+            >
+              Submit
+            </button>
+          </div>
+        </form>
+
+        {result && <ResultPanel result={result} level={level} onNext={nextLevel} isLast={levelNum >= LEVELS.length} />}
+
+        <div className="mt-auto pt-6 text-center text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60">
+          Think · Connect · Solve
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function PhotoCard({ url, index }: { url: string; index: number }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div
+      className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-card/60 animate-fade-up"
+      style={{ animationDelay: `${index * 0.08}s` }}
+    >
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/10 to-secondary/10" />
+      )}
+      <img
+        src={url}
+        alt={`Clue photo ${index + 1}`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <div className="pointer-events-none absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-background/70 text-[10px] font-bold backdrop-blur-sm">
+        {index + 1}
+      </div>
+    </div>
+  );
+}
+
+function ResultPanel({
+  result,
+  level,
+  onNext,
+  isLast,
+}: {
+  result: "correct" | "wrong";
+  level: Level;
+  onNext: () => void;
+  isLast: boolean;
+}) {
+  const ok = result === "correct";
+  return (
+    <div
+      className="mt-4 animate-fade-up rounded-2xl border bg-card/70 p-4 backdrop-blur-sm"
+      style={{
+        borderColor: ok ? "oklch(0.75 0.2 150 / 0.5)" : "oklch(0.65 0.25 25 / 0.5)",
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+            ok ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+          }`}
+        >
+          {ok ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+        </div>
+        <div className="flex-1">
+          <div className="text-sm font-bold">
+            {ok ? "Correct!" : "Not quite."}
+          </div>
+          <div className="mt-0.5 text-sm text-muted-foreground">
+            Answer: <span className="text-foreground font-semibold">{level.name}</span>
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onNext}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-button transition hover:scale-[1.02] active:scale-[0.98]"
+      >
+        {isLast ? "See Results" : "Next Level"}
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
