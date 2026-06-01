@@ -296,9 +296,6 @@ function ArcadeRacer({
           // Grass
           ctx.fillStyle = grassColor;
           ctx.fillRect(0, p2.sy, w, p1.sy - p2.sy);
-          // Road quad
-          drawQuad(ctx, 0, p1.sy, p1.sx - p1.sw, p2.sy, p2.sx - p2.sw, p1.sy, p1.sx - p1.sw, roadColor);
-          drawQuad(ctx, p1.sx + p1.sw, p1.sy, p2.sx + p2.sw, p2.sy, w, p2.sy, w, rumbleColor === "#ef4444" ? grassColor : grassColor);
           // Road
           ctx.fillStyle = roadColor;
           ctx.beginPath();
@@ -507,9 +504,6 @@ function RaceScreen() {
     );
   }
 
-  const current = stages[stage];
-  const speed = Math.round(220 + Math.sin(progress / 8) * 40);
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-primary/20 blur-[120px] animate-float-slow" />
@@ -534,7 +528,7 @@ function RaceScreen() {
           </div>
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs font-bold backdrop-blur">
             <Trophy className="h-3.5 w-3.5 text-neon" />
-            <span>{stage}/{stages.length}</span>
+            <span>{track.stages.length} stages</span>
           </div>
         </header>
 
