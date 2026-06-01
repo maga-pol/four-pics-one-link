@@ -641,6 +641,18 @@ function CircuitRace({ laps }: { laps: number }) {
           </div>
         </div>
 
+        {count && !result && (
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/30 backdrop-blur-[2px]">
+            <div
+              key={count}
+              className="select-none text-[12rem] font-black leading-none text-gradient-title drop-shadow-[0_0_40px_rgba(34,211,238,0.5)] animate-in zoom-in-50 duration-300"
+              style={{ textShadow: "0 0 60px rgba(34,211,238,0.6)" }}
+            >
+              {count}
+            </div>
+          </div>
+        )}
+
         {result && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-background/70 backdrop-blur-md">
             <div className="w-[min(92%,420px)] rounded-2xl border border-primary/50 bg-card/80 p-5 text-center shadow-glow">
