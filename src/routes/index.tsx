@@ -398,52 +398,133 @@ function Badge({ icon, value }: { icon: React.ReactNode; value: string }) {
 function Car() {
   return (
     <svg
-      viewBox="0 0 320 160"
-      className="relative z-10 w-[min(90%,420px)] animate-car-idle drop-shadow-[0_30px_30px_oklch(0.68_0.22_285/0.45)]"
-      aria-label="Player car"
+      viewBox="0 0 360 170"
+      className="relative z-10 w-[min(95%,460px)] animate-car-idle drop-shadow-[0_30px_40px_oklch(0.68_0.22_285/0.55)]"
+      aria-label="Player racing car"
     >
       <defs>
         <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="oklch(0.92 0.18 200)" />
+          <stop offset="45%" stopColor="oklch(0.68 0.22 285)" />
+          <stop offset="100%" stopColor="oklch(0.32 0.14 285)" />
+        </linearGradient>
+        <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="oklch(0.82 0.22 200)" />
-          <stop offset="55%" stopColor="oklch(0.68 0.22 285)" />
-          <stop offset="100%" stopColor="oklch(0.45 0.18 285)" />
+          <stop offset="100%" stopColor="oklch(0.75 0.25 295)" />
         </linearGradient>
         <linearGradient id="windowGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="oklch(0.95 0.05 200)" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="oklch(0.5 0.12 240)" stopOpacity="0.7" />
+          <stop offset="0%" stopColor="oklch(0.95 0.05 200)" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="oklch(0.35 0.12 260)" stopOpacity="0.85" />
         </linearGradient>
+        <radialGradient id="headlight" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="oklch(1 0.05 90)" />
+          <stop offset="100%" stopColor="oklch(0.95 0.15 90)" stopOpacity="0" />
+        </radialGradient>
       </defs>
-      {/* Body */}
+
+      {/* Speed lines */}
+      <g opacity="0.55" stroke="oklch(0.82 0.22 200)" strokeLinecap="round">
+        <line x1="2" y1="60" x2="40" y2="60" strokeWidth="2" />
+        <line x1="6" y1="78" x2="34" y2="78" strokeWidth="1.5" opacity="0.7" />
+        <line x1="0" y1="98" x2="48" y2="98" strokeWidth="2.5" />
+        <line x1="10" y1="118" x2="32" y2="118" strokeWidth="1.5" opacity="0.6" />
+      </g>
+
+      {/* Rear spoiler */}
       <path
-        d="M30 110 Q40 60 110 55 L210 55 Q260 55 285 95 L295 105 Q300 115 290 120 L40 120 Q25 120 30 110 Z"
+        d="M20 70 L70 60 L78 66 L24 80 Z"
+        fill="oklch(0.22 0.04 270)"
+        stroke="url(#accentGrad)"
+        strokeWidth="1.2"
+      />
+      <rect x="18" y="65" width="6" height="14" rx="2" fill="oklch(0.22 0.04 270)" />
+
+      {/* Low aggressive body (wedge shape) */}
+      <path
+        d="M30 118
+           L55 95
+           Q90 70 150 62
+           L235 58
+           Q295 58 330 92
+           L348 108
+           Q352 118 342 122
+           L36 122
+           Q22 122 30 118 Z"
         fill="url(#bodyGrad)"
         stroke="oklch(0.95 0.05 200)"
-        strokeWidth="1.5"
+        strokeWidth="1.4"
       />
-      {/* Window */}
+
+      {/* Side intake */}
+      <path d="M120 102 L180 102 L172 116 L128 116 Z" fill="oklch(0.18 0.03 270)" />
+      <path d="M130 105 L168 105 L164 113 L134 113 Z" fill="url(#accentGrad)" opacity="0.85" />
+
+      {/* Cockpit / canopy */}
       <path
-        d="M110 60 Q120 30 165 30 L205 30 Q235 30 250 60 Z"
+        d="M115 64 Q140 30 195 28 L240 30 Q280 36 300 66 L295 70 L120 70 Z"
         fill="url(#windowGrad)"
         stroke="oklch(0.95 0.05 200)"
         strokeWidth="1.2"
       />
-      {/* Divider */}
-      <line x1="170" y1="32" x2="180" y2="60" stroke="oklch(0.95 0.05 200)" strokeWidth="1" />
-      {/* Headlight */}
-      <ellipse cx="285" cy="85" rx="8" ry="5" fill="oklch(0.95 0.15 90)" />
-      <ellipse cx="290" cy="85" rx="20" ry="3" fill="oklch(0.95 0.15 90)" opacity="0.4" />
+      <path d="M205 30 L210 68" stroke="oklch(0.95 0.05 200)" strokeWidth="0.8" opacity="0.7" />
+      <path d="M132 56 Q170 42 230 40" stroke="oklch(1 0.05 200)" strokeWidth="2" opacity="0.45" fill="none" />
+
+      {/* Neon accent stripe along body */}
+      <path
+        d="M58 92 Q120 80 200 80 L300 86"
+        stroke="url(#accentGrad)"
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path
+        d="M58 92 Q120 80 200 80 L300 86"
+        stroke="oklch(0.95 0.1 200)"
+        strokeWidth="0.8"
+        fill="none"
+        strokeLinecap="round"
+        opacity="0.9"
+      />
+
+      {/* Front splitter */}
+      <path d="M308 116 L348 110 L350 120 L308 122 Z" fill="oklch(0.18 0.03 270)" />
+
+      {/* Headlights */}
+      <ellipse cx="325" cy="90" rx="9" ry="4" fill="oklch(0.95 0.15 90)" />
+      <ellipse cx="338" cy="92" rx="28" ry="3" fill="url(#headlight)" />
+
+      {/* Number badge */}
+      <circle cx="170" cy="96" r="9" fill="oklch(0.12 0.02 270)" stroke="url(#accentGrad)" strokeWidth="1.5" />
+      <text x="170" y="100" textAnchor="middle" fontSize="11" fontWeight="900" fill="oklch(0.95 0.05 200)" fontFamily="sans-serif">7</text>
+
       {/* Neon underglow */}
-      <ellipse cx="160" cy="130" rx="130" ry="6" fill="oklch(0.82 0.22 200)" opacity="0.6" />
-      {/* Wheels */}
+      <ellipse cx="185" cy="138" rx="155" ry="7" fill="oklch(0.82 0.22 200)" opacity="0.55" />
+      <ellipse cx="185" cy="142" rx="120" ry="4" fill="oklch(0.75 0.25 295)" opacity="0.5" />
+
+      {/* Wheels — fat racing tires */}
       <g>
-        <circle cx="85" cy="120" r="22" fill="oklch(0.15 0.02 270)" />
-        <circle cx="85" cy="120" r="13" fill="oklch(0.3 0.04 270)" className="animate-wheel-spin" />
-        <circle cx="85" cy="120" r="4" fill="oklch(0.82 0.22 200)" />
+        <ellipse cx="95" cy="124" rx="28" ry="26" fill="oklch(0.1 0.02 270)" />
+        <circle cx="95" cy="124" r="16" fill="oklch(0.25 0.04 270)" />
+        <g className="animate-wheel-spin" style={{ transformOrigin: "95px 124px" }}>
+          <circle cx="95" cy="124" r="13" fill="none" stroke="oklch(0.82 0.22 200)" strokeWidth="1.5" />
+          <line x1="82" y1="124" x2="108" y2="124" stroke="oklch(0.82 0.22 200)" strokeWidth="2" />
+          <line x1="95" y1="111" x2="95" y2="137" stroke="oklch(0.82 0.22 200)" strokeWidth="2" />
+          <line x1="86" y1="115" x2="104" y2="133" stroke="oklch(0.75 0.25 295)" strokeWidth="1.5" />
+          <line x1="104" y1="115" x2="86" y2="133" stroke="oklch(0.75 0.25 295)" strokeWidth="1.5" />
+        </g>
+        <circle cx="95" cy="124" r="3" fill="oklch(0.95 0.1 200)" />
       </g>
       <g>
-        <circle cx="240" cy="120" r="22" fill="oklch(0.15 0.02 270)" />
-        <circle cx="240" cy="120" r="13" fill="oklch(0.3 0.04 270)" className="animate-wheel-spin" />
-        <circle cx="240" cy="120" r="4" fill="oklch(0.82 0.22 200)" />
+        <ellipse cx="278" cy="124" rx="28" ry="26" fill="oklch(0.1 0.02 270)" />
+        <circle cx="278" cy="124" r="16" fill="oklch(0.25 0.04 270)" />
+        <g className="animate-wheel-spin" style={{ transformOrigin: "278px 124px" }}>
+          <circle cx="278" cy="124" r="13" fill="none" stroke="oklch(0.82 0.22 200)" strokeWidth="1.5" />
+          <line x1="265" y1="124" x2="291" y2="124" stroke="oklch(0.82 0.22 200)" strokeWidth="2" />
+          <line x1="278" y1="111" x2="278" y2="137" stroke="oklch(0.82 0.22 200)" strokeWidth="2" />
+          <line x1="269" y1="115" x2="287" y2="133" stroke="oklch(0.75 0.25 295)" strokeWidth="1.5" />
+          <line x1="287" y1="115" x2="269" y2="133" stroke="oklch(0.75 0.25 295)" strokeWidth="1.5" />
+        </g>
+        <circle cx="278" cy="124" r="3" fill="oklch(0.95 0.1 200)" />
       </g>
     </svg>
   );
