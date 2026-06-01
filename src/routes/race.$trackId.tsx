@@ -319,11 +319,9 @@ function CircuitRace({ laps }: { laps: number }) {
 
       // Third-person camera: center on player, rotate so car faces "up"
       const player = cars[0];
-      const pp = pathPoint(player.t);
-      const off = player.lane * (ROAD_W / 2 - 14);
-      const pcx = pp.x + (-pp.hy) * off;
-      const pcy = pp.y + (pp.hx) * off;
-      const heading = Math.atan2(pp.hy, pp.hx);
+      const pcx = player.x;
+      const pcy = player.y;
+      const heading = player.angle;
 
       ctx.save();
       ctx.translate(cssW / 2, cssH * 0.72);
@@ -336,7 +334,7 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
       // Build path once
-      const PN = 360;
+      const PN = 720;
       ctx.beginPath();
       for (let i = 0; i <= PN; i++) {
         const p = pathPoint(i / PN);
@@ -365,7 +363,7 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.lineWidth = 3;
       ctx.setLineDash([18, 18]);
       ctx.beginPath();
-      const N = 240;
+      const N = 480;
       for (let i = 0; i <= N; i++) {
         const p = pathPoint(i / N);
         if (i === 0) ctx.moveTo(p.x, p.y);
@@ -387,7 +385,7 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawKerb(offset: number) {
-      const steps = 180;
+      const steps = 600;
       ctx.lineWidth = 6;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
@@ -426,15 +424,9 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawCar(c: Car) {
-      const p = pathPoint(c.t);
-      const off = c.lane * (ROAD_W / 2 - 14);
-      const cx = p.x + (-p.hy) * off;
-      const cy = p.y + (p.hx) * off;
-      const ang = Math.atan2(p.hy, p.hx);
-
       ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(ang);
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.angle);
 
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       roundRect(-15, -9, 32, 20, 5); ctx.fill();
