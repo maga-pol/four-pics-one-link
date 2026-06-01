@@ -121,6 +121,7 @@ function CircuitRace({ laps }: { laps: number }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
+  const [count, setCount] = useState<string | null>("3");
   const [result, setResult] = useState<{ rank: number; reward: number } | null>(null);
 
   useEffect(() => {
@@ -204,6 +205,60 @@ function CircuitRace({ laps }: { laps: number }) {
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
 
+    // Decorations (trees, rocks) placed off-road, deterministic
+    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number };
+    const decor: Decor[] = [];
+    {
+      let seed = 1337;
+      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      // Sample road points once for distance test
+      const roadSamples: { x: number; y: number }[] = [];
+      for (let i = 0; i < 400; i++) {
+        const p = rawPoint(i / 400);
+        roadSamples.push({ x: p.x, y: p.y });
+      }
+      const minDist = ROAD_W * 0.9 + 30;
+      const tryAdd = (x: number, y: number, kind: Decor["kind"], size: number) => {
+        for (const r of roadSamples) {
+          if ((r.x - x) ** 2 + (r.y - y) ** 2 < minDist * minDist) return;
+        }
+        decor.push({ x, y, kind, size });
+      };
+      // Outside the ring
+      for (let i = 0; i < 700; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = TRACK_RX + ROAD_W + 60 + rnd() * 900;
+        const x = TRACK_CX + Math.cos(a) * r;
+        const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
+        if (x < 40 || x > WORLD_W - 40 || y < 40 || y > WORLD_H - 40) continue;
+        const kind = rnd() > 0.25 ? "tree" : "rock";
+        tryAdd(x, y, kind, 18 + rnd() * 26);
+      }
+      // Inside the ring (infield)
+      for (let i = 0; i < 300; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = rnd() * (TRACK_RX - ROAD_W - 100);
+        const x = TRACK_CX + Math.cos(a) * r;
+        const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
+        const kind = rnd() > 0.4 ? "tree" : "rock";
+        tryAdd(x, y, kind, 18 + rnd() * 26);
+      }
+      // Flags along edges of the road for festive feel
+      for (let i = 0; i < 60; i++) {
+        const t = i / 60;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 28) * side;
+        const x = p.x + (-p.hy) * off;
+        const y = p.y + (p.hx) * off;
+        decor.push({ x, y, kind: "flag", size: 22 });
+      }
+    }
+
+    // Countdown
+    const COUNTDOWN_MS = 3500; // 3, 2, 1, GO
+    let countdownDone = false;
+
     let nitro = nitroCap;
     let last = performance.now();
     const startedAt = performance.now();
@@ -230,6 +285,25 @@ function CircuitRace({ laps }: { laps: number }) {
       const k = keysRef.current;
       const player = cars[0];
 
+      const sinceStart = now - startedAt;
+      const racing = sinceStart >= COUNTDOWN_MS;
+      if (!racing) {
+        const remain = COUNTDOWN_MS - sinceStart;
+        if (remain > 2500) setCount("3");
+        else if (remain > 1500) setCount("2");
+        else if (remain > 500) setCount("1");
+        else setCount("GO");
+        // freeze cars
+        player.speed = 0;
+        for (let i = 1; i < cars.length; i++) cars[i].speed = 0;
+        draw(now);
+        raf = requestAnimationFrame(tick);
+        return;
+      } else if (!countdownDone) {
+        countdownDone = true;
+        setCount(null);
+      }
+
       const accelKey = k["w"] || k["arrowup"];
       const brakeKey = k["s"] || k["arrowdown"];
       const left = k["a"] || k["arrowleft"];
@@ -248,7 +322,7 @@ function CircuitRace({ laps }: { laps: number }) {
       else nitro = Math.min(nitroCap, nitro + dt * 0.15);
 
       const steer = (right ? 1 : 0) - (left ? 1 : 0);
-      const steerStrength = (1.8 + grip * 0.4) * Math.min(1, Math.abs(player.speed) * 6);
+      const steerStrength = (3.4 + grip * 0.6) * Math.min(1, Math.abs(player.speed) * 6);
       player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
 
       const moveScale = 1200;
