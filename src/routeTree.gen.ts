@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GameCompleteRouteImport } from './routes/game.complete'
+import { Route as GameLevelRouteImport } from './routes/game.$level'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GameCompleteRoute = GameCompleteRouteImport.update({
+  id: '/game/complete',
+  path: '/game/complete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameLevelRoute = GameLevelRouteImport.update({
+  id: '/game/$level',
+  path: '/game/$level',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/game/$level': typeof GameLevelRoute
+  '/game/complete': typeof GameCompleteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/game/$level': typeof GameLevelRoute
+  '/game/complete': typeof GameCompleteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/game/$level': typeof GameLevelRoute
+  '/game/complete': typeof GameCompleteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/game/$level' | '/game/complete'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/game/$level' | '/game/complete'
+  id: '__root__' | '/' | '/game/$level' | '/game/complete'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GameLevelRoute: typeof GameLevelRoute
+  GameCompleteRoute: typeof GameCompleteRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/game/complete': {
+      id: '/game/complete'
+      path: '/game/complete'
+      fullPath: '/game/complete'
+      preLoaderRoute: typeof GameCompleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/game/$level': {
+      id: '/game/$level'
+      path: '/game/$level'
+      fullPath: '/game/$level'
+      preLoaderRoute: typeof GameLevelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GameLevelRoute: GameLevelRoute,
+  GameCompleteRoute: GameCompleteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
