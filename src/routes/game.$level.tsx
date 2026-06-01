@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Lightbulb, Check, X, ArrowRight, Trophy, Flame } from "lucide-react";
-import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
+import { LEVELS, getPhotoUrl, isCorrect, loadShuffledLevels, resetAndShuffleLevels, type Level } from "@/lib/levels";
 
 type Progress = { score: number; streak: number };
 const STORAGE_KEY = "gtc-progress";
@@ -31,8 +31,10 @@ export const Route = createFileRoute("/game/$level")({
 function GamePage() {
   const { level: levelParam } = Route.useParams();
   const navigate = useNavigate();
-  const levelNum = Math.max(1, Math.min(LEVELS.length, parseInt(levelParam, 10) || 1));
-  const level = LEVELS[levelNum - 1];
+
+  const shuffledLevels = useMemo(() => loadShuffledLevels(), []);
+  const levelNum = Math.max(1, Math.min(shuffledLevels.length, parseInt(levelParam, 10) || 1));
+  const level = shuffledLevels[levelNum - 1];
 
   // Generate fresh random seeds on every level load so images always change
   const seeds = useMemo(
@@ -77,14 +79,14 @@ function GamePage() {
   }
 
   function nextLevel() {
-    if (levelNum >= LEVELS.length) {
+    if (levelNum >= shuffledLevels.length) {
       navigate({ to: "/game/complete" });
     } else {
       navigate({ to: "/game/$level", params: { level: String(levelNum + 1) } });
     }
   }
 
-  const progressPct = (levelNum / LEVELS.length) * 100;
+  const progressPct = (levelNum / shuffledLevels.length) * 100;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">

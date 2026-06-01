@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Trophy, RotateCcw, Home } from "lucide-react";
+import { resetAndShuffleLevels } from "@/lib/levels";
 
 const STORAGE_KEY = "gtc-progress";
 
@@ -28,6 +29,7 @@ function CompletePage() {
   }, []);
 
   function restart() {
+    resetAndShuffleLevels();
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ score: 0, streak: 0 }));
     navigate({ to: "/game/$level", params: { level: "1" } });
   }

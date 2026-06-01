@@ -103,6 +103,42 @@ export const LEVELS: Level[] = [
   },
 ];
 
+export const SHUFFLE_KEY = "gtc-shuffle";
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Load (or create) a shuffled order of level IDs and persist it in localStorage */
+export function loadShuffledLevels(): Level[] {
+  if (typeof window === "undefined") return LEVELS;
+  try {
+    const raw = localStorage.getItem(SHUFFLE_KEY);
+    if (raw) {
+      const ids: number[] = JSON.parse(raw);
+      if (ids.length === LEVELS.length) {
+        const map = new Map(LEVELS.map((l) => [l.id, l]));
+        return ids.map((id) => map.get(id)!).filter(Boolean);
+      }
+    }
+  } catch {}
+  return resetAndShuffleLevels();
+}
+
+/** Create a fresh random order and save it */
+export function resetAndShuffleLevels(): Level[] {
+  const shuffled = shuffleArray(LEVELS);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SHUFFLE_KEY, JSON.stringify(shuffled.map((l) => l.id)));
+  }
+  return shuffled;
+}
+
 export function getPhotoUrl(query: string, seed: number, size = 640) {
   return `https://loremflickr.com/${size}/${size}/${query}/all?lock=${seed}`;
 }
