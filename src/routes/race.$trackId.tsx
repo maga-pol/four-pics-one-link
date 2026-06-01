@@ -86,42 +86,26 @@ const WORLD_W = 1100;
 const WORLD_H = 650;
 const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
-const TRACK_RX = 420;
-const TRACK_RY = 220;
-const ROAD_W = 90;
+const TRACK_RX = 380;
+const TRACK_RY = 190;
+const ROAD_W = 68;
+
+function rawPoint(t: number) {
+  const a = ((t % 1) + 1) % 1 * Math.PI * 2;
+  const rx = TRACK_RX + Math.sin(a * 3) * 70 + Math.cos(a * 2) * 30;
+  const ry = TRACK_RY + Math.cos(a * 3) * 60 + Math.sin(a * 5) * 22;
+  return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
+}
 
 function pathPoint(t: number) {
-  const straight = TRACK_RX * 2;
-  const arc = Math.PI * TRACK_RY;
-  const total = straight * 2 + arc * 2;
-  let s = (t % 1) * total;
-  if (s < 0) s += total;
-
-  if (s < straight) {
-    const u = s / straight;
-    return { x: TRACK_CX - TRACK_RX + u * straight, y: TRACK_CY - TRACK_RY, hx: 1, hy: 0 };
-  }
-  s -= straight;
-  if (s < arc) {
-    const a = -Math.PI / 2 + (s / arc) * Math.PI;
-    return {
-      x: TRACK_CX + TRACK_RX + Math.cos(a) * TRACK_RY,
-      y: TRACK_CY + Math.sin(a) * TRACK_RY,
-      hx: -Math.sin(a), hy: Math.cos(a),
-    };
-  }
-  s -= arc;
-  if (s < straight) {
-    const u = s / straight;
-    return { x: TRACK_CX + TRACK_RX - u * straight, y: TRACK_CY + TRACK_RY, hx: -1, hy: 0 };
-  }
-  s -= straight;
-  const a = Math.PI / 2 + (s / arc) * Math.PI;
-  return {
-    x: TRACK_CX - TRACK_RX + Math.cos(a) * TRACK_RY,
-    y: TRACK_CY + Math.sin(a) * TRACK_RY,
-    hx: -Math.sin(a), hy: Math.cos(a),
-  };
+  const eps = 0.0015;
+  const p = rawPoint(t);
+  const p2 = rawPoint(t + eps);
+  let dx = p2.x - p.x;
+  let dy = p2.y - p.y;
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  return { x: p.x, y: p.y, hx: dx, hy: dy };
 }
 
 function CircuitRace({ laps }: { laps: number }) {
@@ -303,15 +287,29 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.translate(ox, oy);
       ctx.scale(scale, scale);
 
-      // Grass infield
+      // Grass background
       ctx.fillStyle = "#14532d";
-      roundRect(TRACK_CX - TRACK_RX, TRACK_CY - TRACK_RY, TRACK_RX * 2, TRACK_RY * 2, TRACK_RY);
-      ctx.fill();
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
+      // Build path once
+      const PN = 360;
+      ctx.beginPath();
+      for (let i = 0; i <= PN; i++) {
+        const p = pathPoint(i / PN);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+
+      // Road shoulder
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = ROAD_W + 10;
+      ctx.stroke();
       // Road
       ctx.strokeStyle = "#2a2a35";
       ctx.lineWidth = ROAD_W;
-      roundRect(TRACK_CX - TRACK_RX, TRACK_CY - TRACK_RY, TRACK_RX * 2, TRACK_RY * 2, TRACK_RY);
       ctx.stroke();
 
       // Kerbs (outer + inner)
@@ -345,7 +343,7 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawKerb(offset: number) {
-      const steps = 60;
+      const steps = 180;
       ctx.lineWidth = 6;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
