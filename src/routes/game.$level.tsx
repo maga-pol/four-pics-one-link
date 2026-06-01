@@ -79,14 +79,14 @@ function GamePage() {
   }
 
   function nextLevel() {
-    if (levelNum >= LEVELS.length) {
+    if (levelNum >= shuffledLevels.length) {
       navigate({ to: "/game/complete" });
     } else {
       navigate({ to: "/game/$level", params: { level: String(levelNum + 1) } });
     }
   }
 
-  const progressPct = (levelNum / LEVELS.length) * 100;
+  const progressPct = (levelNum / shuffledLevels.length) * 100;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
