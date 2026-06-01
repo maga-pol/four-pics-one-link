@@ -31,8 +31,10 @@ export const Route = createFileRoute("/game/$level")({
 function GamePage() {
   const { level: levelParam } = Route.useParams();
   const navigate = useNavigate();
-  const levelNum = Math.max(1, Math.min(LEVELS.length, parseInt(levelParam, 10) || 1));
-  const level = LEVELS[levelNum - 1];
+
+  const shuffledLevels = useMemo(() => loadShuffledLevels(), []);
+  const levelNum = Math.max(1, Math.min(shuffledLevels.length, parseInt(levelParam, 10) || 1));
+  const level = shuffledLevels[levelNum - 1];
 
   // Generate fresh random seeds on every level load so images always change
   const seeds = useMemo(
