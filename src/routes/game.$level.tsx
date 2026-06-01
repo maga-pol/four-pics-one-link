@@ -177,7 +177,7 @@ function GamePage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={!!result}
-              placeholder="Type the place…"
+              placeholder="Type the country…"
               className="flex-1 rounded-2xl border border-border bg-card/60 px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground outline-none backdrop-blur-sm transition focus:border-primary/70 focus:shadow-glow disabled:opacity-60"
             />
             <button
