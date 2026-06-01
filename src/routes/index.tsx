@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Play, HelpCircle, Layers, Settings as SettingsIcon } from "lucide-react";
+import { resetAndShuffleLevels } from "@/lib/levels";
 
 export const Route = createFileRoute("/")({
   head: () => ({
