@@ -193,4 +193,18 @@
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes car-idle {
+    0%, 100% { transform: translateY(0) rotate(-0.5deg); }
+    50% { transform: translateY(-6px) rotate(0.5deg); }
+  }
+  @keyframes wheel-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes road-scroll {
+    from { background-position-x: 0; }
+    to { background-position-x: -80px; }
+  }
+  .animate-car-idle { animation: car-idle 3.5s ease-in-out infinite; transform-origin: center; }
+  .animate-wheel-spin { animation: wheel-spin 1.2s linear infinite; transform-origin: center; transform-box: fill-box; }
+  .animate-road { animation: road-scroll 0.8s linear infinite; }
 }
