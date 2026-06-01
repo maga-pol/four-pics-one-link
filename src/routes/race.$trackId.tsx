@@ -539,8 +539,8 @@ function ArcadeRacer({
       <div className="pointer-events-none absolute inset-0 p-3">
         <div className="flex items-start justify-between">
           <div className="rounded-xl border border-border bg-background/60 px-3 py-2 backdrop-blur">
-            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Track</div>
-            <div className="text-sm font-black">{trackName}</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">🇲🇨 Monaco · Sector {hud.sector}</div>
+            <div className="text-sm font-black">{hud.corner}</div>
           </div>
           <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-right backdrop-blur">
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Position</div>
