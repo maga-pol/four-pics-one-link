@@ -34,6 +34,12 @@ function GamePage() {
   const levelNum = Math.max(1, Math.min(LEVELS.length, parseInt(levelParam, 10) || 1));
   const level = LEVELS[levelNum - 1];
 
+  // Generate fresh random seeds on every level load so images always change
+  const seeds = useMemo(
+    () => Array.from({ length: 4 }, () => Math.floor(Math.random() * 1_000_000) + 1),
+    [levelNum]
+  );
+
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
   const [hintLevel, setHintLevel] = useState(0); // 0 none, 1 continent, 2 first letter
