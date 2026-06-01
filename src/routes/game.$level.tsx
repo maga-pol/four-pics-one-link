@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Lightbulb, Check, X, ArrowRight, Trophy, Flame } from "lucide-react";
-import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
+import { LEVELS, getPhotoUrl, isCorrect, loadShuffledLevels, resetAndShuffleLevels, type Level } from "@/lib/levels";
 
 type Progress = { score: number; streak: number };
 const STORAGE_KEY = "gtc-progress";
