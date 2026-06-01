@@ -14,8 +14,8 @@ export const LEVELS: Level[] = [
   {
     id: 1,
     name: "Eiffel Tower, Paris",
-    answer: "Eiffel Tower",
-    acceptedAnswers: ["eiffel", "paris", "eiffel tower"],
+    answer: "France",
+    acceptedAnswers: ["france"],
     continent: "Europe",
     photoQuery: "eiffel,tower,paris",
     photoSeeds: [101, 102, 103, 104],
@@ -23,8 +23,8 @@ export const LEVELS: Level[] = [
   {
     id: 2,
     name: "Statue of Liberty, New York",
-    answer: "Statue of Liberty",
-    acceptedAnswers: ["liberty", "statue of liberty", "new york"],
+    answer: "USA",
+    acceptedAnswers: ["usa", "united states", "us", "america", "united states of america"],
     continent: "North America",
     photoQuery: "statue,of,liberty,newyork",
     photoSeeds: [201, 202, 203, 204],
@@ -32,8 +32,8 @@ export const LEVELS: Level[] = [
   {
     id: 3,
     name: "Colosseum, Rome",
-    answer: "Colosseum",
-    acceptedAnswers: ["colosseum", "coliseum", "rome", "roma"],
+    answer: "Italy",
+    acceptedAnswers: ["italy", "italia"],
     continent: "Europe",
     photoQuery: "colosseum,rome,italy",
     photoSeeds: [301, 302, 303, 304],
@@ -41,8 +41,8 @@ export const LEVELS: Level[] = [
   {
     id: 4,
     name: "Burj Khalifa, Dubai",
-    answer: "Burj Khalifa",
-    acceptedAnswers: ["burj", "burj khalifa", "dubai"],
+    answer: "UAE",
+    acceptedAnswers: ["uae", "united arab emirates", "emirates"],
     continent: "Asia",
     photoQuery: "burj,khalifa,dubai",
     photoSeeds: [401, 402, 403, 404],
@@ -50,8 +50,8 @@ export const LEVELS: Level[] = [
   {
     id: 5,
     name: "Shibuya Crossing, Tokyo",
-    answer: "Shibuya",
-    acceptedAnswers: ["shibuya", "tokyo"],
+    answer: "Japan",
+    acceptedAnswers: ["japan", "nippon"],
     continent: "Asia",
     photoQuery: "shibuya,crossing,tokyo",
     photoSeeds: [501, 502, 503, 504],
@@ -59,8 +59,8 @@ export const LEVELS: Level[] = [
   {
     id: 6,
     name: "Machu Picchu, Peru",
-    answer: "Machu Picchu",
-    acceptedAnswers: ["machu picchu", "machu", "peru"],
+    answer: "Peru",
+    acceptedAnswers: ["peru"],
     continent: "South America",
     photoQuery: "machu,picchu,peru",
     photoSeeds: [601, 602, 603, 604],
@@ -68,8 +68,8 @@ export const LEVELS: Level[] = [
   {
     id: 7,
     name: "Great Wall of China",
-    answer: "Great Wall of China",
-    acceptedAnswers: ["great wall", "china", "great wall of china"],
+    answer: "China",
+    acceptedAnswers: ["china"],
     continent: "Asia",
     photoQuery: "great,wall,china",
     photoSeeds: [701, 702, 703, 704],
@@ -77,8 +77,8 @@ export const LEVELS: Level[] = [
   {
     id: 8,
     name: "Santorini, Greece",
-    answer: "Santorini",
-    acceptedAnswers: ["santorini", "greece", "oia"],
+    answer: "Greece",
+    acceptedAnswers: ["greece", "hellas"],
     continent: "Europe",
     photoQuery: "santorini,greece,oia",
     photoSeeds: [801, 802, 803, 804],
@@ -86,8 +86,8 @@ export const LEVELS: Level[] = [
   {
     id: 9,
     name: "Times Square, New York",
-    answer: "Times Square",
-    acceptedAnswers: ["times square", "new york", "times"],
+    answer: "USA",
+    acceptedAnswers: ["usa", "united states", "us", "america", "united states of america"],
     continent: "North America",
     photoQuery: "times,square,newyork",
     photoSeeds: [901, 902, 903, 904],
@@ -95,8 +95,8 @@ export const LEVELS: Level[] = [
   {
     id: 10,
     name: "Petra, Jordan",
-    answer: "Petra",
-    acceptedAnswers: ["petra", "jordan"],
+    answer: "Jordan",
+    acceptedAnswers: ["jordan"],
     continent: "Asia",
     photoQuery: "petra,jordan,treasury",
     photoSeeds: [1001, 1002, 1003, 1004],
@@ -114,8 +114,5 @@ export function normalize(s: string) {
 export function isCorrect(input: string, level: Level) {
   const n = normalize(input);
   if (!n) return false;
-  return level.acceptedAnswers.some((a) => {
-    const na = normalize(a);
-    return n === na || n.includes(na) || na.includes(n);
-  });
+  return level.acceptedAnswers.some((a) => normalize(a) === n);
 }
