@@ -11,8 +11,8 @@ export type Track = {
   flag: string;
   description: string;
   laps: number;
-  region?: string;
-  stages?: TrackStage[];
+  region: string;
+  stages: TrackStage[];
 };
 
 export const TRACKS: Track[] = [
