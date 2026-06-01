@@ -41,39 +41,83 @@ type Racer = {
   finishedAt?: number;
 };
 
-const TRACK_LENGTH = 8000; // total distance to finish
 const SEG_LEN = 200;
-const ROAD_W = 2000;
-const DRAW_DIST = 120; // segments to draw ahead
+const ROAD_W = 1600;
+const DRAW_DIST = 120;
 const CAM_HEIGHT = 1000;
 const CAM_DEPTH = 0.84;
 
-type Seg = { index: number; curve: number; y: number; worldZ: number };
-function buildSegments(): Seg[] {
+type Seg = { index: number; curve: number; y: number; worldZ: number; sector: number; label?: string };
+
+// Monaco-inspired F1 layout: scripted sequence of corners.
+// Each entry: [length-in-segments, curve-magnitude, hill-delta, label?]
+// Positive curve = right turn, negative = left.
+const MONACO_SCRIPT: Array<[number, number, number, string?]> = [
+  [50, 0, 0, "Start / Finish"],
+  [22, 2.4, 60, "T1 Sainte Devote"],
+  [45, -0.4, 320, "Beau Rivage"],
+  [16, -2.0, 80, "T3 Massenet"],
+  [10, 0, 0, "Casino Sq"],
+  [16, 2.2, -40, "T5 Casino"],
+  [25, 0.2, -180, "Mirabeau App"],
+  [14, 2.6, -120, "T6 Mirabeau Haute"],
+  [10, 0, -80, ""],
+  [20, 4.5, -160, "T8 Loews Hairpin"],
+  [10, 0, -80, ""],
+  [14, 2.4, -120, "T10 Mirabeau Bas"],
+  [12, 2.2, -60, "T11 Portier"],
+  [50, -0.6, 0, "Tunnel"],
+  [30, 0.8, 80, "Tunnel Exit"],
+  [10, -2.4, 0, "T12 Nouvelle L"],
+  [10, 2.4, 0, "T13 Nouvelle R"],
+  [25, 0, 0, ""],
+  [12, -2.0, 0, "T14 Tabac"],
+  [10, 1.6, 0, "Pool L"],
+  [10, -1.6, 0, "Pool R"],
+  [10, 1.6, 0, "Pool L"],
+  [10, -1.6, 0, "T17 Pool Exit"],
+  [12, 2.0, 0, "T18 Rascasse"],
+  [12, 2.4, 0, "T19 A. Noghes"],
+  [60, 0, 0, "Pit Straight"],
+];
+
+function buildSegments(): { segments: Seg[]; total: number } {
   const segs: Seg[] = [];
-  const total = Math.ceil(TRACK_LENGTH / SEG_LEN) + 200;
-  let curve = 0;
-  let curveTarget = 0;
-  let curveLeft = 0;
   let y = 0;
-  let yTarget = 0;
-  let yLeft = 0;
-  for (let i = 0; i < total; i++) {
-    if (curveLeft <= 0) {
-      curveTarget = (Math.random() - 0.5) * 6;
-      curveLeft = 40 + Math.floor(Math.random() * 80);
+  let idx = 0;
+  let sector = 1;
+  let totalSegs = 0;
+  MONACO_SCRIPT.forEach((t) => (totalSegs += t[0]));
+  const sector2 = Math.floor(totalSegs / 3);
+  const sector3 = Math.floor((totalSegs * 2) / 3);
+
+  for (const [len, curveMag, hill, label] of MONACO_SCRIPT) {
+    const yDelta = hill / Math.max(1, len);
+    for (let i = 0; i < len; i++) {
+      // ease-in/out curve through corner
+      const t = i / Math.max(1, len - 1);
+      const ease = Math.sin(t * Math.PI);
+      const curve = curveMag * ease;
+      y += yDelta;
+      if (idx === sector2) sector = 2;
+      if (idx === sector3) sector = 3;
+      segs.push({
+        index: idx,
+        curve,
+        y,
+        worldZ: idx * SEG_LEN,
+        sector,
+        label: i === 0 && label ? label : undefined,
+      });
+      idx++;
     }
-    if (yLeft <= 0) {
-      yTarget = (Math.random() - 0.5) * 800;
-      yLeft = 60 + Math.floor(Math.random() * 100);
-    }
-    curve += (curveTarget - curve) * 0.04;
-    y += (yTarget - y) * 0.03;
-    curveLeft--;
-    yLeft--;
-    segs.push({ index: i, curve, y, worldZ: i * SEG_LEN });
   }
-  return segs;
+  // Tail buffer so projection doesn't crash near end
+  for (let i = 0; i < 200; i++) {
+    segs.push({ index: idx, curve: 0, y, worldZ: idx * SEG_LEN, sector: 3 });
+    idx++;
+  }
+  return { segments: segs, total: totalSegs };
 }
 
 const AI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#a855f7", "#3b82f6"];
@@ -96,13 +140,15 @@ function ArcadeRacer({
     startedAt: number;
     upgrades: { speed: number; acceleration: number; nitro: number; control: number };
   } | null>(null);
-  const [hud, setHud] = useState({ speed: 0, place: 1, nitro: 1, progress: 0 });
+  const [hud, setHud] = useState({ speed: 0, place: 1, nitro: 1, progress: 0, corner: "Start / Finish", sector: 1 });
 
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const upgrades = readUpgrades();
-    const segments = buildSegments();
+    const built = buildSegments();
+    const segments = built.segments;
+    const TRACK_LENGTH = built.total * SEG_LEN;
     const player: Racer = {
       id: "player",
       name: "You",
@@ -200,8 +246,17 @@ function ArcadeRacer({
       const curve = s.segments[segIdx]?.curve ?? 0;
       player.x -= curve * 0.0025 * (player.speed / 1000) * dt * 60;
 
-      // Off-road slow
-      if (Math.abs(player.x) > 0.95) player.speed *= 1 - 0.6 * dt;
+      // Hard barriers (Monaco walls). Bounce + slow.
+      const WALL = 1.0;
+      if (player.x > WALL) {
+        player.x = WALL;
+        player.speed *= 1 - 1.8 * dt;
+      } else if (player.x < -WALL) {
+        player.x = -WALL;
+        player.speed *= 1 - 1.8 * dt;
+      }
+      // Kerb scrub when very close to edge
+      if (Math.abs(player.x) > 0.9) player.speed *= 1 - 0.25 * dt;
 
       player.z += player.speed * dt;
 
@@ -209,10 +264,16 @@ function ArcadeRacer({
       for (let i = 1; i < s.racers.length; i++) {
         const a = s.racers[i];
         if (a.finishedAt) continue;
+        // AI brakes for sharp corners
+        const aSegIdx = Math.floor(a.z / SEG_LEN) % s.segments.length;
+        const aCurve = Math.abs(s.segments[aSegIdx]?.curve ?? 0);
+        const aTargetSpeed = Math.max(900, 1800 - aCurve * 180) + i * 40;
+        a.speed += (aTargetSpeed - a.speed) * dt * 1.2;
         a.z += a.speed * dt;
         // gentle lane wander + avoid player
-        const targetX = Math.sin(a.z * 0.0008 + i) * 0.6;
+        const targetX = Math.sin(a.z * 0.0008 + i) * 0.55;
         a.x += (targetX - a.x) * dt * 0.8;
+        a.x = Math.max(-0.95, Math.min(0.95, a.x));
         const dz = a.z - player.z;
         if (Math.abs(dz) < 250 && Math.abs(a.x - player.x) < 0.3) {
           a.x += (a.x - player.x > 0 ? 1 : -1) * dt * 1.2;
@@ -303,6 +364,26 @@ function ArcadeRacer({
           ctx.lineTo(p2.sx - p2.sw, p2.sy);
           ctx.lineTo(p2.sx + p2.sw, p2.sy);
           ctx.lineTo(p1.sx + p1.sw, p1.sy);
+          ctx.closePath();
+          ctx.fill();
+          // Concrete barriers (Monaco walls) — drawn as a vertical band hugging the road edge
+          const wallH1 = p1.sw * 0.18;
+          const wallH2 = p2.sw * 0.18;
+          ctx.fillStyle = n % 8 < 4 ? "#d4d4d8" : "#b91c1c";
+          // Left wall
+          ctx.beginPath();
+          ctx.moveTo(p1.sx - p1.sw, p1.sy);
+          ctx.lineTo(p2.sx - p2.sw, p2.sy);
+          ctx.lineTo(p2.sx - p2.sw, p2.sy - wallH2);
+          ctx.lineTo(p1.sx - p1.sw, p1.sy - wallH1);
+          ctx.closePath();
+          ctx.fill();
+          // Right wall
+          ctx.beginPath();
+          ctx.moveTo(p1.sx + p1.sw, p1.sy);
+          ctx.lineTo(p2.sx + p2.sw, p2.sy);
+          ctx.lineTo(p2.sx + p2.sw, p2.sy - wallH2);
+          ctx.lineTo(p1.sx + p1.sw, p1.sy - wallH1);
           ctx.closePath();
           ctx.fill();
           // Rumble strips
@@ -422,11 +503,22 @@ function ArcadeRacer({
       const player = s.racers[0];
       const order = [...s.racers].sort((a, b) => b.z - a.z);
       const place = order.findIndex((r) => r.id === "player") + 1;
+      // Find latest corner label at/behind player
+      const segIdxNow = Math.floor(player.z / SEG_LEN);
+      let corner = hud.corner;
+      let sector = 1;
+      for (let k = segIdxNow; k >= Math.max(0, segIdxNow - 60); k--) {
+        const sg = s.segments[k];
+        if (sg?.label) { corner = sg.label; sector = sg.sector; break; }
+        if (sg) sector = sg.sector;
+      }
       setHud({
         speed: Math.round(player.speed * 0.12),
         place,
         nitro: s.nitro,
         progress: Math.min(100, (player.z / TRACK_LENGTH) * 100),
+        corner,
+        sector,
       });
       raf = requestAnimationFrame(loop);
     }
@@ -447,8 +539,8 @@ function ArcadeRacer({
       <div className="pointer-events-none absolute inset-0 p-3">
         <div className="flex items-start justify-between">
           <div className="rounded-xl border border-border bg-background/60 px-3 py-2 backdrop-blur">
-            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Track</div>
-            <div className="text-sm font-black">{trackName}</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">🇲🇨 Monaco · Sector {hud.sector}</div>
+            <div className="text-sm font-black">{hud.corner}</div>
           </div>
           <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-right backdrop-blur">
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Position</div>
