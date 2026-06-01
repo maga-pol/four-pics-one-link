@@ -194,12 +194,17 @@ function CircuitRace({ laps }: { laps: number }) {
       const right = k["d"] || k["arrowright"];
       const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
 
-      let target = baseSpeed;
+      let target = 0;
       if (accelKey) target = baseSpeed * 1.25;
-      if (brakeKey) target = baseSpeed * 0.3;
-      if (boosting) target = baseSpeed * nitroBoost;
+      if (boosting && accelKey) target = baseSpeed * nitroBoost;
       const da = accel * dt;
-      player.speed += Math.max(-da, Math.min(da, target - player.speed));
+      if (brakeKey) {
+        player.speed -= accel * 1.5 * dt;
+      } else {
+        player.speed += Math.max(-da, Math.min(da, target - player.speed));
+      }
+      // natural friction when no input
+      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.6 * dt;
       if (player.speed < 0) player.speed = 0;
 
       if (boosting) nitro = Math.max(0, nitro - dt * 0.5);
@@ -266,26 +271,27 @@ function CircuitRace({ laps }: { laps: number }) {
     function draw(now: number) {
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
-      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 0.98;
-      const ox = (cssW - WORLD_W * scale) / 2;
-      const oy = (cssH - WORLD_H * scale) / 2;
+      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 2.2;
 
       ctx.fillStyle = "#0b1a2b";
       ctx.fillRect(0, 0, cssW, cssH);
 
       ctx.strokeStyle = "rgba(255,255,255,0.04)";
       ctx.lineWidth = 1;
-      const grid = 40 * scale;
-      for (let x = ox % grid; x < cssW; x += grid) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cssH); ctx.stroke();
-      }
-      for (let y = oy % grid; y < cssH; y += grid) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cssW, y); ctx.stroke();
-      }
+
+      // Third-person camera: center on player, rotate so car faces "up"
+      const player = cars[0];
+      const pp = pathPoint(player.t);
+      const off = player.lane * (ROAD_W / 2 - 14);
+      const pcx = pp.x + (-pp.hy) * off;
+      const pcy = pp.y + (pp.hx) * off;
+      const heading = Math.atan2(pp.hy, pp.hx);
 
       ctx.save();
-      ctx.translate(ox, oy);
+      ctx.translate(cssW / 2, cssH * 0.72);
       ctx.scale(scale, scale);
+      ctx.rotate(-heading - Math.PI / 2);
+      ctx.translate(-pcx, -pcy);
 
       // Grass background
       ctx.fillStyle = "#14532d";
