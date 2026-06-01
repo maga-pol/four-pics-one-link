@@ -366,6 +366,26 @@ function ArcadeRacer({
           ctx.lineTo(p1.sx + p1.sw, p1.sy);
           ctx.closePath();
           ctx.fill();
+          // Concrete barriers (Monaco walls) — drawn as a vertical band hugging the road edge
+          const wallH1 = p1.sw * 0.18;
+          const wallH2 = p2.sw * 0.18;
+          ctx.fillStyle = n % 8 < 4 ? "#d4d4d8" : "#b91c1c";
+          // Left wall
+          ctx.beginPath();
+          ctx.moveTo(p1.sx - p1.sw, p1.sy);
+          ctx.lineTo(p2.sx - p2.sw, p2.sy);
+          ctx.lineTo(p2.sx - p2.sw, p2.sy - wallH2);
+          ctx.lineTo(p1.sx - p1.sw, p1.sy - wallH1);
+          ctx.closePath();
+          ctx.fill();
+          // Right wall
+          ctx.beginPath();
+          ctx.moveTo(p1.sx + p1.sw, p1.sy);
+          ctx.lineTo(p2.sx + p2.sw, p2.sy);
+          ctx.lineTo(p2.sx + p2.sw, p2.sy - wallH2);
+          ctx.lineTo(p1.sx + p1.sw, p1.sy - wallH1);
+          ctx.closePath();
+          ctx.fill();
           // Rumble strips
           const rumW1 = p1.sw * 0.12;
           const rumW2 = p2.sw * 0.12;
