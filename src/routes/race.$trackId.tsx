@@ -41,39 +41,83 @@ type Racer = {
   finishedAt?: number;
 };
 
-const TRACK_LENGTH = 8000; // total distance to finish
 const SEG_LEN = 200;
-const ROAD_W = 2000;
-const DRAW_DIST = 120; // segments to draw ahead
+const ROAD_W = 1600;
+const DRAW_DIST = 120;
 const CAM_HEIGHT = 1000;
 const CAM_DEPTH = 0.84;
 
-type Seg = { index: number; curve: number; y: number; worldZ: number };
-function buildSegments(): Seg[] {
+type Seg = { index: number; curve: number; y: number; worldZ: number; sector: number; label?: string };
+
+// Monaco-inspired F1 layout: scripted sequence of corners.
+// Each entry: [length-in-segments, curve-magnitude, hill-delta, label?]
+// Positive curve = right turn, negative = left.
+const MONACO_SCRIPT: Array<[number, number, number, string?]> = [
+  [50, 0, 0, "Start / Finish"],
+  [22, 2.4, 60, "T1 Sainte Devote"],
+  [45, -0.4, 320, "Beau Rivage"],
+  [16, -2.0, 80, "T3 Massenet"],
+  [10, 0, 0, "Casino Sq"],
+  [16, 2.2, -40, "T5 Casino"],
+  [25, 0.2, -180, "Mirabeau App"],
+  [14, 2.6, -120, "T6 Mirabeau Haute"],
+  [10, 0, -80, ""],
+  [20, 4.5, -160, "T8 Loews Hairpin"],
+  [10, 0, -80, ""],
+  [14, 2.4, -120, "T10 Mirabeau Bas"],
+  [12, 2.2, -60, "T11 Portier"],
+  [50, -0.6, 0, "Tunnel"],
+  [30, 0.8, 80, "Tunnel Exit"],
+  [10, -2.4, 0, "T12 Nouvelle L"],
+  [10, 2.4, 0, "T13 Nouvelle R"],
+  [25, 0, 0, ""],
+  [12, -2.0, 0, "T14 Tabac"],
+  [10, 1.6, 0, "Pool L"],
+  [10, -1.6, 0, "Pool R"],
+  [10, 1.6, 0, "Pool L"],
+  [10, -1.6, 0, "T17 Pool Exit"],
+  [12, 2.0, 0, "T18 Rascasse"],
+  [12, 2.4, 0, "T19 A. Noghes"],
+  [60, 0, 0, "Pit Straight"],
+];
+
+function buildSegments(): { segments: Seg[]; total: number } {
   const segs: Seg[] = [];
-  const total = Math.ceil(TRACK_LENGTH / SEG_LEN) + 200;
-  let curve = 0;
-  let curveTarget = 0;
-  let curveLeft = 0;
   let y = 0;
-  let yTarget = 0;
-  let yLeft = 0;
-  for (let i = 0; i < total; i++) {
-    if (curveLeft <= 0) {
-      curveTarget = (Math.random() - 0.5) * 6;
-      curveLeft = 40 + Math.floor(Math.random() * 80);
+  let idx = 0;
+  let sector = 1;
+  let totalSegs = 0;
+  MONACO_SCRIPT.forEach((t) => (totalSegs += t[0]));
+  const sector2 = Math.floor(totalSegs / 3);
+  const sector3 = Math.floor((totalSegs * 2) / 3);
+
+  for (const [len, curveMag, hill, label] of MONACO_SCRIPT) {
+    const yDelta = hill / Math.max(1, len);
+    for (let i = 0; i < len; i++) {
+      // ease-in/out curve through corner
+      const t = i / Math.max(1, len - 1);
+      const ease = Math.sin(t * Math.PI);
+      const curve = curveMag * ease;
+      y += yDelta;
+      if (idx === sector2) sector = 2;
+      if (idx === sector3) sector = 3;
+      segs.push({
+        index: idx,
+        curve,
+        y,
+        worldZ: idx * SEG_LEN,
+        sector,
+        label: i === 0 && label ? label : undefined,
+      });
+      idx++;
     }
-    if (yLeft <= 0) {
-      yTarget = (Math.random() - 0.5) * 800;
-      yLeft = 60 + Math.floor(Math.random() * 100);
-    }
-    curve += (curveTarget - curve) * 0.04;
-    y += (yTarget - y) * 0.03;
-    curveLeft--;
-    yLeft--;
-    segs.push({ index: i, curve, y, worldZ: i * SEG_LEN });
   }
-  return segs;
+  // Tail buffer so projection doesn't crash near end
+  for (let i = 0; i < 200; i++) {
+    segs.push({ index: idx, curve: 0, y, worldZ: idx * SEG_LEN, sector: 3 });
+    idx++;
+  }
+  return { segments: segs, total: totalSegs };
 }
 
 const AI_COLORS = ["#f43f5e", "#f59e0b", "#10b981", "#a855f7", "#3b82f6"];
