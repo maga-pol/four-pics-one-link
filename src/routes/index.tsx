@@ -61,15 +61,15 @@ function Index() {
           className="mt-12 w-full max-w-sm animate-fade-up"
           style={{ animationDelay: "0.3s" }}
         >
-          <Link
-            to="/game/$level"
-            params={{ level: "1" }}
+          <button
+            type="button"
+            onClick={startGame}
             className="group relative inline-flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-primary px-8 py-5 text-lg font-bold text-primary-foreground shadow-button animate-pulse-glow transition-transform duration-300 hover:scale-[1.03] active:scale-[0.98]"
           >
             <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
             <Play className="h-5 w-5 fill-current" />
             Start Game
-          </Link>
+          </button>
         </div>
 
         <div
