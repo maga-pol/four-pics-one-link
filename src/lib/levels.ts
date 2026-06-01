@@ -114,8 +114,5 @@ export function normalize(s: string) {
 export function isCorrect(input: string, level: Level) {
   const n = normalize(input);
   if (!n) return false;
-  return level.acceptedAnswers.some((a) => {
-    const na = normalize(a);
-    return n === na || n.includes(na) || na.includes(n);
-  });
+  return level.acceptedAnswers.some((a) => normalize(a) === n);
 }
