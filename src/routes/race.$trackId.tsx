@@ -79,16 +79,19 @@ type Car = {
   lap: number;
   speed: number;
   lane: number;
+  x: number;
+  y: number;
+  angle: number;
   finishedAt?: number;
 };
 
-const WORLD_W = 2200;
-const WORLD_H = 1300;
+const WORLD_W = 8800;
+const WORLD_H = 5200;
 const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
-const TRACK_RX = 820;
-const TRACK_RY = 460;
-const ROAD_W = 68;
+const TRACK_RX = 3280;
+const TRACK_RY = 1840;
+const ROAD_W = 120;
 
 function rawPoint(t: number) {
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
@@ -148,19 +151,45 @@ function CircuitRace({ laps }: { laps: number }) {
     const AI_NAMES = ["Bolt", "Comet", "Hawk", "Viper", "Storm"];
     const AI_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4"];
 
+    const startP = pathPoint(0);
+    const startAngle = Math.atan2(startP.hy, startP.hx);
     const cars: Car[] = [
-      { id: "p", name: "You", color: "#22d3ee", isPlayer: true, t: 0, lap: 0, speed: 0, lane: 0 },
-      ...AI_NAMES.map((n, i) => ({
-        id: "ai" + i,
-        name: n,
-        color: AI_COLORS[i],
-        isPlayer: false,
-        t: -0.004 * (i + 1),
-        lap: 0,
-        speed: 0,
-        lane: -0.6 + i * 0.3,
-      } as Car)),
+      {
+        id: "p", name: "You", color: "#22d3ee", isPlayer: true,
+        t: 0, lap: 0, speed: 0, lane: 0,
+        x: startP.x, y: startP.y, angle: startAngle,
+      },
+      ...AI_NAMES.map((n, i) => {
+        const sp = pathPoint(-0.004 * (i + 1));
+        return {
+          id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
+          t: -0.004 * (i + 1), lap: 0, speed: 0, lane: -0.6 + i * 0.3,
+          x: sp.x, y: sp.y, angle: Math.atan2(sp.hy, sp.hx),
+        } as Car;
+      }),
     ];
+
+    function projectToTrack(px: number, py: number, hintT: number) {
+      // local search around hintT for performance
+      let bestT = hintT;
+      let bestD = Infinity;
+      const SAMPLES = 40;
+      const RANGE = 0.06;
+      for (let i = 0; i <= SAMPLES; i++) {
+        const tt = hintT + (i / SAMPLES - 0.5) * 2 * RANGE;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      // fine refine
+      for (let i = -8; i <= 8; i++) {
+        const tt = bestT + (i / 8) * 0.005;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      return { t: bestT, dist: Math.sqrt(bestD) };
+    }
 
     let nitro = nitroCap;
     let last = performance.now();
@@ -194,35 +223,39 @@ function CircuitRace({ laps }: { laps: number }) {
       const right = k["d"] || k["arrowright"];
       const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
 
-      let target = 0;
-      if (accelKey) target = baseSpeed * 1.25;
-      if (boosting && accelKey) target = baseSpeed * nitroBoost;
-      const da = accel * dt;
-      if (brakeKey) {
-        player.speed -= accel * 1.5 * dt;
-      } else {
-        player.speed += Math.max(-da, Math.min(da, target - player.speed));
-      }
-      // natural friction when no input
-      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.6 * dt;
-      if (player.speed < 0) player.speed = 0;
+      // Free-driving physics
+      const maxSpeed = baseSpeed * (boosting ? nitroBoost : 1.4);
+      if (accelKey) player.speed += accel * 0.8 * dt;
+      if (brakeKey) player.speed -= accel * 1.6 * dt;
+      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
+      if (player.speed > maxSpeed) player.speed = maxSpeed;
+      if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
 
-      if (boosting) nitro = Math.max(0, nitro - dt * 0.5);
+      if (boosting && accelKey) nitro = Math.max(0, nitro - dt * 0.5);
       else nitro = Math.min(nitroCap, nitro + dt * 0.15);
 
       const steer = (right ? 1 : 0) - (left ? 1 : 0);
-      player.lane += steer * dt * (1.6 + grip * 0.4);
-      player.lane *= Math.pow(0.6, dt);
-      if (Math.abs(player.lane) > 1) {
-        player.speed *= Math.pow(0.3, dt);
-        player.lane = Math.max(-1.25, Math.min(1.25, player.lane));
-      }
+      const steerStrength = (1.8 + grip * 0.4) * Math.min(1, Math.abs(player.speed) * 6);
+      player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
 
-      player.t += player.speed * dt;
-      if (player.t >= 1) {
-        player.t -= 1;
+      const moveScale = 1200;
+      player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
+      player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // Project to track for lap detection / off-road
+      const proj = projectToTrack(player.x, player.y, player.t);
+      const offRoad = proj.dist > ROAD_W / 2;
+      if (offRoad) player.speed *= Math.pow(0.15, dt); // grass slows
+
+      const prevT = player.t;
+      player.t = proj.t;
+      // detect lap crossing (forward wrap)
+      if (prevT > 0.85 && proj.t < 0.15) {
         player.lap += 1;
         if (player.lap >= laps && !player.finishedAt) player.finishedAt = now;
+      } else if (prevT < 0.15 && proj.t > 0.85) {
+        // crossed backward
+        player.lap = Math.max(0, player.lap - 1);
       }
 
       for (let i = 1; i < cars.length; i++) {
@@ -238,6 +271,11 @@ function CircuitRace({ laps }: { laps: number }) {
           c.lap += 1;
           if (c.lap >= laps && !c.finishedAt) c.finishedAt = now;
         }
+        const pp = pathPoint(c.t);
+        const aoff = c.lane * (ROAD_W / 2 - 14);
+        c.x = pp.x + (-pp.hy) * aoff;
+        c.y = pp.y + (pp.hx) * aoff;
+        c.angle = Math.atan2(pp.hy, pp.hx);
       }
 
       draw(now);
@@ -271,7 +309,7 @@ function CircuitRace({ laps }: { laps: number }) {
     function draw(now: number) {
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
-      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 2.2;
+      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 9;
 
       ctx.fillStyle = "#0b1a2b";
       ctx.fillRect(0, 0, cssW, cssH);
@@ -281,11 +319,9 @@ function CircuitRace({ laps }: { laps: number }) {
 
       // Third-person camera: center on player, rotate so car faces "up"
       const player = cars[0];
-      const pp = pathPoint(player.t);
-      const off = player.lane * (ROAD_W / 2 - 14);
-      const pcx = pp.x + (-pp.hy) * off;
-      const pcy = pp.y + (pp.hx) * off;
-      const heading = Math.atan2(pp.hy, pp.hx);
+      const pcx = player.x;
+      const pcy = player.y;
+      const heading = player.angle;
 
       ctx.save();
       ctx.translate(cssW / 2, cssH * 0.72);
@@ -298,7 +334,7 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
       // Build path once
-      const PN = 360;
+      const PN = 720;
       ctx.beginPath();
       for (let i = 0; i <= PN; i++) {
         const p = pathPoint(i / PN);
@@ -327,7 +363,7 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.lineWidth = 3;
       ctx.setLineDash([18, 18]);
       ctx.beginPath();
-      const N = 240;
+      const N = 480;
       for (let i = 0; i <= N; i++) {
         const p = pathPoint(i / N);
         if (i === 0) ctx.moveTo(p.x, p.y);
@@ -349,7 +385,7 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawKerb(offset: number) {
-      const steps = 180;
+      const steps = 600;
       ctx.lineWidth = 6;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
@@ -388,28 +424,22 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawCar(c: Car) {
-      const p = pathPoint(c.t);
-      const off = c.lane * (ROAD_W / 2 - 14);
-      const cx = p.x + (-p.hy) * off;
-      const cy = p.y + (p.hx) * off;
-      const ang = Math.atan2(p.hy, p.hx);
-
       ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(ang);
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.angle);
 
       ctx.fillStyle = "rgba(0,0,0,0.35)";
-      roundRect(-15, -9, 32, 20, 5); ctx.fill();
+      roundRect(-22, -13, 46, 28, 6); ctx.fill();
 
       ctx.fillStyle = c.color;
-      roundRect(-14, -8, 28, 16, 4); ctx.fill();
+      roundRect(-20, -12, 42, 24, 5); ctx.fill();
 
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      roundRect(-3, -5, 9, 10, 2); ctx.fill();
+      roundRect(-4, -8, 14, 16, 3); ctx.fill();
 
       ctx.strokeStyle = c.isPlayer ? "#fff" : "rgba(0,0,0,0.5)";
-      ctx.lineWidth = c.isPlayer ? 2 : 1;
-      roundRect(-14, -8, 28, 16, 4); ctx.stroke();
+      ctx.lineWidth = c.isPlayer ? 2.5 : 1.5;
+      roundRect(-20, -12, 42, 24, 5); ctx.stroke();
 
       ctx.restore();
     }
