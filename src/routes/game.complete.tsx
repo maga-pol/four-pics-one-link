@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Trophy, RotateCcw, Home } from "lucide-react";
+import { resetAndShuffleLevels } from "@/lib/levels";
 
 const STORAGE_KEY = "gtc-progress";
 
