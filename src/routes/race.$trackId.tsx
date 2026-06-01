@@ -82,18 +82,18 @@ type Car = {
   finishedAt?: number;
 };
 
-const WORLD_W = 1100;
-const WORLD_H = 650;
+const WORLD_W = 2200;
+const WORLD_H = 1300;
 const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
-const TRACK_RX = 380;
-const TRACK_RY = 190;
+const TRACK_RX = 820;
+const TRACK_RY = 460;
 const ROAD_W = 68;
 
 function rawPoint(t: number) {
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
-  const rx = TRACK_RX + Math.sin(a * 3) * 70 + Math.cos(a * 2) * 30;
-  const ry = TRACK_RY + Math.cos(a * 3) * 60 + Math.sin(a * 5) * 22;
+  const rx = TRACK_RX + Math.sin(a * 3) * 140 + Math.cos(a * 2) * 70 + Math.sin(a * 5) * 40;
+  const ry = TRACK_RY + Math.cos(a * 3) * 120 + Math.sin(a * 5) * 50 + Math.cos(a * 7) * 30;
   return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
 }
 
