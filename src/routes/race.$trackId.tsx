@@ -146,7 +146,9 @@ function ArcadeRacer({
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const upgrades = readUpgrades();
-    const segments = buildSegments();
+    const built = buildSegments();
+    const segments = built.segments;
+    const TRACK_LENGTH = built.total * SEG_LEN;
     const player: Racer = {
       id: "player",
       name: "You",
@@ -244,8 +246,17 @@ function ArcadeRacer({
       const curve = s.segments[segIdx]?.curve ?? 0;
       player.x -= curve * 0.0025 * (player.speed / 1000) * dt * 60;
 
-      // Off-road slow
-      if (Math.abs(player.x) > 0.95) player.speed *= 1 - 0.6 * dt;
+      // Hard barriers (Monaco walls). Bounce + slow.
+      const WALL = 1.0;
+      if (player.x > WALL) {
+        player.x = WALL;
+        player.speed *= 1 - 1.8 * dt;
+      } else if (player.x < -WALL) {
+        player.x = -WALL;
+        player.speed *= 1 - 1.8 * dt;
+      }
+      // Kerb scrub when very close to edge
+      if (Math.abs(player.x) > 0.9) player.speed *= 1 - 0.25 * dt;
 
       player.z += player.speed * dt;
 
@@ -253,10 +264,16 @@ function ArcadeRacer({
       for (let i = 1; i < s.racers.length; i++) {
         const a = s.racers[i];
         if (a.finishedAt) continue;
+        // AI brakes for sharp corners
+        const aSegIdx = Math.floor(a.z / SEG_LEN) % s.segments.length;
+        const aCurve = Math.abs(s.segments[aSegIdx]?.curve ?? 0);
+        const aTargetSpeed = Math.max(900, 1800 - aCurve * 180) + i * 40;
+        a.speed += (aTargetSpeed - a.speed) * dt * 1.2;
         a.z += a.speed * dt;
         // gentle lane wander + avoid player
-        const targetX = Math.sin(a.z * 0.0008 + i) * 0.6;
+        const targetX = Math.sin(a.z * 0.0008 + i) * 0.55;
         a.x += (targetX - a.x) * dt * 0.8;
+        a.x = Math.max(-0.95, Math.min(0.95, a.x));
         const dz = a.z - player.z;
         if (Math.abs(dz) < 250 && Math.abs(a.x - player.x) < 0.3) {
           a.x += (a.x - player.x > 0 ? 1 : -1) * dt * 1.2;
