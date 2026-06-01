@@ -125,6 +125,11 @@ function pathPoint(t: number) {
 }
 
 function CircuitRace({ laps }: { laps: number }) {
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = (s - m * 60);
+    return `${m}:${sec.toFixed(2).padStart(5, "0")}`;
+  };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
