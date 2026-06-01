@@ -15,6 +15,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const navigate = useNavigate();
+
+  function startGame() {
+    resetAndShuffleLevels();
+    navigate({ to: "/game/$level", params: { level: "1" } });
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <NeuralBackground />
