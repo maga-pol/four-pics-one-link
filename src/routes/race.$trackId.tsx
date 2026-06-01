@@ -495,6 +495,46 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawStartLine() {
+      // placeholder anchor (drawStartLine remains below)
+      void 0;
+    }
+    function _unused_anchor() {}
+
+    function drawDecor(d: { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number }) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      if (d.kind === "tree") {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(2, 4, d.size * 0.9, d.size * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#5b3a1e";
+        ctx.fillRect(-d.size * 0.12, -d.size * 0.1, d.size * 0.24, d.size * 0.5);
+        ctx.fillStyle = "#166534";
+        ctx.beginPath(); ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#22c55e";
+        ctx.beginPath(); ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "rock") {
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.beginPath(); ctx.ellipse(2, 3, d.size * 0.7, d.size * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#6b7280";
+        ctx.beginPath(); ctx.arc(0, 0, d.size * 0.55, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#9ca3af";
+        ctx.beginPath(); ctx.arc(-d.size * 0.15, -d.size * 0.15, d.size * 0.25, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // flag
+        ctx.fillStyle = "#9ca3af";
+        ctx.fillRect(-1, -d.size, 2, d.size);
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.moveTo(1, -d.size);
+        ctx.lineTo(d.size * 0.9, -d.size * 0.7);
+        ctx.lineTo(1, -d.size * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawStartLineReal() {
       const p = pathPoint(0);
       ctx.save();
       ctx.translate(p.x, p.y);
