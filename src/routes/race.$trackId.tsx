@@ -322,7 +322,7 @@ function CircuitRace({ laps }: { laps: number }) {
       else nitro = Math.min(nitroCap, nitro + dt * 0.15);
 
       const steer = (right ? 1 : 0) - (left ? 1 : 0);
-      const steerStrength = (3.4 + grip * 0.6) * Math.min(1, Math.abs(player.speed) * 6);
+      const steerStrength = (1.6 + grip * 0.3) * Math.min(1, Math.abs(player.speed) * 6);
       player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
 
       const moveScale = 1200;
