@@ -140,7 +140,7 @@ function ArcadeRacer({
     startedAt: number;
     upgrades: { speed: number; acceleration: number; nitro: number; control: number };
   } | null>(null);
-  const [hud, setHud] = useState({ speed: 0, place: 1, nitro: 1, progress: 0 });
+  const [hud, setHud] = useState({ speed: 0, place: 1, nitro: 1, progress: 0, corner: "Start / Finish", sector: 1 });
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -503,11 +503,22 @@ function ArcadeRacer({
       const player = s.racers[0];
       const order = [...s.racers].sort((a, b) => b.z - a.z);
       const place = order.findIndex((r) => r.id === "player") + 1;
+      // Find latest corner label at/behind player
+      const segIdxNow = Math.floor(player.z / SEG_LEN);
+      let corner = hud.corner;
+      let sector = 1;
+      for (let k = segIdxNow; k >= Math.max(0, segIdxNow - 60); k--) {
+        const sg = s.segments[k];
+        if (sg?.label) { corner = sg.label; sector = sg.sector; break; }
+        if (sg) sector = sg.sector;
+      }
       setHud({
         speed: Math.round(player.speed * 0.12),
         place,
         nitro: s.nitro,
         progress: Math.min(100, (player.z / TRACK_LENGTH) * 100),
+        corner,
+        sector,
       });
       raf = requestAnimationFrame(loop);
     }
