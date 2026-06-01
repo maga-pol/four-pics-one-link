@@ -370,8 +370,6 @@ function ArcadeRacer({
       }
     }
 
-    function drawQuad(_c: CanvasRenderingContext2D, _a:number,_b:number,_d:number,_e:number,_f:number,_g:number,_h:number,_i:number,_col:string){}
-
     function drawCar(c: CanvasRenderingContext2D, x: number, y: number, w: number, color: string, isPlayer = false) {
       const h = w * 0.55;
       c.save();
