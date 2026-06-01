@@ -77,13 +77,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Guess The Connection — 4 images, 1 connection" },
+      { title: "Race Quiz" },
       { name: "description", content: "A minimalist puzzle game. See 4 images, find the one connection. Train your mind, one puzzle at a time." },
-      { property: "og:title", content: "Guess The Connection" },
-      { property: "og:description", content: "4 images. 1 connection. Can you find it?" },
+      { property: "og:title", content: "Race Quiz" },
+      { property: "og:description", content: "A minimalist puzzle game. See 4 images, find the one connection. Train your mind, one puzzle at a time." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Race Quiz" },
+      { name: "twitter:description", content: "A minimalist puzzle game. See 4 images, find the one connection. Train your mind, one puzzle at a time." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/3K1WmAp0yGMvMmtSrgDgr4HbvrS2/social-images/social-1780305945971-ChatGPT_Image_1_июн._2026_г.,_14_25_30.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/3K1WmAp0yGMvMmtSrgDgr4HbvrS2/social-images/social-1780305945971-ChatGPT_Image_1_июн._2026_г.,_14_25_30.webp" },
     ],
     links: [
       {
