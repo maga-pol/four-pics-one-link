@@ -142,7 +142,7 @@ function CircuitRace({ laps }: { laps: number }) {
     ro.observe(wrap);
 
     const up = readUpgrades();
-    const baseSpeed = 0.10 + up.speed * 0.012;
+    const baseSpeed = 0.22 + up.speed * 0.020;
     const accel = 0.18 + up.acceleration * 0.04;
     const grip = 0.6 + up.control * 0.08;
     const nitroCap = 1 + up.nitro * 0.25;
