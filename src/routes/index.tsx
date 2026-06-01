@@ -337,6 +337,67 @@ function HomeHUD() {
               <Flag className="h-3.5 w-3.5 text-neon" />
             </div>
             <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+              {/* Featured starter route */}
+              <div className="relative overflow-hidden rounded-xl border border-primary/50 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent p-3 shadow-glow">
+                <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/30 blur-2xl" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🇪🇺</span>
+                    <div>
+                      <div className="text-xs font-black">Europe Route</div>
+                      <div className="text-[10px] uppercase tracking-wider text-neon">Starter · Active</div>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300">
+                    Live
+                  </span>
+                </div>
+
+                {/* Stage track with dots */}
+                <div className="relative mt-3">
+                  <div className="absolute left-2 right-2 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border" />
+                  <div className="absolute left-2 top-1/2 h-0.5 w-[12%] -translate-y-1/2 rounded-full bg-gradient-to-r from-neon to-primary" />
+                  <div className="relative flex items-center justify-between">
+                    {[
+                      { city: "Paris", active: true },
+                      { city: "Rome", active: false },
+                      { city: "Athens", active: false },
+                      { city: "Berlin", active: false },
+                      { city: "Madrid", active: false },
+                    ].map((p, i) => (
+                      <div key={p.city} className="flex flex-col items-center gap-1">
+                        <div
+                          className={`grid h-5 w-5 place-items-center rounded-full border-2 text-[9px] font-black ${
+                            p.active
+                              ? "border-neon bg-neon text-background animate-pulse-glow"
+                              : i === 0
+                              ? "border-primary bg-primary/30 text-foreground"
+                              : "border-border bg-background text-muted-foreground"
+                          }`}
+                        >
+                          {i + 1}
+                        </div>
+                        <span className={`text-[8px] uppercase tracking-wider ${p.active ? "text-foreground font-bold" : "text-muted-foreground"}`}>
+                          {p.city}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">
+                    Progress · <span className="font-bold text-foreground">1 / 5</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-lg bg-gradient-primary px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary-foreground shadow-button transition hover:scale-[1.03]"
+                  >
+                    Drive <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
               {tracks.map((t, i) => {
                 const unlocked = i < state.unlockedTracks;
                 const isNext = i === state.unlockedTracks;
