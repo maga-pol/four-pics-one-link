@@ -494,12 +494,6 @@ function CircuitRace({ laps }: { laps: number }) {
       }
     }
 
-    function drawStartLine() {
-      // placeholder anchor (drawStartLine remains below)
-      void 0;
-    }
-    function _unused_anchor() {}
-
     function drawDecor(d: { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number }) {
       ctx.save();
       ctx.translate(d.x, d.y);
@@ -534,7 +528,7 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.restore();
     }
 
-    function drawStartLineReal() {
+    function drawStartLine() {
       const p = pathPoint(0);
       ctx.save();
       ctx.translate(p.x, p.y);
