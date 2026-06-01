@@ -287,15 +287,29 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.translate(ox, oy);
       ctx.scale(scale, scale);
 
-      // Grass infield
+      // Grass background
       ctx.fillStyle = "#14532d";
-      roundRect(TRACK_CX - TRACK_RX, TRACK_CY - TRACK_RY, TRACK_RX * 2, TRACK_RY * 2, TRACK_RY);
-      ctx.fill();
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
+      // Build path once
+      const PN = 360;
+      ctx.beginPath();
+      for (let i = 0; i <= PN; i++) {
+        const p = pathPoint(i / PN);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+
+      // Road shoulder
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = ROAD_W + 10;
+      ctx.stroke();
       // Road
       ctx.strokeStyle = "#2a2a35";
       ctx.lineWidth = ROAD_W;
-      roundRect(TRACK_CX - TRACK_RX, TRACK_CY - TRACK_RY, TRACK_RX * 2, TRACK_RY * 2, TRACK_RY);
       ctx.stroke();
 
       // Kerbs (outer + inner)
