@@ -343,7 +343,7 @@ function CircuitRace({ laps }: { laps: number }) {
     }
 
     function drawKerb(offset: number) {
-      const steps = 60;
+      const steps = 180;
       ctx.lineWidth = 6;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
