@@ -309,7 +309,7 @@ function CircuitRace({ laps }: { laps: number }) {
     function draw(now: number) {
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
-      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 2.2;
+      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 9;
 
       ctx.fillStyle = "#0b1a2b";
       ctx.fillRect(0, 0, cssW, cssH);
@@ -429,17 +429,17 @@ function CircuitRace({ laps }: { laps: number }) {
       ctx.rotate(c.angle);
 
       ctx.fillStyle = "rgba(0,0,0,0.35)";
-      roundRect(-15, -9, 32, 20, 5); ctx.fill();
+      roundRect(-22, -13, 46, 28, 6); ctx.fill();
 
       ctx.fillStyle = c.color;
-      roundRect(-14, -8, 28, 16, 4); ctx.fill();
+      roundRect(-20, -12, 42, 24, 5); ctx.fill();
 
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      roundRect(-3, -5, 9, 10, 2); ctx.fill();
+      roundRect(-4, -8, 14, 16, 3); ctx.fill();
 
       ctx.strokeStyle = c.isPlayer ? "#fff" : "rgba(0,0,0,0.5)";
-      ctx.lineWidth = c.isPlayer ? 2 : 1;
-      roundRect(-14, -8, 28, 16, 4); ctx.stroke();
+      ctx.lineWidth = c.isPlayer ? 2.5 : 1.5;
+      roundRect(-20, -12, 42, 24, 5); ctx.stroke();
 
       ctx.restore();
     }
