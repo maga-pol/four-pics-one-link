@@ -376,7 +376,7 @@ function CircuitRace({ laps }: { laps: number }) {
         pos,
         total: cars.length,
         nitro: nitro / nitroCap,
-        elapsed: ((player.finishedAt ?? now) - startedAt) / 1000,
+        elapsed: Math.max(0, ((player.finishedAt ?? now) - startedAt - COUNTDOWN_MS) / 1000),
         lapProgress: player.lap >= laps ? 1 : player.t,
       });
 
@@ -462,6 +462,9 @@ function CircuitRace({ laps }: { laps: number }) {
 
       // Start/finish checkered line
       drawStartLine();
+
+      // Decorations
+      for (const d of decor) drawDecor(d);
 
       // Cars (sorted so leader on top)
       const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
