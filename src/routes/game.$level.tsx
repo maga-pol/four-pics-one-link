@@ -132,9 +132,9 @@ function GamePage() {
 
         {/* Photos */}
         <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3">
-          {level.photoSeeds.map((seed, i) => (
+          {seeds.map((seed, i) => (
             <PhotoCard
-              key={seed}
+              key={`${levelNum}-${seed}-${i}`}
               url={getPhotoUrl(level.photoQuery, seed)}
               index={i}
             />
