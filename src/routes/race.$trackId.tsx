@@ -191,6 +191,19 @@ function CircuitRace({ laps }: { laps: number }) {
       return { t: bestT, dist: Math.sqrt(bestD) };
     }
 
+    // Approximate track perimeter so AI t-rate matches player's world speed
+    let perimeter = 0;
+    {
+      let prev = rawPoint(0);
+      for (let i = 1; i <= 600; i++) {
+        const p = rawPoint(i / 600);
+        perimeter += Math.hypot(p.x - prev.x, p.y - prev.y);
+        prev = p;
+      }
+    }
+    const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
+    const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
+
     let nitro = nitroCap;
     let last = performance.now();
     const startedAt = performance.now();
@@ -261,7 +274,7 @@ function CircuitRace({ laps }: { laps: number }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        const desired = baseSpeed * (0.92 + i * 0.02);
+        const desired = AI_TOP_T * (0.92 + i * 0.025);
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
         c.lane += Math.sin(now / 600 + i) * dt * 0.2;
         c.lane = Math.max(-0.8, Math.min(0.8, c.lane));
