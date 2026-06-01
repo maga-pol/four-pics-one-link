@@ -128,7 +128,7 @@ function CircuitRace({ laps }: { laps: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
-  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1 });
+  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
   const [result, setResult] = useState<{ rank: number; reward: number } | null>(null);
 
   useEffect(() => {
@@ -175,6 +175,7 @@ function CircuitRace({ laps }: { laps: number }) {
 
     let nitro = nitroCap;
     let last = performance.now();
+    const startedAt = performance.now();
     let raf = 0;
     let running = true;
     let finished = false;
@@ -256,6 +257,8 @@ function CircuitRace({ laps }: { laps: number }) {
         pos,
         total: cars.length,
         nitro: nitro / nitroCap,
+        elapsed: ((player.finishedAt ?? now) - startedAt) / 1000,
+        lapProgress: player.lap >= laps ? 1 : player.t,
       });
 
       if (player.finishedAt && !finished) {
