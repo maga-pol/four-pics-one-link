@@ -79,15 +79,18 @@ type Car = {
   lap: number;
   speed: number;
   lane: number;
+  x: number;
+  y: number;
+  angle: number;
   finishedAt?: number;
 };
 
-const WORLD_W = 2200;
-const WORLD_H = 1300;
+const WORLD_W = 8800;
+const WORLD_H = 5200;
 const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
-const TRACK_RX = 820;
-const TRACK_RY = 460;
+const TRACK_RX = 3280;
+const TRACK_RY = 1840;
 const ROAD_W = 68;
 
 function rawPoint(t: number) {
