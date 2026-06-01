@@ -9,13 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RaceTrackIdRouteImport } from './routes/race.$trackId'
 import { Route as GameCompleteRouteImport } from './routes/game.complete'
 import { Route as GameLevelRouteImport } from './routes/game.$level'
 
+const QuizRoute = QuizRouteImport.update({
+  id: '/quiz',
+  path: '/quiz',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RaceTrackIdRoute = RaceTrackIdRouteImport.update({
+  id: '/race/$trackId',
+  path: '/race/$trackId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GameCompleteRoute = GameCompleteRouteImport.update({
@@ -31,41 +43,74 @@ const GameLevelRoute = GameLevelRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
+  '/race/$trackId': typeof RaceTrackIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
+  '/race/$trackId': typeof RaceTrackIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
+  '/race/$trackId': typeof RaceTrackIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/game/$level' | '/game/complete'
+  fullPaths:
+    | '/'
+    | '/quiz'
+    | '/game/$level'
+    | '/game/complete'
+    | '/race/$trackId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/game/$level' | '/game/complete'
-  id: '__root__' | '/' | '/game/$level' | '/game/complete'
+  to: '/' | '/quiz' | '/game/$level' | '/game/complete' | '/race/$trackId'
+  id:
+    | '__root__'
+    | '/'
+    | '/quiz'
+    | '/game/$level'
+    | '/game/complete'
+    | '/race/$trackId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  QuizRoute: typeof QuizRoute
   GameLevelRoute: typeof GameLevelRoute
   GameCompleteRoute: typeof GameCompleteRoute
+  RaceTrackIdRoute: typeof RaceTrackIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/quiz': {
+      id: '/quiz'
+      path: '/quiz'
+      fullPath: '/quiz'
+      preLoaderRoute: typeof QuizRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/race/$trackId': {
+      id: '/race/$trackId'
+      path: '/race/$trackId'
+      fullPath: '/race/$trackId'
+      preLoaderRoute: typeof RaceTrackIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/game/complete': {
@@ -87,8 +132,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  QuizRoute: QuizRoute,
   GameLevelRoute: GameLevelRoute,
   GameCompleteRoute: GameCompleteRoute,
+  RaceTrackIdRoute: RaceTrackIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
