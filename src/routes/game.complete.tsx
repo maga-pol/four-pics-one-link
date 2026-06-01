@@ -29,6 +29,7 @@ function CompletePage() {
   }, []);
 
   function restart() {
+    resetAndShuffleLevels();
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ score: 0, streak: 0 }));
     navigate({ to: "/game/$level", params: { level: "1" } });
   }
