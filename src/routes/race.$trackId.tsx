@@ -91,7 +91,7 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 68;
+const ROAD_W = 120;
 
 function rawPoint(t: number) {
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
@@ -151,19 +151,45 @@ function CircuitRace({ laps }: { laps: number }) {
     const AI_NAMES = ["Bolt", "Comet", "Hawk", "Viper", "Storm"];
     const AI_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4"];
 
+    const startP = pathPoint(0);
+    const startAngle = Math.atan2(startP.hy, startP.hx);
     const cars: Car[] = [
-      { id: "p", name: "You", color: "#22d3ee", isPlayer: true, t: 0, lap: 0, speed: 0, lane: 0 },
-      ...AI_NAMES.map((n, i) => ({
-        id: "ai" + i,
-        name: n,
-        color: AI_COLORS[i],
-        isPlayer: false,
-        t: -0.004 * (i + 1),
-        lap: 0,
-        speed: 0,
-        lane: -0.6 + i * 0.3,
-      } as Car)),
+      {
+        id: "p", name: "You", color: "#22d3ee", isPlayer: true,
+        t: 0, lap: 0, speed: 0, lane: 0,
+        x: startP.x, y: startP.y, angle: startAngle,
+      },
+      ...AI_NAMES.map((n, i) => {
+        const sp = pathPoint(-0.004 * (i + 1));
+        return {
+          id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
+          t: -0.004 * (i + 1), lap: 0, speed: 0, lane: -0.6 + i * 0.3,
+          x: sp.x, y: sp.y, angle: Math.atan2(sp.hy, sp.hx),
+        } as Car;
+      }),
     ];
+
+    function projectToTrack(px: number, py: number, hintT: number) {
+      // local search around hintT for performance
+      let bestT = hintT;
+      let bestD = Infinity;
+      const SAMPLES = 40;
+      const RANGE = 0.06;
+      for (let i = 0; i <= SAMPLES; i++) {
+        const tt = hintT + (i / SAMPLES - 0.5) * 2 * RANGE;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      // fine refine
+      for (let i = -8; i <= 8; i++) {
+        const tt = bestT + (i / 8) * 0.005;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      return { t: bestT, dist: Math.sqrt(bestD) };
+    }
 
     let nitro = nitroCap;
     let last = performance.now();
@@ -197,35 +223,39 @@ function CircuitRace({ laps }: { laps: number }) {
       const right = k["d"] || k["arrowright"];
       const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
 
-      let target = 0;
-      if (accelKey) target = baseSpeed * 1.25;
-      if (boosting && accelKey) target = baseSpeed * nitroBoost;
-      const da = accel * dt;
-      if (brakeKey) {
-        player.speed -= accel * 1.5 * dt;
-      } else {
-        player.speed += Math.max(-da, Math.min(da, target - player.speed));
-      }
-      // natural friction when no input
-      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.6 * dt;
-      if (player.speed < 0) player.speed = 0;
+      // Free-driving physics
+      const maxSpeed = baseSpeed * (boosting ? nitroBoost : 1.4);
+      if (accelKey) player.speed += accel * 0.8 * dt;
+      if (brakeKey) player.speed -= accel * 1.6 * dt;
+      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
+      if (player.speed > maxSpeed) player.speed = maxSpeed;
+      if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
 
-      if (boosting) nitro = Math.max(0, nitro - dt * 0.5);
+      if (boosting && accelKey) nitro = Math.max(0, nitro - dt * 0.5);
       else nitro = Math.min(nitroCap, nitro + dt * 0.15);
 
       const steer = (right ? 1 : 0) - (left ? 1 : 0);
-      player.lane += steer * dt * (1.6 + grip * 0.4);
-      player.lane *= Math.pow(0.6, dt);
-      if (Math.abs(player.lane) > 1) {
-        player.speed *= Math.pow(0.3, dt);
-        player.lane = Math.max(-1.25, Math.min(1.25, player.lane));
-      }
+      const steerStrength = (1.8 + grip * 0.4) * Math.min(1, Math.abs(player.speed) * 6);
+      player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
 
-      player.t += player.speed * dt;
-      if (player.t >= 1) {
-        player.t -= 1;
+      const moveScale = 1200;
+      player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
+      player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // Project to track for lap detection / off-road
+      const proj = projectToTrack(player.x, player.y, player.t);
+      const offRoad = proj.dist > ROAD_W / 2;
+      if (offRoad) player.speed *= Math.pow(0.15, dt); // grass slows
+
+      const prevT = player.t;
+      player.t = proj.t;
+      // detect lap crossing (forward wrap)
+      if (prevT > 0.85 && proj.t < 0.15) {
         player.lap += 1;
         if (player.lap >= laps && !player.finishedAt) player.finishedAt = now;
+      } else if (prevT < 0.15 && proj.t > 0.85) {
+        // crossed backward
+        player.lap = Math.max(0, player.lap - 1);
       }
 
       for (let i = 1; i < cars.length; i++) {
@@ -241,6 +271,11 @@ function CircuitRace({ laps }: { laps: number }) {
           c.lap += 1;
           if (c.lap >= laps && !c.finishedAt) c.finishedAt = now;
         }
+        const pp = pathPoint(c.t);
+        const aoff = c.lane * (ROAD_W / 2 - 14);
+        c.x = pp.x + (-pp.hy) * aoff;
+        c.y = pp.y + (pp.hx) * aoff;
+        c.angle = Math.atan2(pp.hy, pp.hx);
       }
 
       draw(now);
