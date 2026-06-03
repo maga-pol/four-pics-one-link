@@ -1,7 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&family=Manrope:wght@300;400;500;600;700;800&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -151,22 +151,31 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Inter", "PlayStation SST", "sst", Arial, Helvetica, sans-serif;
+    font-family: "Inter", "PlayStation SST", "SST", "Manrope", Arial, Helvetica, sans-serif;
     font-weight: 400;
     letter-spacing: 0.1px;
+    font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Inter", "PlayStation SST", "sst", Arial, Helvetica, sans-serif;
+    font-family: "Inter", "PlayStation SST", "SST", "Manrope", Arial, Helvetica, sans-serif;
     font-weight: 300; /* PlayStation signature airy display weight */
-    letter-spacing: -0.1px;
-    line-height: 1.25;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  h1 { font-weight: 200; letter-spacing: -0.035em; }
+
+  ::selection {
+    background-color: oklch(0.62 0.20 248);
+    color: #fff;
   }
 
   button {
     font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.045em;
+    text-transform: none;
   }
 }
 
@@ -186,6 +195,90 @@
   .bg-gradient-primary { background: var(--gradient-primary); }
   .shadow-glow { box-shadow: var(--shadow-glow); }
   .shadow-button { box-shadow: var(--shadow-button); }
+
+  /* ===== PlayStation-style utilities ===== */
+
+  /* Pill chip — uppercase, fully-rounded, like PS Plus / category badges */
+  .ps-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    background: oklch(0.62 0.20 248 / 0.15);
+    color: oklch(0.85 0.15 240);
+    border: 1px solid oklch(0.62 0.20 248 / 0.4);
+    backdrop-filter: blur(8px);
+  }
+  .ps-chip-solid {
+    background: oklch(0.62 0.20 248);
+    color: #fff;
+    border-color: transparent;
+  }
+  .ps-chip-light {
+    background: rgba(255,255,255,0.92);
+    color: #000;
+    border-color: transparent;
+  }
+
+  /* PS pill CTA — always rounded-full with internal highlight */
+  .ps-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 28px;
+    border-radius: 9999px;
+    font-weight: 700;
+    letter-spacing: 0.045em;
+    background: var(--gradient-primary);
+    color: #fff;
+    box-shadow: var(--shadow-button);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  }
+  .ps-pill:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .ps-pill:active { transform: translateY(0); filter: brightness(0.95); }
+
+  /* Hairline divider — PS uses a 1px line as section break */
+  .ps-hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.18), transparent);
+  }
+
+  /* Ambient PS dot-grid backdrop */
+  .ps-grid-bg {
+    background-image:
+      radial-gradient(oklch(0.62 0.20 248 / 0.12) 1px, transparent 1.5px);
+    background-size: 28px 28px;
+    background-position: 0 0;
+  }
+
+  /* PS controller symbols */
+  @keyframes ps-symbol-float {
+    0%, 100% { transform: translateY(0) rotate(0); opacity: 0.22; }
+    50% { transform: translateY(-14px) rotate(6deg); opacity: 0.4; }
+  }
+  .ps-symbol {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    border: 1.5px solid oklch(0.85 0.15 240 / 0.5);
+    color: oklch(0.85 0.15 240 / 0.7);
+    font-size: 18px;
+    font-weight: 600;
+    animation: ps-symbol-float 7s ease-in-out infinite;
+    pointer-events: none;
+    user-select: none;
+  }
 
   @keyframes float-slow {
     0%, 100% { transform: translate(0, 0) scale(1); }
