@@ -334,19 +334,19 @@ function HeroStat({ icon, label, value, tone, textTone }: {
 
 function FlowChain() {
   const steps = [
-    { emoji: "🧠", label: "Quiz",   tone: "bg-gradient-cyan text-cyan-950" },
-    { emoji: "💰", label: "Coins",  tone: "bg-gradient-coin text-amber-950" },
-    { emoji: "🛠", label: "Upgrade", tone: "bg-gradient-mint text-emerald-950" },
-    { emoji: "🏁", label: "Race",   tone: "bg-gradient-primary text-white" },
+    { emoji: "🧠", label: "Quiz" },
+    { emoji: "💰", label: "Coins" },
+    { emoji: "🛠", label: "Upgrade" },
+    { emoji: "🏁", label: "Race" },
   ];
   return (
-    <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1.5 backdrop-blur">
+    <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 backdrop-blur">
       {steps.map((s, i) => (
         <div key={s.label} className="flex items-center gap-1">
-          <div className={`flex items-center gap-1.5 rounded-full ${s.tone} px-3 py-1.5 text-xs font-extrabold shadow-button`}>
-            <span className="text-base leading-none">{s.emoji}</span> {s.label}
+          <div className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70">
+            <span className="text-xs leading-none">{s.emoji}</span> {s.label}
           </div>
-          {i < steps.length - 1 && <ChevronRight className="h-4 w-4 text-white/40" />}
+          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-white/25" />}
         </div>
       ))}
     </div>
