@@ -557,7 +557,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
-      drifting = !!steer && speedFrac > 0.55;
+      const steeringInput = (right ? 1 : 0) - (left ? 1 : 0);
+      drifting = !!steeringInput && speedFrac > 0.55;
       if (drifting || boosting) {
         // record trail segment
         const dxT = player.x - lastTrailX;
