@@ -141,11 +141,14 @@ function HomeHUD() {
         </header>
 
         {/* HERO */}
-        <section className="relative overflow-hidden rounded-[32px] border border-white/10 shadow-card"
-                 style={{ background: "linear-gradient(180deg, oklch(0.32 0.13 282) 0%, oklch(0.20 0.10 280) 100%)" }}>
+        <section className="relative overflow-hidden rounded-[32px] border shadow-card"
+                 style={{
+                   background: "linear-gradient(135deg, #0a0615 0%, #12082a 55%, #080d25 100%)",
+                   borderColor: "rgba(255,45,85,0.25)",
+                 }}>
           <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/40 blur-[100px]" />
-          <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full bg-secondary/40 blur-[100px]" />
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-[100px]" style={{ background: "rgba(255,45,85,0.45)" }} />
+          <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full blur-[100px]" style={{ background: "rgba(255,107,0,0.40)" }} />
 
           <div className="relative grid gap-6 p-5 pt-7 sm:p-8 sm:pt-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
             {/* LEFT — title + CTA + flow */}
@@ -155,7 +158,7 @@ function HomeHUD() {
                 <span className="text-gradient-title">WORLD QUIZ RACE</span>
               </h1>
               <Link to={`/race/${firstTrack.id}`} className="play-btn mt-1 z-20">
-                <Play className="h-9 w-9 fill-current" /> PLAY NOW
+                <Play className="h-4 w-4 fill-current" /> PLAY NOW
               </Link>
               <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-11 px-5 text-xs">
                 <Brain className="h-4 w-4" /> Play Quiz · earn coins
