@@ -409,4 +409,16 @@
     25%      { transform: translateX(-6px) rotate(-1deg); }
     75%      { transform: translateX(6px)  rotate(1deg); }
   }
+
+  @keyframes hint-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(218,41,28,0.7); transform: scale(1); }
+    50%      { box-shadow: 0 0 0 18px rgba(218,41,28,0); transform: scale(1.04); }
+  }
+  .animate-hint-pulse { animation: hint-pulse 1.6s ease-in-out infinite; }
+
+  @keyframes hint-bounce {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+  .animate-hint-bounce { animation: hint-bounce 1.2s ease-in-out infinite; }
 }
