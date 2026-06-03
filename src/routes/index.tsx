@@ -99,20 +99,17 @@ function HomeHUD() {
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
       {/* Backdrop */}
-      <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-70" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-30" />
-      <div className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-primary/30 blur-[140px] animate-float-slow" />
-      <div className="pointer-events-none absolute -right-40 bottom-0 h-[32rem] w-[32rem] rounded-full bg-secondary/30 blur-[160px] animate-float-slow" style={{ animationDelay: "-7s" }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: "#181818" }} />
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1280px] flex-col gap-4 p-3 sm:p-5">
 
         {/* HEADER */}
-        <header className="flex items-center justify-between gap-3">
+        <header className="flex items-center justify-between gap-3 border-b border-[#303030] pb-4">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-primary shadow-button text-xl animate-wobble">🌍</span>
+            <span className="grid h-10 w-10 place-items-center bg-[#da291c] text-lg">🏁</span>
             <div className="leading-tight">
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-primary-glow">Arcade Edition</div>
-              <div className="text-base font-extrabold sm:text-lg">World Quiz Race</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Scuderia</div>
+              <div className="text-sm font-semibold uppercase tracking-[0.05em] text-white sm:text-base">World Quiz Race</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -122,79 +119,84 @@ function HomeHUD() {
               <button
                 type="button"
                 onClick={() => supabase.auth.signOut()}
-                className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-extrabold text-white shadow-card transition hover:bg-white/15"
+                className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:bg-[#252525]"
                 title={user.user_metadata?.full_name ?? user.email ?? "Account"}
               >
                 {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6 rounded-full" />
+                  <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
                 ) : (
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-primary text-[11px]">
+                  <span className="grid h-6 w-6 place-items-center bg-[#da291c] text-[11px]">
                     {(user.email?.[0] ?? "U").toUpperCase()}
                   </span>
                 )}
                 <LogOut className="h-3.5 w-3.5 opacity-80" />
               </button>
             ) : (
-              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4 text-xs">Sign in</Link>
+              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Sign in</Link>
             )}
           </div>
         </header>
 
         {/* HERO */}
-        <section className="relative overflow-hidden rounded-xl border shadow-card"
-                 style={{
-                   background: "linear-gradient(180deg, #1a1010 0%, #120a0a 100%)",
-                   borderColor: "rgba(255,255,255,0.06)",
-                 }}>
-          <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-[120px]" style={{ background: "rgba(122,26,46,0.25)" }} />
-          <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full blur-[120px]" style={{ background: "rgba(193,127,42,0.15)" }} />
+        <section className="relative overflow-hidden border border-[#303030]"
+                 style={{ background: "#181818" }}>
+          {/* subtle red radial glow behind car */}
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]"
+               style={{ background: "rgba(218,41,28,0.06)" }} />
 
-          <div className="relative grid gap-6 p-5 pt-7 sm:p-8 sm:pt-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
+          <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
             {/* LEFT — title + CTA + flow */}
-            <div className="flex flex-col items-center gap-4 text-center lg:items-start lg:text-left">
-              <span className="ps-chip" style={{ background: "#8b2020", color: "#e8d5b0", borderColor: "transparent" }}>Season 1</span>
-              <h1 className="text-[clamp(2.4rem,6vw,5rem)] font-extrabold leading-[0.9]">
-                <span className="text-gradient-title">WORLD QUIZ RACE</span>
+            <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
+              <span className="inline-flex items-center bg-[#da291c] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.11em] text-white">
+                Season 1
+              </span>
+              <h1 className="font-medium text-white" style={{ fontSize: "clamp(2rem, 5vw, 52px)", letterSpacing: "-1px", lineHeight: 1.05 }}>
+                WORLD QUIZ RACE
               </h1>
-              <Link to={`/race/${firstTrack.id}`} className="play-btn mt-1 z-20">
-                <Play className="h-4 w-4 fill-current" /> PLAY NOW
+              <Link to={`/race/${firstTrack.id}`} className="play-btn z-20">
+                <Play className="h-3.5 w-3.5 fill-current" /> Play Now
               </Link>
-              <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-11 px-5 text-xs">
-                <Brain className="h-4 w-4" /> Play Quiz · earn coins
+              <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
+                <Brain className="h-3.5 w-3.5" /> Play Quiz · earn coins
               </Link>
-              <div className="mt-1 opacity-80">
+              <div className="mt-1">
                 <FlowChain />
               </div>
             </div>
 
             {/* CENTER — car */}
             <div className="relative mx-auto w-full max-w-[420px]">
-              <div className="pointer-events-none absolute inset-x-6 top-1/3 h-32 rounded-[50%] bg-primary/35 blur-3xl" />
-              <div className="pointer-events-none absolute inset-x-10 top-1/2 h-28 rounded-[50%] bg-secondary/35 blur-3xl" />
+              {/* speed lines */}
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 opacity-30">
+                <div className="absolute top-[20%] h-px w-16 -rotate-[8deg] bg-white" />
+                <div className="absolute top-[35%] h-px w-20 -rotate-[6deg] bg-white" />
+                <div className="absolute top-[50%] h-px w-14 -rotate-[10deg] bg-[#da291c]" />
+                <div className="absolute top-[65%] h-px w-20 -rotate-[6deg] bg-white" />
+                <div className="absolute top-[80%] h-px w-16 -rotate-[8deg] bg-white" />
+              </div>
               <Car />
-              <div className="mt-1.5 h-2.5 rounded-full bg-[repeating-linear-gradient(90deg,transparent_0_24px,oklch(0.92_0.18_105/0.85)_24px_42px)] animate-road" />
+              <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
             </div>
 
             {/* RIGHT — stat boxes stacked vertically */}
-            <div className="grid grid-cols-3 gap-2.5 lg:grid-cols-1 lg:gap-3">
-              <HeroStat icon={<Coins className="h-5 w-5" />}  label="Coins"  value={state.coins} tone="bg-gradient-coin"    textTone="text-[#e8d5b0]" />
-              <HeroStat icon={<Trophy className="h-5 w-5" />} label="Wins"   value={state.wins}  tone="bg-gradient-primary" textTone="text-[#e8d5b0]" />
-              <HeroStat icon={<Flag className="h-5 w-5" />}   label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} tone="bg-gradient-cyan" textTone="text-[#e8d5b0]" />
+            <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-2">
+              <HeroStat icon={<Coins  className="h-4 w-4" />} label="Coins"  value={state.coins} bg="#2a1f08" border="#5a4218" accent="#c8a050" />
+              <HeroStat icon={<Trophy className="h-4 w-4" />} label="Wins"   value={state.wins}  bg="#1f0a0a" border="#5a1a1a" accent="#da291c" />
+              <HeroStat icon={<Flag   className="h-4 w-4" />} label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} bg="#080f1f" border="#18305a" accent="#4a7ac8" />
             </div>
           </div>
         </section>
 
         {/* GARAGE */}
         <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="arcade-card p-5">
-            <div className="mb-4 flex items-end justify-between">
+          <div className="arcade-card p-6">
+            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
               <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-secondary">Garage</div>
-                <h2 className="text-2xl font-extrabold">Upgrade your racer</h2>
+                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Garage</div>
+                <h2 className="mt-1 text-xl font-medium text-white" style={{ letterSpacing: "-0.5px" }}>Upgrade your racer</h2>
               </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-coin px-3 py-1.5 text-sm font-extrabold text-amber-950 shadow-button">
-                <Coins className="h-4 w-4" /> {state.coins}
+              <div className="inline-flex items-center gap-1.5 border border-[#5a4218] bg-[#2a1f08] px-3 py-1.5 text-sm font-bold text-[#c8a050]">
+                <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins}</span>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -204,39 +206,37 @@ function HomeHUD() {
                 const cost = max ? 0 : COSTS[lvl];
                 const afford = state.coins >= cost;
                 return (
-                  <div key={u.key} className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.07]">
+                  <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#404040]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className={`grid h-12 w-12 place-items-center rounded-2xl ${u.gradient} text-2xl shadow-button`}>
+                        <span className="grid h-11 w-11 place-items-center bg-[#252525] border border-[#303030] text-xl">
                           {u.emoji}
                         </span>
                         <div>
-                          <div className="text-base font-extrabold leading-tight">{u.label}</div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Lv {lvl} {!max && <span className="text-primary-glow">→ Lv {lvl + 1}</span>}
+                          <div className="text-sm font-bold uppercase tracking-[0.11em] text-white leading-tight">{u.label}</div>
+                          <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
+                            Lv {lvl} {!max && <span className="text-[#da291c]">→ Lv {lvl + 1}</span>}
                           </div>
                         </div>
                       </div>
-                      {max && <span className="rounded-full bg-gradient-coin px-2.5 py-1 text-[10px] font-extrabold text-amber-950">MAX</span>}
+                      {max && <span className="bg-[#da291c] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.11em] text-white">Max</span>}
                     </div>
-                    <div className="mt-3 flex gap-1.5">
-                      {Array.from({ length: MAX_LEVEL }).map((_, i) => (
-                        <div key={i} className={`h-2 flex-1 rounded-full ${i < lvl ? `${u.gradient} shadow-[0_0_8px_currentColor]` : "bg-white/10"}`} />
-                      ))}
+                    <div className="mt-4 h-[3px] bg-[#2a2a2a]">
+                      <div className="h-full bg-[#da291c] transition-all" style={{ width: `${(lvl / MAX_LEVEL) * 100}%` }} />
                     </div>
                     <button
                       type="button"
                       onClick={() => buyUpgrade(u.key)}
                       disabled={max || !afford}
-                      className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-extrabold transition ${
-                        max ? "bg-white/10 text-white/60" :
-                        afford ? "arcade-btn arcade-btn-coin h-auto" :
-                        "arcade-btn-ghost"
+                      className={`mt-4 flex w-full items-center justify-center gap-1.5 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] transition ${
+                        max ? "bg-[#252525] text-[#696969] cursor-not-allowed" :
+                        afford ? "bg-[#da291c] text-white hover:bg-[#b01e0a]" :
+                        "bg-[#1e1e1e] text-[#696969] border border-[#303030] cursor-not-allowed"
                       }`}
                     >
                       {max ? "Maxed out" : (
                         <>
-                          <Wrench className="h-3.5 w-3.5" /> Upgrade · <Coins className="h-3.5 w-3.5" /> {cost}
+                          <Wrench className="h-3.5 w-3.5" /> Upgrade · {cost}
                         </>
                       )}
                     </button>
@@ -247,13 +247,13 @@ function HomeHUD() {
           </div>
 
           {/* TRACKS */}
-          <div className="arcade-card p-5">
-            <div className="mb-4 flex items-end justify-between">
+          <div className="arcade-card p-6">
+            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
               <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Race</div>
-                <h2 className="text-2xl font-extrabold">Tracks</h2>
+                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Race</div>
+                <h2 className="mt-1 text-xl font-medium text-white" style={{ letterSpacing: "-0.5px" }}>Tracks</h2>
               </div>
-              <Flag className="h-5 w-5 text-neon" />
+              <Flag className="h-5 w-5 text-[#969696]" />
             </div>
             <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto pr-1">
               {tracks.map((t, i) => {
@@ -263,34 +263,37 @@ function HomeHUD() {
                     key={t.id}
                     to="/race/$trackId"
                     params={{ trackId: t.id }}
-                    className={`group relative overflow-hidden rounded-2xl border p-4 transition ${
+                    className={`group relative overflow-hidden border p-4 transition ${
                       unlocked
-                        ? "border-primary/40 bg-gradient-to-br from-primary/20 via-secondary/10 to-transparent hover:-translate-y-1 hover:border-primary/70 shadow-card"
-                        : "border-white/10 bg-white/[0.03] opacity-60"
+                        ? "border-[#303030] bg-[#1e1e1e] hover:border-[#da291c]"
+                        : "border-[#252525] bg-[#181818] opacity-50"
                     }`}
                   >
-                    <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/30 blur-2xl" />
                     <div className="flex items-center gap-3">
-                      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-2xl shadow-card">{t.flag}</span>
+                      <span className="grid h-12 w-12 place-items-center border border-[#303030] bg-[#252525] text-2xl">{t.flag}</span>
                       <div className="flex-1">
-                        <div className="text-sm font-extrabold">{t.name}</div>
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-neon">
-                          {unlocked ? "Ready" : "🔒 Locked"} · Laps {t.laps}
+                        <div className="text-sm font-bold uppercase tracking-[0.05em] text-white">{t.name}</div>
+                        <div className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.11em]">
+                          <span className={unlocked ? "text-[#03904a]" : "text-[#696969]"}>
+                            {unlocked ? "● Ready" : "🔒 Locked"}
+                          </span>
+                          <span className="text-[#303030]">·</span>
+                          <span className="text-[#969696]">Laps {t.laps}</span>
                         </div>
                       </div>
                       {unlocked && (
-                        <span className="arcade-btn arcade-btn-coin h-10 px-4 text-xs">
+                        <span className="inline-flex items-center gap-1 bg-[#da291c] px-4 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] text-white transition group-hover:bg-[#b01e0a]">
                           Drive <ChevronRight className="h-3.5 w-3.5" />
                         </span>
                       )}
                     </div>
                     {unlocked && (
-                      <p className="mt-2 text-[11px] leading-relaxed text-white/70">{t.description}</p>
+                      <p className="mt-3 text-[12px] leading-relaxed text-[#969696]">{t.description}</p>
                     )}
                   </Link>
                 );
               })}
-              <div className="rounded-2xl border border-dashed border-white/15 p-4 text-center text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="border border-dashed border-[#303030] p-4 text-center text-[11px] font-bold uppercase tracking-[0.11em] text-[#696969]">
                 <Sparkles className="mx-auto mb-1 h-4 w-4" /> More tracks coming soon
               </div>
             </div>
@@ -304,42 +307,47 @@ function HomeHUD() {
 /* ============== components ============== */
 
 function StatPill({ icon, value, tone }: { icon: React.ReactNode; value: number | string; tone: "gold" | "primary" }) {
-  const bg = tone === "gold" ? "bg-gradient-coin text-amber-950" : "bg-gradient-primary text-white";
+  const cls = tone === "gold"
+    ? "border-[#5a4218] bg-[#2a1f08] text-[#c8a050]"
+    : "border-[#5a1a1a] bg-[#1f0a0a] text-[#da291c]";
   return (
-    <div className={`flex items-center gap-1.5 rounded-full ${bg} px-3 py-2 text-sm font-extrabold shadow-button`}>
+    <div className={`flex items-center gap-1.5 border ${cls} px-3 py-2 text-[13px] font-bold tabular-nums`}>
       {icon}
-      <span className="tabular-nums">{value}</span>
+      <span>{value}</span>
     </div>
   );
 }
 
-function HeroStat({ icon, label, value, tone, textTone }: {
-  icon: React.ReactNode; label: string; value: number | string; tone: string; textTone: string;
+function HeroStat({ icon, label, value, bg, border, accent }: {
+  icon: React.ReactNode; label: string; value: number | string; bg: string; border: string; accent: string;
 }) {
   return (
-    <div className={`relative overflow-hidden rounded-2xl ${tone} ${textTone} p-3 shadow-button`}>
-      <div className="absolute inset-x-0 top-0 h-px bg-white/40" />
-      <div className="flex items-center gap-2 opacity-80">{icon}<span className="text-[10px] font-extrabold uppercase tracking-[0.18em]">{label}</span></div>
-      <div className="mt-1 text-2xl font-extrabold tabular-nums leading-none">{value}</div>
+    <div className="relative overflow-hidden border p-3.5"
+         style={{ background: bg, borderColor: border }}>
+      {/* thin red left border accent */}
+      <div className="absolute inset-y-0 left-0 w-px" style={{ background: "#da291c" }} />
+      <div className="flex items-center gap-2" style={{ color: accent }}>
+        {icon}
+        <span className="text-[11px] font-bold uppercase tracking-[0.11em]">{label}</span>
+      </div>
+      <div className="mt-1.5 text-[28px] font-bold tabular-nums leading-none text-white">{value}</div>
     </div>
   );
 }
 
 function FlowChain() {
   const steps = [
-    { emoji: "🧠", label: "Quiz" },
-    { emoji: "💰", label: "Coins" },
-    { emoji: "🛠", label: "Upgrade" },
-    { emoji: "🏁", label: "Race" },
+    { label: "Quiz" },
+    { label: "Coins" },
+    { label: "Upgrade" },
+    { label: "Race" },
   ];
   return (
-    <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 backdrop-blur">
+    <div className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2">
       {steps.map((s, i) => (
-        <div key={s.label} className="flex items-center gap-1">
-          <div className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70">
-            <span className="text-xs leading-none">{s.emoji}</span> {s.label}
-          </div>
-          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-white/25" />}
+        <div key={s.label} className="flex items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">{s.label}</span>
+          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-[#404040]" />}
         </div>
       ))}
     </div>

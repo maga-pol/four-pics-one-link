@@ -63,44 +63,44 @@
 }
 
 :root {
-  /* Premium Motorsport Design System — paddock at dusk.
-   * Warm-black canvas, muted crimson / amber / slate-blue. */
-  --radius: 0.75rem;
-  --background: oklch(0.10 0.012 35);          /* warm #120a0a */
-  --foreground: oklch(0.92 0.02 70);
-  --card: oklch(0.14 0.014 35);
-  --card-foreground: oklch(0.92 0.02 70);
-  --popover: oklch(0.14 0.014 35);
-  --popover-foreground: oklch(0.92 0.02 70);
-  --primary: oklch(0.38 0.12 18);              /* #7a1a2e deep red */
-  --primary-foreground: oklch(0.96 0.02 70);
-  --primary-glow: oklch(0.45 0.13 22);
-  --secondary: oklch(0.32 0.08 255);           /* #1a3a6b slate blue */
-  --secondary-foreground: oklch(0.92 0.02 70);
-  --neon: oklch(0.72 0.09 75);                 /* muted amber */
-  --gold: oklch(0.72 0.09 75);
-  --muted: oklch(0.16 0.012 35);
-  --muted-foreground: oklch(0.72 0.025 70);    /* #b0a090 warm gray */
-  --accent: oklch(0.32 0.08 255);
-  --accent-foreground: oklch(0.92 0.02 70);
-  --destructive: oklch(0.40 0.12 18);
-  --destructive-foreground: oklch(0.96 0.02 70);
-  --success: oklch(0.50 0.10 145);
-  --border: rgba(255,255,255,0.06);
-  --input: rgba(255,255,255,0.08);
-  --ring: oklch(0.38 0.12 18);
-  --gradient-title:   linear-gradient(120deg, #e8d5b0 0%, #d4b886 60%, #c9a76b 100%);
-  --gradient-primary: linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
-  --gradient-play:    linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
-  --gradient-cyan:    linear-gradient(135deg, #1a3a6b 0%, #152d54 100%);
-  --gradient-mint:    linear-gradient(135deg, #1a3a6b 0%, #152d54 100%);
-  --gradient-coin:    linear-gradient(135deg, #c17f2a 0%, #a66820 100%);
-  --gradient-fire:    linear-gradient(135deg, #9a6a10 0%, #7a5008 100%);
-  --gradient-hero:    linear-gradient(180deg, #120a0a 0%, #0d0808 100%);
-  --shadow-glow:   0 8px 24px rgba(0,0,0,0.5);
-  --shadow-cyan:   0 8px 24px rgba(0,0,0,0.5);
-  --shadow-button: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
-  --shadow-card:   0 8px 24px rgba(0,0,0,0.5);
+  /* Ferrari-inspired cinematic racing design system.
+   * Dark F1 garage at night — Rosso Corsa accent, carbon hairlines. */
+  --radius: 0;
+  --background: oklch(0.20 0.003 50);          /* #181818 warm near-black */
+  --foreground: oklch(1 0 0);                  /* #ffffff */
+  --card: oklch(0.23 0.003 50);                /* #1e1e1e */
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.23 0.003 50);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.55 0.21 28);              /* #da291c Rosso Corsa */
+  --primary-foreground: oklch(1 0 0);
+  --primary-glow: oklch(0.55 0.21 28);
+  --secondary: oklch(0.28 0.003 50);           /* #252525 elevated */
+  --secondary-foreground: oklch(1 0 0);
+  --neon: oklch(0.71 0.10 80);                 /* #c8a050 gold */
+  --gold: oklch(0.71 0.10 80);
+  --muted: oklch(0.23 0.003 50);
+  --muted-foreground: oklch(0.65 0 0);         /* #969696 */
+  --accent: oklch(0.55 0.21 28);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.55 0.21 28);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.55 0.14 152);             /* #03904a */
+  --border: #303030;
+  --input: #303030;
+  --ring: oklch(0.55 0.21 28);
+  --gradient-title:   linear-gradient(180deg, #ffffff 0%, #c8c8c8 100%);
+  --gradient-primary: linear-gradient(180deg, #da291c 0%, #b01e0a 100%);
+  --gradient-play:    linear-gradient(180deg, #da291c 0%, #b01e0a 100%);
+  --gradient-cyan:    linear-gradient(180deg, #1e1e1e 0%, #161616 100%);
+  --gradient-mint:    linear-gradient(180deg, #03904a 0%, #02703a 100%);
+  --gradient-coin:    linear-gradient(180deg, #c8a050 0%, #9a7a3a 100%);
+  --gradient-fire:    linear-gradient(180deg, #da291c 0%, #8a1a10 100%);
+  --gradient-hero:    linear-gradient(180deg, #181818 0%, #141414 100%);
+  --shadow-glow:   0 0 0 1px #303030;
+  --shadow-cyan:   0 0 0 1px #303030;
+  --shadow-button: 0 0 0 1px rgba(0,0,0,0.3);
+  --shadow-card:   0 0 0 1px #303030;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -162,7 +162,7 @@
     font-family: "Rajdhani", "Barlow Condensed", system-ui, -apple-system, "Segoe UI", sans-serif;
     font-weight: 500;
     font-size: 16px;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.005em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-image: var(--gradient-hero);
@@ -170,24 +170,25 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Barlow Condensed", "Rajdhani", system-ui, sans-serif;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    font-family: "Rajdhani", "Barlow Condensed", system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     line-height: 1.15;
-    text-transform: uppercase;
+    text-transform: none;
+    color: #ffffff;
   }
-  h1 { font-weight: 700; letter-spacing: 0.02em; }
+  h1 { font-weight: 500; letter-spacing: -0.02em; }
 
   ::selection {
-    background-color: #7a1a2e;
+    background-color: #da291c;
     color: #fff;
   }
 
   button {
     font-family: "Rajdhani", "Barlow Condensed", system-ui, sans-serif;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: none;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 }
 
@@ -204,7 +205,7 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    filter: drop-shadow(0 6px 0 oklch(0.20 0.10 280 / 0.4)) drop-shadow(0 0 24px oklch(0.78 0.26 30 / 0.4));
+    filter: none;
   }
   .text-stroke-dark {
     -webkit-text-stroke: 2px oklch(0.16 0.10 280);
@@ -223,16 +224,14 @@
   /* ===== Arcade card / button system ===== */
   .arcade-card {
     position: relative;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #1a1010 0%, #120a0a 100%);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.06);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    border-radius: 0;
+    background: #181818;
+    box-shadow: none;
+    border: 1px solid #303030;
+    transition: border-color 0.18s ease;
   }
   .arcade-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
-    border-color: rgba(255,255,255,0.10);
+    border-color: #404040;
   }
 
   .arcade-btn {
@@ -240,29 +239,30 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border-radius: 6px;
-    padding: 10px 20px;
+    border-radius: 0;
+    padding: 12px 24px;
     font-family: "Rajdhani", sans-serif;
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.108em;
     text-transform: uppercase;
-    color: #e8d5b0;
-    background: var(--gradient-primary);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
-    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    color: #ffffff;
+    background: #da291c;
+    border: none;
+    transition: background 0.12s ease;
   }
-  .arcade-btn:hover  { transform: translateY(-1px); filter: brightness(1.08); }
-  .arcade-btn:active { transform: translateY(1px); filter: brightness(0.95); }
-  .arcade-btn:disabled { filter: grayscale(0.4) brightness(0.7); cursor: not-allowed; transform: none; }
+  .arcade-btn:hover  { background: #b01e0a; }
+  .arcade-btn:active { background: #8a1606; }
+  .arcade-btn:disabled { background: #252525; color: #696969; cursor: not-allowed; }
 
-  .arcade-btn-cyan { background: var(--gradient-cyan); color: #e8d5b0;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
-  .arcade-btn-mint { background: var(--gradient-mint); color: #e8d5b0;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
-  .arcade-btn-coin { background: var(--gradient-coin); color: #1a0f00;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); }
-  .arcade-btn-ghost { background: rgba(255,255,255,0.04); color: #e8d5b0;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }
+  .arcade-btn-cyan  { background: #1e1e1e; color: #ffffff; border: 1px solid #303030; }
+  .arcade-btn-cyan:hover  { background: #252525; }
+  .arcade-btn-mint  { background: #03904a; color: #ffffff; }
+  .arcade-btn-mint:hover  { background: #027a3d; }
+  .arcade-btn-coin  { background: #da291c; color: #ffffff; }
+  .arcade-btn-coin:hover  { background: #b01e0a; }
+  .arcade-btn-ghost { background: transparent; color: #969696; border: 1px solid #303030; }
+  .arcade-btn-ghost:hover { background: #1e1e1e; color: #ffffff; }
 
   /* ===== PLAY hero button ===== */
   .play-btn {
@@ -271,21 +271,21 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    padding: 10px 28px;
-    border-radius: 9999px;
-    font-family: "Barlow Condensed", "Rajdhani", sans-serif;
+    height: 48px;
+    padding: 14px 32px;
+    border-radius: 0;
+    font-family: "Rajdhani", "Barlow Condensed", sans-serif;
     font-weight: 700;
-    font-size: 16px;
-    letter-spacing: 0.12em;
+    font-size: 13px;
+    letter-spacing: 0.108em;
     text-transform: uppercase;
-    color: #e8d5b0;
-    background: linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10);
-    border: 1px solid rgba(232,213,176,0.12);
-    transition: transform 0.12s ease;
+    color: #ffffff;
+    background: #da291c;
+    border: none;
+    transition: background 0.12s ease;
   }
-  .play-btn:hover  { transform: translateY(-1px); background: linear-gradient(135deg, #8a2238 0%, #6c1428 100%); }
-  .play-btn:active { transform: translateY(1px); background: linear-gradient(135deg, #5c1020 0%, #46101c 100%); }
+  .play-btn:hover  { background: #b01e0a; }
+  .play-btn:active { background: #8a1606; }
 
   /* ===== Legacy compatibility (race screen still uses these) ===== */
   .ps-chip {
