@@ -158,6 +158,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   });
   const [bestTime] = useState<number | null>(() => readBestTime(trackId));
   const [nextTurn, setNextTurn] = useState<{ dir: number; sharp: number }>({ dir: 0, sharp: 0 });
+  const [warning, setWarning] = useState(false);
+  const [spinning, setSpinning] = useState(false);
 
   function toggleMute() {
     const next = !muted;
@@ -200,20 +202,30 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     const startP = pathPoint(0);
     const startAngle = Math.atan2(startP.hy, startP.hx);
+    // ===== EQUAL START — all cars line up at the start line, spread across lanes =====
+    // Player gets center lane; AI fills the other 5 of 6 grid slots, all at t=0.
+    const gridLanes = [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75];
+    const playerLane = gridLanes[2]; // -0.15, just left of center
+    const aiLanes = gridLanes.filter((_, i) => i !== 2);
+    const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
+    const playerOff = startLatOff(playerLane);
     const cars: Car[] = [
       {
         id: "p", name: "You", color: "#22d3ee", isPlayer: true,
-        t: 0, lap: 0, speed: 0, lane: 0,
-        x: startP.x, y: startP.y, angle: startAngle,
+        t: 0, lap: 0, speed: 0, lane: playerLane,
+        x: startP.x + (-startP.hy) * playerOff,
+        y: startP.y + (startP.hx) * playerOff,
+        angle: startAngle,
       },
       ...AI_NAMES.map((n, i) => {
-        const sp = pathPoint(-0.004 * (i + 1));
-        // spread across the 4-lane road
-        const lane = -0.85 + (i % 5) * 0.42;
+        const lane = aiLanes[i] ?? 0;
+        const off = startLatOff(lane);
         return {
           id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
-          t: -0.004 * (i + 1), lap: 0, speed: 0, lane,
-          x: sp.x, y: sp.y, angle: Math.atan2(sp.hy, sp.hx),
+          t: 0, lap: 0, speed: 0, lane,
+          x: startP.x + (-startP.hy) * off,
+          y: startP.y + (startP.hx) * off,
+          angle: startAngle,
         } as Car;
       }),
     ];
@@ -344,6 +356,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let boostUntil = 0;     // ms timestamp until extra boost from pad
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
+    // ===== DANGER CORNERS — hairpins with tighter radius. Spinout if entered >60% max speed =====
+    const DANGER_CORNERS = [0.30, 0.55, 0.80];
+    const SPIN_THRESHOLD = 0.60;
+    const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
+    const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
+    const dangerPos = DANGER_CORNERS.map((t) => {
+      const p = pathPoint(t);
+      return { t, x: p.x, y: p.y, hx: p.hx, hy: p.hy };
+    });
+    const cornerHit = new Set<number>(); // indices currently "in" a corner
+    let spinUntil = 0;
+    let spinAngVel = 0;
+    let lastWarnState = false;
+
     // ===== Particle system (sparks, nitro trail, dust) =====
     type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string };
     const particles: Particle[] = [];
@@ -436,25 +462,98 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const right = k["d"] || k["arrowright"];
       const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
 
+      // ===== SPINOUT — overrides controls =====
+      const isSpinning = spinUntil > now;
+
       // Free-driving physics — nitro adds exactly +15 km/h on top of max
       const NITRO_KMH = 15 / 800; // HUD km/h = speed * 800
       const maxSpeed = baseSpeed * 1.4 + (boosting ? NITRO_KMH : 0);
-      if (accelKey) player.speed += accel * 0.8 * dt;
-      if (brakeKey) player.speed -= accel * 1.6 * dt;
-      if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
+      if (!isSpinning) {
+        if (accelKey) player.speed += accel * 0.8 * dt;
+        if (brakeKey) player.speed -= accel * 1.6 * dt;
+        if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
+      } else {
+        player.speed *= Math.pow(0.25, dt); // hard slow during spin
+      }
       if (player.speed > maxSpeed) player.speed = maxSpeed;
       if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
 
       if (boosting && accelKey) nitro = Math.max(0, nitro - dt * 0.5);
       else nitro = Math.min(nitroCap, nitro + dt * 0.15);
 
-      const steer = (right ? 1 : 0) - (left ? 1 : 0);
-      const steerStrength = (1.6 + grip * 0.3) * Math.min(1, Math.abs(player.speed) * 6);
-      player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
+      if (isSpinning) {
+        player.angle += spinAngVel * dt;
+        spinAngVel *= Math.pow(0.35, dt);
+      } else {
+        const steer = (right ? 1 : 0) - (left ? 1 : 0);
+        const steerStrength = (1.6 + grip * 0.3) * Math.min(1, Math.abs(player.speed) * 6);
+        player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
+      }
 
       const moveScale = 1200;
       player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
       player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // ===== DANGER CORNER detection + spin trigger =====
+      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseSpeed * 1.4);
+      for (let i = 0; i < dangerPos.length; i++) {
+        const cT = dangerPos[i].t;
+        const dT = Math.abs(((player.t - cT + 0.5 + 1) % 1) - 0.5);
+        if (dT < CORNER_HIT_RADIUS) {
+          if (!cornerHit.has(i)) {
+            cornerHit.add(i);
+            if (speedFracNow > SPIN_THRESHOLD && spinUntil < now) {
+              spinUntil = now + 1900;
+              spinAngVel = (Math.random() < 0.5 ? -1 : 1) * Math.PI * 1.6;
+              player.speed *= 0.35;
+              shake = Math.max(shake, 18);
+              playCrash();
+              // Skid marks — burst of dark tire smudges
+              for (let s = 0; s < 24; s++) {
+                spawnParticle(
+                  player.x + (Math.random() - 0.5) * 36,
+                  player.y + (Math.random() - 0.5) * 36,
+                  (Math.random() - 0.5) * 260,
+                  (Math.random() - 0.5) * 260,
+                  s % 2 ? "rgba(40,40,40,0.9)" : "rgba(120,120,120,0.8)",
+                  0.9, 5
+                );
+              }
+              // Long skid trails
+              for (let s = 0; s < 6; s++) {
+                trails.push({
+                  x1: player.x + (Math.random() - 0.5) * 16,
+                  y1: player.y + (Math.random() - 0.5) * 16,
+                  x2: player.x + Math.cos(player.angle) * (20 + s * 10),
+                  y2: player.y + Math.sin(player.angle) * (20 + s * 10),
+                  born: now,
+                });
+              }
+            }
+          }
+        } else if (dT > CORNER_HIT_RADIUS * 3) {
+          cornerHit.delete(i);
+        }
+      }
+
+      // ===== WARNING — flash "SLOW DOWN!" ahead of a danger corner =====
+      let warnNow = false;
+      for (const dc of dangerPos) {
+        const ahead = ((dc.t - player.t + 1) % 1);
+        if (ahead > 0 && ahead < CORNER_WARN_AHEAD && speedFracNow > SPIN_THRESHOLD - 0.05) {
+          warnNow = true;
+          break;
+        }
+      }
+      if (warnNow !== lastWarnState) {
+        lastWarnState = warnNow;
+        setWarning(warnNow);
+        if (warnNow) shake = Math.max(shake, 5);
+      }
+      if (isSpinning !== (spinUntil > now)) {
+        // no-op, kept for clarity
+      }
+      setSpinning(spinUntil > now);
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
@@ -620,7 +719,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        const desired = AI_TOP_T * (0.92 + i * 0.025);
+        // Equal AI baseline — no per-index advantage. Player upgrades give the edge.
+        const desired = AI_TOP_T * 0.94;
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
         c.lane += Math.sin(now / 600 + i) * dt * 0.2;
         c.lane = Math.max(-0.8, Math.min(0.8, c.lane));
