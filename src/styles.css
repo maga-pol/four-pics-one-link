@@ -159,10 +159,10 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Anton", "Fredoka", system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-weight: 400;
+    font-family: "Fredoka", "Baloo 2", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-weight: 600;
     font-size: 16px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.005em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-image: var(--gradient-hero);
@@ -170,14 +170,14 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Anton", sans-serif;
-    font-weight: 400;
-    letter-spacing: 0.02em;
+    font-family: "Baloo 2", "Fredoka", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     line-height: 1.15;
-    text-transform: uppercase;
+    text-transform: none;
     color: #ffffff;
   }
-  h1 { font-weight: 400; letter-spacing: 0.02em; }
+  h1 { font-weight: 800; letter-spacing: -0.02em; }
 
   ::selection {
     background-color: #da291c;
@@ -185,8 +185,8 @@
   }
 
   button {
-    font-family: "Anton", sans-serif;
-    font-weight: 400;
+    font-family: "Fredoka", "Baloo 2", system-ui, sans-serif;
+    font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -201,7 +201,7 @@
 
 @layer utilities {
   .text-gradient-title {
-    font-family: "Anton", sans-serif;
+    font-family: "Baloo 2", "Fredoka", sans-serif;
     letter-spacing: 0.02em;
     background: var(--gradient-title);
     -webkit-background-clip: text;
@@ -210,7 +210,7 @@
     filter: none;
   }
   .font-display {
-    font-family: "Anton", sans-serif !important;
+    font-family: "Baloo 2", "Fredoka", sans-serif !important;
     letter-spacing: 0.02em;
   }
   .text-stroke-dark {
@@ -247,8 +247,8 @@
     gap: 8px;
     border-radius: 0;
     padding: 12px 24px;
-    font-family: "Anton", sans-serif;
-    font-weight: 400;
+    font-family: "Fredoka", "Baloo 2", sans-serif;
+    font-weight: 700;
     font-size: 13px;
     letter-spacing: 0.108em;
     text-transform: uppercase;
@@ -280,8 +280,8 @@
     height: 48px;
     padding: 14px 32px;
     border-radius: 0;
-    font-family: "Anton", sans-serif;
-    font-weight: 400;
+    font-family: "Fredoka", "Baloo 2", sans-serif;
+    font-weight: 700;
     font-size: 13px;
     letter-spacing: 0.108em;
     text-transform: uppercase;
@@ -313,8 +313,8 @@
     height: 52px;
     padding: 0 28px;
     border-radius: 9999px;
-    font-family: "Anton", sans-serif;
-    font-weight: 400;
+    font-family: "Baloo 2", sans-serif;
+    font-weight: 800;
     letter-spacing: 0.02em;
     color: #fff;
     background: var(--gradient-primary);
