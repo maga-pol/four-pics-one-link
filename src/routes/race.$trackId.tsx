@@ -341,27 +341,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
     }
 
-    // ===== Track features: boost pads + ramps =====
-    type Feature = { t: number; lane: number; kind: "boost" | "ramp" };
+    // ===== Track features: 2 speed boost pads =====
+    // One sits on the straight just before the 0.30 hairpin — risk/reward:
+    // grab the boost and you must brake hard or spin out at the corner.
+    type Feature = { t: number; lane: number; kind: "boost" };
     const features: Feature[] = [
-      { t: 0.08, lane:  0.5, kind: "boost" },
-      { t: 0.22, lane: -0.4, kind: "ramp"  },
-      { t: 0.38, lane:  0.0, kind: "boost" },
-      { t: 0.55, lane:  0.6, kind: "ramp"  },
-      { t: 0.68, lane: -0.5, kind: "boost" },
-      { t: 0.84, lane:  0.3, kind: "boost" },
+      { t: 0.24, lane: 0.0, kind: "boost" }, // before sharp corner at 0.30
+      { t: 0.65, lane: 0.0, kind: "boost" }, // mid-straight
     ];
     const featurePos = features.map((f) => {
       const p = pathPoint(f.t);
       const off = f.lane * (ROAD_W / 2 - 14);
       return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
     });
-    let boostUntil = 0;     // ms timestamp until extra boost from pad
+    let boostUntil = 0;     // player boost-pad active until (ms)
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
-    // ===== DANGER CORNERS — hairpins with tighter radius. Spinout if entered >60% max speed =====
+    // ===== DANGER CORNERS — spinout if entered above 85% of max speed =====
     const DANGER_CORNERS = [0.30, 0.55, 0.80];
-    const SPIN_THRESHOLD = 0.60;
+    const SPIN_THRESHOLD = 0.85;
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
     const dangerPos = DANGER_CORNERS.map((t) => {
@@ -385,7 +383,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const COUNTDOWN_MS = 3500; // 3, 2, 1, GO
     let countdownDone = false;
 
-    let nitro = nitroCap;
+    // ===== NITRO — +20% top speed for 3s, 8s cooldown =====
+    const NITRO_DURATION = 3000;
+    const NITRO_COOLDOWN = 8000;
+    let nitroActiveUntil = 0;
+    let nitroReadyAt = 0;
+    let nitro = 1; // HUD readiness (0..1)
     let last = performance.now();
     const startedAt = performance.now();
     let raf = 0;
