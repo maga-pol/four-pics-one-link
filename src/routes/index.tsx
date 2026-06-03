@@ -141,19 +141,19 @@ function HomeHUD() {
         </header>
 
         {/* HERO */}
-        <section className="relative overflow-hidden rounded-[32px] border shadow-card"
+        <section className="relative overflow-hidden rounded-xl border shadow-card"
                  style={{
-                   background: "linear-gradient(135deg, #0a0615 0%, #12082a 55%, #080d25 100%)",
-                   borderColor: "rgba(255,45,85,0.25)",
+                   background: "linear-gradient(180deg, #1a1010 0%, #120a0a 100%)",
+                   borderColor: "rgba(255,255,255,0.06)",
                  }}>
           <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-[100px]" style={{ background: "rgba(255,45,85,0.45)" }} />
-          <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full blur-[100px]" style={{ background: "rgba(255,107,0,0.40)" }} />
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full blur-[120px]" style={{ background: "rgba(122,26,46,0.25)" }} />
+          <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full blur-[120px]" style={{ background: "rgba(193,127,42,0.15)" }} />
 
           <div className="relative grid gap-6 p-5 pt-7 sm:p-8 sm:pt-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
             {/* LEFT — title + CTA + flow */}
             <div className="flex flex-col items-center gap-4 text-center lg:items-start lg:text-left">
-              <span className="ps-chip ps-chip-solid">Season 1</span>
+              <span className="ps-chip" style={{ background: "#8b2020", color: "#e8d5b0", borderColor: "transparent" }}>Season 1</span>
               <h1 className="text-[clamp(2.4rem,6vw,5rem)] font-extrabold leading-[0.9]">
                 <span className="text-gradient-title">WORLD QUIZ RACE</span>
               </h1>
@@ -178,9 +178,9 @@ function HomeHUD() {
 
             {/* RIGHT — stat boxes stacked vertically */}
             <div className="grid grid-cols-3 gap-2.5 lg:grid-cols-1 lg:gap-3">
-              <HeroStat icon={<Coins className="h-5 w-5" />} label="Coins"  value={state.coins} tone="bg-gradient-coin"    textTone="text-amber-950" />
-              <HeroStat icon={<Trophy className="h-5 w-5" />} label="Wins"   value={state.wins}  tone="bg-gradient-primary" textTone="text-white" />
-              <HeroStat icon={<Flag className="h-5 w-5" />}   label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} tone="bg-gradient-cyan" textTone="text-cyan-950" />
+              <HeroStat icon={<Coins className="h-5 w-5" />}  label="Coins"  value={state.coins} tone="bg-gradient-coin"    textTone="text-[#e8d5b0]" />
+              <HeroStat icon={<Trophy className="h-5 w-5" />} label="Wins"   value={state.wins}  tone="bg-gradient-primary" textTone="text-[#e8d5b0]" />
+              <HeroStat icon={<Flag className="h-5 w-5" />}   label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} tone="bg-gradient-cyan" textTone="text-[#e8d5b0]" />
             </div>
           </div>
         </section>

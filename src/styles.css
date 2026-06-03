@@ -1,7 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -63,44 +63,44 @@
 }
 
 :root {
-  /* Racing Spirit Design System — night speedway with fire accents.
-   * Deep black canvas + red / orange / gold neon. */
-  --radius: 1.25rem;
-  --background: oklch(0.08 0.04 275);          /* #050510 deep night */
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.13 0.05 280);                /* #0d0a1e lifted card */
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.13 0.05 280);
-  --popover-foreground: oklch(1 0 0);
-  --primary: oklch(0.65 0.27 25);              /* #ff2d55 electric red */
-  --primary-foreground: oklch(1 0 0);
-  --primary-glow: oklch(0.72 0.24 45);         /* #ff6b00 neon orange */
-  --secondary: oklch(0.65 0.22 255);           /* #0066ff electric blue */
-  --secondary-foreground: oklch(1 0 0);
-  --neon: oklch(0.88 0.18 90);                 /* #ffd700 gold */
-  --gold: oklch(0.88 0.18 90);
-  --muted: oklch(0.16 0.05 275);
-  --muted-foreground: oklch(0.78 0.03 275);
-  --accent: oklch(0.70 0.20 240);              /* #00aaff cyan-blue */
-  --accent-foreground: oklch(0.08 0.04 275);
-  --destructive: oklch(0.65 0.27 25);
-  --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.78 0.22 145);
-  --border: oklch(1 0 0 / 0.10);
-  --input: oklch(1 0 0);
-  --ring: oklch(0.65 0.27 25);
-  --gradient-title:   linear-gradient(120deg, #ff6b00 0%, #ffaa00 50%, #ffd700 100%);
-  --gradient-primary: linear-gradient(135deg, #ff6b00 0%, #ff2d55 100%);
-  --gradient-play:    linear-gradient(135deg, #ff2d55 0%, #ff6b00 100%);
-  --gradient-cyan:    linear-gradient(135deg, #00aaff 0%, #0066ff 100%);
-  --gradient-mint:    linear-gradient(135deg, #00d4ff 0%, #0088ff 100%);
-  --gradient-coin:    linear-gradient(135deg, #ffd700 0%, #ff9500 100%);
-  --gradient-fire:    linear-gradient(135deg, #ff2d55 0%, #ff6b00 100%);
-  --gradient-hero:    radial-gradient(ellipse at 20% 0%, rgba(255,45,85,0.22), transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(255,107,0,0.18), transparent 55%), linear-gradient(180deg, #0a0615 0%, #12082a 55%, #080d25 100%);
-  --shadow-glow:   0 0 80px rgba(255,45,85,0.55), 0 0 24px rgba(255,107,0,0.55);
-  --shadow-cyan:   0 0 60px rgba(0,170,255,0.5);
-  --shadow-button: 0 10px 0 rgba(170,20,40,0.55), 0 18px 40px -10px rgba(255,45,85,0.55), inset 0 2px 0 rgba(255,255,255,0.35);
-  --shadow-card:   0 6px 0 rgba(0,0,0,0.7), 0 16px 36px -10px rgba(0,0,0,0.55);
+  /* Premium Motorsport Design System — paddock at dusk.
+   * Warm-black canvas, muted crimson / amber / slate-blue. */
+  --radius: 0.75rem;
+  --background: oklch(0.10 0.012 35);          /* warm #120a0a */
+  --foreground: oklch(0.92 0.02 70);
+  --card: oklch(0.14 0.014 35);
+  --card-foreground: oklch(0.92 0.02 70);
+  --popover: oklch(0.14 0.014 35);
+  --popover-foreground: oklch(0.92 0.02 70);
+  --primary: oklch(0.38 0.12 18);              /* #7a1a2e deep red */
+  --primary-foreground: oklch(0.96 0.02 70);
+  --primary-glow: oklch(0.45 0.13 22);
+  --secondary: oklch(0.32 0.08 255);           /* #1a3a6b slate blue */
+  --secondary-foreground: oklch(0.92 0.02 70);
+  --neon: oklch(0.72 0.09 75);                 /* muted amber */
+  --gold: oklch(0.72 0.09 75);
+  --muted: oklch(0.16 0.012 35);
+  --muted-foreground: oklch(0.72 0.025 70);    /* #b0a090 warm gray */
+  --accent: oklch(0.32 0.08 255);
+  --accent-foreground: oklch(0.92 0.02 70);
+  --destructive: oklch(0.40 0.12 18);
+  --destructive-foreground: oklch(0.96 0.02 70);
+  --success: oklch(0.50 0.10 145);
+  --border: rgba(255,255,255,0.06);
+  --input: rgba(255,255,255,0.08);
+  --ring: oklch(0.38 0.12 18);
+  --gradient-title:   linear-gradient(120deg, #e8d5b0 0%, #d4b886 60%, #c9a76b 100%);
+  --gradient-primary: linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
+  --gradient-play:    linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
+  --gradient-cyan:    linear-gradient(135deg, #1a3a6b 0%, #152d54 100%);
+  --gradient-mint:    linear-gradient(135deg, #1a3a6b 0%, #152d54 100%);
+  --gradient-coin:    linear-gradient(135deg, #c17f2a 0%, #a66820 100%);
+  --gradient-fire:    linear-gradient(135deg, #9a6a10 0%, #7a5008 100%);
+  --gradient-hero:    linear-gradient(180deg, #120a0a 0%, #0d0808 100%);
+  --shadow-glow:   0 8px 24px rgba(0,0,0,0.5);
+  --shadow-cyan:   0 8px 24px rgba(0,0,0,0.5);
+  --shadow-button: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  --shadow-card:   0 8px 24px rgba(0,0,0,0.5);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -159,9 +159,10 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Fredoka", "Baloo 2", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "Rajdhani", "Barlow Condensed", system-ui, -apple-system, "Segoe UI", sans-serif;
     font-weight: 500;
-    letter-spacing: 0;
+    font-size: 16px;
+    letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-image: var(--gradient-hero);
@@ -169,22 +170,23 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Baloo 2", "Fredoka", system-ui, sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+    font-family: "Barlow Condensed", "Rajdhani", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     line-height: 1.15;
+    text-transform: uppercase;
   }
-  h1 { font-weight: 800; letter-spacing: -0.02em; }
+  h1 { font-weight: 700; letter-spacing: 0.02em; }
 
   ::selection {
-    background-color: oklch(0.72 0.28 350);
+    background-color: #7a1a2e;
     color: #fff;
   }
 
   button {
-    font-family: "Baloo 2", "Fredoka", system-ui, sans-serif;
-    font-weight: 800;
-    letter-spacing: 0.01em;
+    font-family: "Rajdhani", "Barlow Condensed", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: none;
   }
 }
@@ -221,23 +223,16 @@
   /* ===== Arcade card / button system ===== */
   .arcade-card {
     position: relative;
-    border-radius: 24px;
-    background: linear-gradient(180deg, #14102a 0%, #0d0a1e 100%);
-    box-shadow:
-      inset 0 2px 0 rgba(255,255,255,0.06),
-      0 6px 0 rgba(0,0,0,0.6),
-      0 18px 30px -12px rgba(0,0,0,0.7),
-      0 0 30px -10px rgba(255,45,85,0.25);
-    border: 1px solid rgba(255,45,85,0.2);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #1a1010 0%, #120a0a 100%);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.06);
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   .arcade-card:hover {
-    transform: translateY(-3px);
-    box-shadow:
-      inset 0 2px 0 rgba(255,255,255,0.08),
-      0 9px 0 rgba(0,0,0,0.6),
-      0 22px 36px -12px rgba(0,0,0,0.75),
-      0 0 40px -10px rgba(255,107,0,0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+    border-color: rgba(255,255,255,0.10);
   }
 
   .arcade-btn {
@@ -245,31 +240,29 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border-radius: 9999px;
-    padding: 12px 22px;
-    font-family: "Baloo 2", sans-serif;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    color: #fff;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-family: "Rajdhani", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #e8d5b0;
     background: var(--gradient-primary);
-    box-shadow:
-      inset 0 2px 0 oklch(1 0 0 / 0.4),
-      0 6px 0 oklch(0.36 0.18 350 / 0.7),
-      0 14px 30px -10px oklch(0.72 0.28 350 / 0.6);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
     transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   }
-  .arcade-btn:hover  { transform: translateY(-2px); filter: brightness(1.05); }
-  .arcade-btn:active { transform: translateY(2px); box-shadow: inset 0 2px 0 oklch(1 0 0 / 0.3), 0 2px 0 oklch(0.36 0.18 350 / 0.7); }
+  .arcade-btn:hover  { transform: translateY(-1px); filter: brightness(1.08); }
+  .arcade-btn:active { transform: translateY(1px); filter: brightness(0.95); }
   .arcade-btn:disabled { filter: grayscale(0.4) brightness(0.7); cursor: not-allowed; transform: none; }
 
-  .arcade-btn-cyan { background: var(--gradient-cyan); color: oklch(0.18 0.10 280);
-    box-shadow: inset 0 2px 0 oklch(1 0 0 / 0.5), 0 6px 0 oklch(0.42 0.16 220 / 0.7), 0 14px 30px -10px oklch(0.80 0.18 200 / 0.55); }
-  .arcade-btn-mint { background: var(--gradient-mint); color: oklch(0.18 0.10 280);
-    box-shadow: inset 0 2px 0 oklch(1 0 0 / 0.5), 0 6px 0 oklch(0.40 0.16 175 / 0.7), 0 14px 30px -10px oklch(0.78 0.22 175 / 0.55); }
-  .arcade-btn-coin { background: var(--gradient-coin); color: oklch(0.22 0.10 60);
-    box-shadow: inset 0 2px 0 oklch(1 0 0 / 0.55), 0 6px 0 oklch(0.50 0.18 70 / 0.7), 0 14px 30px -10px oklch(0.86 0.20 75 / 0.55); }
-  .arcade-btn-ghost { background: oklch(1 0 0 / 0.08); color: #fff;
-    box-shadow: inset 0 0 0 1.5px oklch(1 0 0 / 0.2), 0 4px 0 oklch(0 0 0 / 0.35); }
+  .arcade-btn-cyan { background: var(--gradient-cyan); color: #e8d5b0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
+  .arcade-btn-mint { background: var(--gradient-mint); color: #e8d5b0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
+  .arcade-btn-coin { background: var(--gradient-coin); color: #1a0f00;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); }
+  .arcade-btn-ghost { background: rgba(255,255,255,0.04); color: #e8d5b0;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }
 
   /* ===== PLAY hero button ===== */
   .play-btn {
@@ -280,64 +273,19 @@
     gap: 10px;
     padding: 10px 28px;
     border-radius: 9999px;
-    font-family: "Baloo 2", sans-serif;
-    font-weight: 800;
+    font-family: "Barlow Condensed", "Rajdhani", sans-serif;
+    font-weight: 700;
     font-size: 16px;
-    letter-spacing: 0.08em;
-    color: #fff;
-    text-shadow: 0 2px 0 rgba(120,10,30,0.6), 0 0 18px rgba(255,255,255,0.3);
-    background: linear-gradient(135deg, #ff2d55 0%, #ff6b00 100%);
-    box-shadow:
-      inset 0 2px 0 rgba(255,255,255,0.45),
-      inset 0 -3px 0 rgba(150,20,30,0.55),
-      0 6px 0 rgba(150,20,30,0.7),
-      0 0 30px rgba(255,45,85,0.6),
-      0 0 55px rgba(255,107,0,0.5),
-      0 18px 35px -10px rgba(255,45,85,0.55);
-    animation: play-pulse 1.6s ease-in-out infinite;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #e8d5b0;
+    background: linear-gradient(135deg, #7a1a2e 0%, #5c1020 100%);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10);
+    border: 1px solid rgba(232,213,176,0.12);
     transition: transform 0.12s ease;
   }
-  .play-btn::before {
-    content: "";
-    position: absolute; inset: -4px;
-    border-radius: 9999px; padding: 4px;
-    background: linear-gradient(135deg, #ffd700, #ff9500, #ff2d55);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    opacity: 0.85;
-    pointer-events: none;
-  }
-  .play-btn::after {
-    content: "";
-    position: absolute; left: 12%; right: 12%; top: 6px; height: 32%;
-    border-radius: 9999px;
-    background: linear-gradient(180deg, oklch(1 0 0 / 0.55), transparent);
-    pointer-events: none;
-  }
-  .play-btn:hover  { transform: translateY(-3px) scale(1.03); }
-  .play-btn:active { transform: translateY(3px); box-shadow: inset 0 2px 0 rgba(255,255,255,0.4), 0 2px 0 rgba(150,20,30,0.7); }
-  @keyframes play-pulse {
-    0%, 100% {
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,0.45),
-        inset 0 -3px 0 rgba(150,20,30,0.55),
-        0 6px 0 rgba(150,20,30,0.7),
-        0 0 25px rgba(255,45,85,0.55),
-        0 0 50px rgba(255,107,0,0.45),
-        0 18px 35px -10px rgba(255,45,85,0.5);
-    }
-    50% {
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,0.45),
-        inset 0 -3px 0 rgba(150,20,30,0.55),
-        0 6px 0 rgba(150,20,30,0.7),
-        0 0 45px rgba(255,45,85,0.85),
-        0 0 85px rgba(255,107,0,0.75),
-        0 22px 50px -10px rgba(255,45,85,0.65);
-    }
-  }
+  .play-btn:hover  { transform: translateY(-1px); background: linear-gradient(135deg, #8a2238 0%, #6c1428 100%); }
+  .play-btn:active { transform: translateY(1px); background: linear-gradient(135deg, #5c1020 0%, #46101c 100%); }
 
   /* ===== Legacy compatibility (race screen still uses these) ===== */
   .ps-chip {
