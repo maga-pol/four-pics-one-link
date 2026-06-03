@@ -854,6 +854,40 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Track features (under cars)
       for (const f of featurePos) drawFeature(f, now);
 
+      // Danger corner warning signs (yellow/red triangles before each hairpin)
+      for (const dc of dangerPos) {
+        const before = pathPoint((dc.t - 0.022 + 1) % 1);
+        const side = ((dc.t * 7) % 1) > 0.5 ? 1 : -1;
+        const off = (ROAD_W / 2 + 28) * side;
+        const sx = before.x + (-before.hy) * off;
+        const sy = before.y + (before.hx) * off;
+        const pulse = 0.85 + Math.sin(now / 220) * 0.15;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.scale(pulse, pulse);
+        // post
+        ctx.fillStyle = "#3a2a18";
+        ctx.fillRect(-2, 6, 4, 22);
+        // triangle sign
+        ctx.beginPath();
+        ctx.moveTo(0, -22);
+        ctx.lineTo(22, 14);
+        ctx.lineTo(-22, 14);
+        ctx.closePath();
+        ctx.fillStyle = "#facc15";
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ef4444";
+        ctx.stroke();
+        // exclamation
+        ctx.fillStyle = "#1a1a1a";
+        ctx.font = "bold 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("!", 0, 2);
+        ctx.restore();
+      }
+
       // Decorations
       for (const d of decor) drawDecor(d);
 
@@ -939,6 +973,21 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           ctx.arc(ox + c.x * s, oy + c.y * s, 5, 0, Math.PI * 2);
           ctx.stroke();
         }
+      }
+      // Danger corner markers on minimap
+      for (const dc of dangerPos) {
+        const p = rawPoint(dc.t);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        ctx.fillStyle = "#facc15";
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(X, Y - 4);
+        ctx.lineTo(X + 3.5, Y + 2.5);
+        ctx.lineTo(X - 3.5, Y + 2.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
     }
