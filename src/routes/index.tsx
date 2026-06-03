@@ -230,7 +230,7 @@ function HomeHUD() {
                       disabled={max || !afford}
                       className={`mt-4 flex w-full items-center justify-center gap-1.5 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] transition ${
                         max ? "bg-[#252525] text-[#696969] cursor-not-allowed" :
-                        afford ? "bg-[#da291c] text-white hover:bg-[#b01e0a]" :
+                        afford ? "bg-[#f5c518] text-[#1a1100] hover:bg-[#ffd633]" :
                         "bg-[#1e1e1e] text-[#696969] border border-[#303030] cursor-not-allowed"
                       }`}
                     >
