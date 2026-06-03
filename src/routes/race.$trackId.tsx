@@ -136,7 +136,7 @@ function pathPoint(t: number) {
   return { x: p.x, y: p.y, hx: dx, hy: dy };
 }
 
-function CircuitRace({ laps }: { laps: number }) {
+function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = (s - m * 60);
