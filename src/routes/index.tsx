@@ -136,6 +136,34 @@ function HomeHUD() {
           <div className="flex items-center gap-2">
             <Badge icon={<Coins className="h-3.5 w-3.5 text-amber-300" />} value={state.coins.toString()} />
             <Badge icon={<Trophy className="h-3.5 w-3.5 text-neon" />} value={`${state.unlockedTracks}/${tracks.length}`} />
+            {user ? (
+              <div className="flex items-center gap-2 rounded-full border border-border bg-background/60 px-2 py-1">
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="" className="h-5 w-5 rounded-full" />
+                ) : (
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] font-black text-primary-foreground">
+                    {(user.email?.[0] ?? "U").toUpperCase()}
+                  </span>
+                )}
+                <span className="hidden text-[11px] font-bold text-foreground sm:inline">
+                  {user.user_metadata?.full_name ?? user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                >
+                  Exit
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/auth"
+                className="rounded-full bg-gradient-primary px-3 py-1 text-[11px] font-black uppercase tracking-wider text-primary-foreground shadow-button transition hover:scale-[1.03]"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </header>
 
