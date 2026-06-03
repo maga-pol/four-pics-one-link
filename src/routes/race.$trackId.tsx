@@ -147,7 +147,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const keysRef = useRef<Record<string, boolean>>({});
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
   const [count, setCount] = useState<string | null>("3");
-  const [result, setResult] = useState<{ rank: number; reward: number } | null>(null);
+  const [result, setResult] = useState<{ rank: number; reward: number; time: number; best: number | null; isNewBest: boolean } | null>(null);
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem(HINT_KEY);
+  });
+  const [bestTime] = useState<number | null>(() => readBestTime(trackId));
+  const [nextTurn, setNextTurn] = useState<{ dir: number; sharp: number }>({ dir: 0, sharp: 0 });
+
+  function toggleMute() {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  }
+  function dismissHint() {
+    setShowHint(false);
+    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -293,16 +310,41 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let finished = false;
 
     function onKey(e: KeyboardEvent, down: boolean) {
+      // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
       const k = e.key.toLowerCase();
-      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(k)) {
+      const codeMap: Record<string, string> = {
+        KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d",
+        ArrowUp: "arrowup", ArrowDown: "arrowdown", ArrowLeft: "arrowleft", ArrowRight: "arrowright",
+        Space: " ", ShiftLeft: "shift", ShiftRight: "shift",
+      };
+      const mapped = codeMap[e.code] ?? k;
+      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(mapped)) {
         e.preventDefault();
       }
-      keysRef.current[k] = down;
+      keysRef.current[mapped] = down;
+      // first key press also kicks off audio (autoplay policy)
+      if (down) startEngine();
     }
     const kd = (e: KeyboardEvent) => onKey(e, true);
     const ku = (e: KeyboardEvent) => onKey(e, false);
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
+
+    // Auto-focus the canvas wrapper so keys work without click
+    wrap.focus();
+
+    // Tire trail buffer (world-space line segments, fade with time)
+    type Trail = { x1: number; y1: number; x2: number; y2: number; born: number };
+    const trails: Trail[] = [];
+    let lastTrailX = cars[0].x;
+    let lastTrailY = cars[0].y;
+    let drifting = false;
+
+    // Camera shake
+    let shake = 0;
+    let prevSpeed = 0;
+    let prevBoosting = false;
+    let lastCountdownBeep = -1;
 
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -315,10 +357,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const racing = sinceStart >= COUNTDOWN_MS;
       if (!racing) {
         const remain = COUNTDOWN_MS - sinceStart;
-        if (remain > 2500) setCount("3");
-        else if (remain > 1500) setCount("2");
-        else if (remain > 500) setCount("1");
-        else setCount("GO");
+        let idx = 3;
+        if (remain > 2500) { setCount("3"); idx = 3; }
+        else if (remain > 1500) { setCount("2"); idx = 2; }
+        else if (remain > 500) { setCount("1"); idx = 1; }
+        else { setCount("GO"); idx = 0; }
+        if (idx !== lastCountdownBeep) {
+          lastCountdownBeep = idx;
+          playCountdownBeep(idx === 0);
+        }
         // freeze cars
         player.speed = 0;
         for (let i = 1; i < cars.length; i++) cars[i].speed = 0;
@@ -355,6 +402,72 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const moveScale = 1200;
       player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
       player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // ===== Drift detection + tire trails =====
+      const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
+      drifting = !!steer && speedFrac > 0.55;
+      if (drifting || boosting) {
+        // record trail segment
+        const dxT = player.x - lastTrailX;
+        const dyT = player.y - lastTrailY;
+        if (dxT * dxT + dyT * dyT > 30 * 30) {
+          trails.push({ x1: lastTrailX, y1: lastTrailY, x2: player.x, y2: player.y, born: now });
+          lastTrailX = player.x;
+          lastTrailY = player.y;
+          if (trails.length > 280) trails.shift();
+        }
+      } else {
+        lastTrailX = player.x;
+        lastTrailY = player.y;
+      }
+
+      // ===== Bot collisions: elastic separation =====
+      for (let i = 1; i < cars.length; i++) {
+        const b = cars[i];
+        const dx = b.x - player.x;
+        const dy = b.y - player.y;
+        const d2 = dx * dx + dy * dy;
+        const R = 30;
+        if (d2 < R * R && d2 > 0.001) {
+          const d = Math.sqrt(d2);
+          const nx = dx / d, ny = dy / d;
+          const push = (R - d) * 0.6;
+          player.x -= nx * push;
+          player.y -= ny * push;
+          b.x += nx * push * 0.4;
+          b.y += ny * push * 0.4;
+          player.speed *= 0.78;
+          b.speed *= 0.92;
+          if (Math.abs(player.speed) > 0.05) {
+            shake = Math.max(shake, 8);
+            playCrash();
+          }
+        }
+      }
+
+      // ===== Camera shake triggers =====
+      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); playNitroSwoosh(); }
+      prevBoosting = boosting;
+      prevSpeed = player.speed;
+      shake *= Math.pow(0.001, dt); // decay fast
+
+      // ===== Engine audio =====
+      setEngine(speedFrac, boosting);
+
+      // ===== Next-turn predictor =====
+      {
+        const lookAhead = 0.02 + Math.min(0.04, speedFrac * 0.04);
+        const p0 = pathPoint(player.t);
+        const p1 = pathPoint(player.t + lookAhead);
+        const a0 = Math.atan2(p0.hy, p0.hx);
+        const a1 = Math.atan2(p1.hy, p1.hx);
+        let da = a1 - a0;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        const sharp = Math.min(1, Math.abs(da) * 3);
+        const dir = da > 0.02 ? 1 : da < -0.02 ? -1 : 0;
+        setNextTurn({ dir, sharp });
+      }
 
       // Project to track for lap detection / off-road
       const proj = projectToTrack(player.x, player.y, player.t);
@@ -412,7 +525,13 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const rewards = [300, 220, 160, 110, 70, 40];
         const reward = rewards[pos - 1] ?? 30;
         addCoins(reward);
-        setResult({ rank: pos, reward });
+        const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
+        const prevBest = readBestTime(trackId);
+        const isNewBest = prevBest === null || t < prevBest;
+        if (isNewBest) writeBestTime(trackId, t);
+        playFanfare();
+        stopEngine();
+        setResult({ rank: pos, reward, time: t, best: prevBest, isNewBest });
         running = false;
         return;
       }
@@ -437,8 +556,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const pcy = player.y;
       const heading = player.angle;
 
+      const shakeX = (Math.random() - 0.5) * shake;
+      const shakeY = (Math.random() - 0.5) * shake;
+
       ctx.save();
-      ctx.translate(cssW / 2, cssH * 0.72);
+      ctx.translate(cssW / 2 + shakeX, cssH * 0.72 + shakeY);
       ctx.scale(scale, scale);
       ctx.rotate(-heading - Math.PI / 2);
       ctx.translate(-pcx, -pcy);
@@ -493,12 +615,94 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Decorations
       for (const d of decor) drawDecor(d);
 
+      // Tire trails (under cars)
+      ctx.lineCap = "round";
+      for (const tr of trails) {
+        const age = (now - tr.born) / 1000;
+        const alpha = Math.max(0, 0.55 - age * 0.18);
+        if (alpha <= 0) continue;
+        ctx.strokeStyle = `rgba(15,15,15,${alpha})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(tr.x1, tr.y1);
+        ctx.lineTo(tr.x2, tr.y2);
+        ctx.stroke();
+      }
+
       // Cars (sorted so leader on top)
       const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
       for (const c of sorted) drawCar(c);
 
       ctx.restore();
+
+      // ===== Mini-map (screen-space, bottom-left) =====
+      drawMiniMap(cssW, cssH);
       void now;
+    }
+
+    function drawMiniMap(cssW: number, cssH: number) {
+      const mw = 150, mh = 90;
+      const pad = 12;
+      const x0 = pad, y0 = cssH - mh - pad;
+      // bg
+      ctx.save();
+      ctx.fillStyle = "rgba(8,18,32,0.78)";
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.fill();
+      ctx.strokeStyle = "rgba(98,159,248,0.45)";
+      ctx.lineWidth = 1;
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.stroke();
+
+      // map world bounds to mini-map
+      const margin = 10;
+      const ww = mw - margin * 2, hh = mh - margin * 2;
+      const sx = ww / WORLD_W, sy = hh / WORLD_H;
+      const s = Math.min(sx, sy);
+      const ox = x0 + margin + (mw - margin * 2 - WORLD_W * s) / 2;
+      const oy = y0 + margin + (mh - margin * 2 - WORLD_H * s) / 2;
+
+      // track outline
+      ctx.strokeStyle = "rgba(180,210,255,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const NM = 120;
+      for (let i = 0; i <= NM; i++) {
+        const p = rawPoint(i / NM);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // cars
+      for (const c of cars) {
+        ctx.fillStyle = c.isPlayer ? "#ffffff" : c.color;
+        ctx.beginPath();
+        ctx.arc(ox + c.x * s, oy + c.y * s, c.isPlayer ? 3 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        if (c.isPlayer) {
+          ctx.strokeStyle = "rgba(98,159,248,0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(ox + c.x * s, oy + c.y * s, 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function roundRectAbs(x: number, y: number, w: number, h: number, r: number) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
     }
 
     function drawKerb(offset: number) {
@@ -618,9 +822,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ro.disconnect();
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
+      stopEngine();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laps]);
+  }, [laps, trackId]);
 
   return (
     <section className="relative flex flex-1 flex-col gap-3">
