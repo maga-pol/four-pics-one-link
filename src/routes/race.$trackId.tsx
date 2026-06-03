@@ -208,9 +208,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       },
       ...AI_NAMES.map((n, i) => {
         const sp = pathPoint(-0.004 * (i + 1));
+        // spread across the 4-lane road
+        const lane = -0.85 + (i % 5) * 0.42;
         return {
           id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
-          t: -0.004 * (i + 1), lap: 0, speed: 0, lane: -0.6 + i * 0.3,
+          t: -0.004 * (i + 1), lap: 0, speed: 0, lane,
           x: sp.x, y: sp.y, angle: Math.atan2(sp.hy, sp.hx),
         } as Car;
       }),
@@ -251,8 +253,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
 
-    // Decorations (trees, rocks) placed off-road, deterministic
-    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number };
+    // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
+    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag" | "billboard" | "pole"; size: number; angle?: number };
     const decor: Decor[] = [];
     {
       let seed = 1337;
@@ -289,16 +291,65 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const kind = rnd() > 0.4 ? "tree" : "rock";
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
-      // Flags along edges of the road for festive feel
+      // Light poles every ~5% along both edges
+      for (let i = 0; i < 40; i++) {
+        const t = i / 40;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 36) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "pole", size: 30, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Billboards on the straights
+      for (let i = 0; i < 8; i++) {
+        const t = (i + 0.5) / 8;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 90) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "billboard", size: 70, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Festive flags between poles
       for (let i = 0; i < 60; i++) {
+        if (i % 2 === 0) continue;
         const t = i / 60;
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
-        const off = (ROAD_W / 2 + 28) * side;
-        const x = p.x + (-p.hy) * off;
-        const y = p.y + (p.hx) * off;
-        decor.push({ x, y, kind: "flag", size: 22 });
+        const off = (ROAD_W / 2 + 22) * side;
+        decor.push({ x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, kind: "flag", size: 18 });
       }
+    }
+
+    // ===== Track features: boost pads + ramps =====
+    type Feature = { t: number; lane: number; kind: "boost" | "ramp" };
+    const features: Feature[] = [
+      { t: 0.08, lane:  0.5, kind: "boost" },
+      { t: 0.22, lane: -0.4, kind: "ramp"  },
+      { t: 0.38, lane:  0.0, kind: "boost" },
+      { t: 0.55, lane:  0.6, kind: "ramp"  },
+      { t: 0.68, lane: -0.5, kind: "boost" },
+      { t: 0.84, lane:  0.3, kind: "boost" },
+    ];
+    const featurePos = features.map((f) => {
+      const p = pathPoint(f.t);
+      const off = f.lane * (ROAD_W / 2 - 14);
+      return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
+    });
+    let boostUntil = 0;     // ms timestamp until extra boost from pad
+    let airUntil = 0;       // ms timestamp until ramp jump lands
+
+    // ===== Particle system (sparks, nitro trail, dust) =====
+    type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string };
+    const particles: Particle[] = [];
+    function spawnParticle(x: number, y: number, vx: number, vy: number, color: string, life = 0.5, size = 3) {
+      if (particles.length > 220) particles.shift();
+      particles.push({ x, y, vx, vy, life, max: life, size, color });
     }
 
     // Countdown
@@ -429,22 +480,102 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const dx = b.x - player.x;
         const dy = b.y - player.y;
         const d2 = dx * dx + dy * dy;
-        const R = 30;
+        const R = 34;
         if (d2 < R * R && d2 > 0.001) {
           const d = Math.sqrt(d2);
           const nx = dx / d, ny = dy / d;
-          const push = (R - d) * 0.6;
+          const push = (R - d) * 0.75;
           player.x -= nx * push;
           player.y -= ny * push;
-          b.x += nx * push * 0.4;
-          b.y += ny * push * 0.4;
-          player.speed *= 0.78;
-          b.speed *= 0.92;
+          b.x += nx * push * 0.55;
+          b.y += ny * push * 0.55;
+          // Bouncy, not punishing
+          player.speed *= 0.88;
+          b.speed   *= 0.95;
+          // Spark particles
+          for (let s = 0; s < 6; s++) {
+            spawnParticle(
+              (player.x + b.x) / 2,
+              (player.y + b.y) / 2,
+              (Math.random() - 0.5) * 220,
+              (Math.random() - 0.5) * 220,
+              "#fde68a", 0.35, 3
+            );
+          }
           if (Math.abs(player.speed) > 0.05) {
             shake = Math.max(shake, 8);
             playCrash();
           }
         }
+      }
+      // AI ↔ AI collisions (lighter)
+      for (let i = 1; i < cars.length; i++) {
+        for (let j = i + 1; j < cars.length; j++) {
+          const a = cars[i], c = cars[j];
+          const dx = c.x - a.x, dy = c.y - a.y;
+          const d2 = dx * dx + dy * dy;
+          const R = 32;
+          if (d2 < R * R && d2 > 0.001) {
+            const d = Math.sqrt(d2);
+            const nx = dx / d, ny = dy / d;
+            const push = (R - d) * 0.5;
+            a.x -= nx * push; a.y -= ny * push;
+            c.x += nx * push; c.y += ny * push;
+            a.speed *= 0.94; c.speed *= 0.94;
+          }
+        }
+      }
+
+      // ===== Track feature interactions =====
+      for (const f of featurePos) {
+        const dx = player.x - f.x, dy = player.y - f.y;
+        if (dx * dx + dy * dy < 38 * 38) {
+          if (f.kind === "boost" && boostUntil < now) {
+            boostUntil = now + 900;
+            playNitroSwoosh();
+            shake = Math.max(shake, 4);
+          } else if (f.kind === "ramp" && airUntil < now) {
+            airUntil = now + 750;
+            shake = Math.max(shake, 6);
+          }
+        }
+      }
+      if (boostUntil > now) {
+        player.speed = Math.min(maxSpeed * 1.35, player.speed + accel * 1.6 * dt);
+      }
+
+      // ===== Spawn nitro / speed particles =====
+      if ((boosting || boostUntil > now) && Math.abs(player.speed) > 0.05) {
+        for (let s = 0; s < 3; s++) {
+          const back = -player.angle;
+          const bx = player.x - Math.cos(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          const by = player.y - Math.sin(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          spawnParticle(
+            bx, by,
+            -Math.cos(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            -Math.sin(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            s % 2 ? "#22d3ee" : "#f472b6",
+            0.45, 5
+          );
+          void back;
+        }
+      } else if (speedFrac > 0.7) {
+        // speed dust
+        spawnParticle(
+          player.x - Math.cos(player.angle) * 18,
+          player.y - Math.sin(player.angle) * 18,
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 60,
+          "rgba(255,255,255,0.6)", 0.35, 2.5
+        );
+      }
+      // Step particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.vx *= 0.92; p.vy *= 0.92;
       }
 
       // ===== Camera shake triggers =====
