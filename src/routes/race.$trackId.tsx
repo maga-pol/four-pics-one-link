@@ -466,14 +466,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const brakeKey = k["s"] || k["arrowdown"];
       const left = k["a"] || k["arrowleft"];
       const right = k["d"] || k["arrowright"];
-      const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
+      // Trigger nitro on press if ready (not currently boosting, cooldown elapsed)
+      const nitroKeyDown = !!(k[" "] || k["shift"]);
+      if (nitroKeyDown && now >= nitroReadyAt && nitroActiveUntil < now) {
+        nitroActiveUntil = now + NITRO_DURATION;
+        nitroReadyAt = nitroActiveUntil + NITRO_COOLDOWN;
+        playNitroSwoosh();
+        shake = Math.max(shake, 6);
+      }
+      const boosting = nitroActiveUntil > now;
 
       // ===== SPINOUT — overrides controls =====
       const isSpinning = spinUntil > now;
 
-      // Free-driving physics — nitro adds exactly +15 km/h on top of max
-      const NITRO_KMH = 15 / 800; // HUD km/h = speed * 800
-      const maxSpeed = baseSpeed * 1.4 + (boosting ? NITRO_KMH : 0);
+      // Free-driving physics — nitro and boost pads each give +20% max
+      const baseMax = baseSpeed * 1.4;
+      const padActive = boostUntil > now;
+      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1);
+      const maxSpeed = baseMax * boostMul;
       if (!isSpinning) {
         if (accelKey) player.speed += accel * 0.8 * dt;
         if (brakeKey) player.speed -= accel * 1.6 * dt;
@@ -484,8 +494,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       if (player.speed > maxSpeed) player.speed = maxSpeed;
       if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
 
-      if (boosting && accelKey) nitro = Math.max(0, nitro - dt * 0.5);
-      else nitro = Math.min(nitroCap, nitro + dt * 0.15);
+      // HUD readiness: 1 = ready, fills back during cooldown after a burst
+      if (boosting) {
+        nitro = Math.max(0, (nitroActiveUntil - now) / NITRO_DURATION);
+      } else if (now < nitroReadyAt) {
+        nitro = 1 - (nitroReadyAt - now) / NITRO_COOLDOWN;
+      } else {
+        nitro = 1;
+      }
 
       if (isSpinning) {
         player.angle += spinAngVel * dt;
@@ -501,7 +517,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
 
       // ===== DANGER CORNER detection + spin trigger =====
-      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseSpeed * 1.4);
+      // Compare against the car's own un-boosted max — boosts don't raise the safe ceiling.
+      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseMax);
       for (let i = 0; i < dangerPos.length; i++) {
         const cT = dangerPos[i].t;
         const dT = Math.abs(((player.t - cT + 0.5 + 1) % 1) - 0.5);
@@ -587,17 +604,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const dx = player.x - f.x, dy = player.y - f.y;
         if (dx * dx + dy * dy < 38 * 38) {
           if (f.kind === "boost" && boostUntil < now) {
-            boostUntil = now + 900;
+            boostUntil = now + 2000;
             playNitroSwoosh();
             shake = Math.max(shake, 4);
-          } else if (f.kind === "ramp" && airUntil < now) {
-            airUntil = now + 750;
-            shake = Math.max(shake, 6);
           }
         }
       }
       if (boostUntil > now) {
-        player.speed = Math.min(maxSpeed * 1.35, player.speed + accel * 1.6 * dt);
+        // ramp speed up toward the +20% ceiling quickly
+        player.speed = Math.min(maxSpeed, player.speed + accel * 1.8 * dt);
       }
 
       // ===== Spawn nitro / speed particles =====
