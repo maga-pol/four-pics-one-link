@@ -550,10 +550,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         setWarning(warnNow);
         if (warnNow) shake = Math.max(shake, 5);
       }
-      if (isSpinning !== (spinUntil > now)) {
-        // no-op, kept for clarity
-      }
-      setSpinning(spinUntil > now);
+      const spinNow = spinUntil > now;
+      if (spinNow !== isSpinning) setSpinning(spinNow);
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
