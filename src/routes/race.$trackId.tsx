@@ -1281,7 +1281,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
           {(() => {
             const frac = Math.min(1, hud.speed / 90);
-            const color = frac < 0.5 ? "#22c55e" : frac < 0.7 ? "#facc15" : "#ef4444";
+            // Green safe / Yellow caution / Red = above 85% (corner-spinout danger)
+            const color = frac < 0.7 ? "#22c55e" : frac < 0.85 ? "#facc15" : "#ef4444";
             return (
               <div className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
                    style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}>
