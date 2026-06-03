@@ -403,4 +403,10 @@
     50%      { box-shadow: 0 0 60px oklch(0.92 0.20 95 / 0.8),  0 10px 50px -10px oklch(0.78 0.26 30 / 0.8); }
   }
   .animate-pulse-glow { animation: pulse-glow 2.6s ease-in-out infinite; }
+
+  @keyframes warn-shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25%      { transform: translateX(-6px) rotate(-1deg); }
+    75%      { transform: translateX(6px)  rotate(1deg); }
+  }
 }
