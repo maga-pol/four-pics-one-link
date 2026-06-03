@@ -839,76 +839,162 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         <canvas ref={canvasRef} className="block h-full w-full" />
 
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
-          <div className="w-40 rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
+          <div className="w-44 rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur shadow-[0_0_24px_-12px_rgba(98,159,248,0.6)]">
             <div className="flex items-center justify-between">
-              <span><span className="text-muted-foreground">LAP </span><span className="text-foreground">{hud.lap}/{laps}</span></span>
-              <span className="text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+              <span className="ps-chip ps-chip-solid" style={{ padding: "2px 8px", fontSize: 9 }}>LAP {hud.lap}/{laps}</span>
+              <span className="tabular-nums text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
             </div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
-              <div className="h-full bg-gradient-to-r from-neon to-cyan-400" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-primary-glow to-primary transition-[width] duration-150" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
-            <span className="text-muted-foreground">TIME </span>
-            <span className="text-foreground">{formatTime(hud.elapsed)}</span>
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</span>
+            <div className="text-foreground">{formatTime(hud.elapsed)}</div>
+            {bestTime !== null && (
+              <div className="text-[10px] text-primary-glow">Best {formatTime(bestTime)}</div>
+            )}
           </div>
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <span className="text-muted-foreground">POS </span>
-            <span className="text-foreground">P{hud.pos}/{hud.total}</span>
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
+            <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
           </div>
         </div>
 
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <Gauge className="mr-1 inline h-3.5 w-3.5 text-neon" />
-            {hud.speed} <span className="text-muted-foreground">km/h</span>
+          <div className="rounded-xl border border-primary/40 bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur shadow-[0_0_30px_-12px_rgba(98,159,248,0.7)]">
+            <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Gauge className="h-3 w-3 text-primary-glow" /> Speed
+            </div>
+            <div className="text-lg tabular-nums leading-none text-foreground">
+              {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
+            </div>
           </div>
-          <div className="w-32 rounded-xl border border-border bg-background/60 px-2 py-1 backdrop-blur">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+          <div className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
               <Zap className="h-3 w-3" /> Nitro
             </div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
-              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-background/70 text-muted-foreground backdrop-blur transition hover:text-foreground"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
         </div>
 
+        {/* Next-turn predictor */}
+        {nextTurn.dir !== 0 && nextTurn.sharp > 0.1 && !result && !count && (
+          <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Next</span>
+            <span
+              className="text-2xl leading-none"
+              style={{
+                color: `hsl(${(1 - nextTurn.sharp) * 120}, 90%, 60%)`,
+                transform: `scale(${0.85 + nextTurn.sharp * 0.4})`,
+                transition: "all 0.2s",
+              }}
+            >
+              {nextTurn.dir < 0 ? "↰" : "↱"}
+            </span>
+          </div>
+        )}
+
         {count && !result && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/30 backdrop-blur-[2px]">
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/40 backdrop-blur-[3px]">
+            {/* echo rings */}
+            <div key={count + "-ring"} className="absolute h-40 w-40 rounded-full border-2 border-primary/60 animate-ping" />
             <div
               key={count}
-              className="select-none text-[12rem] font-black leading-none text-gradient-title drop-shadow-[0_0_40px_rgba(34,211,238,0.5)] animate-in zoom-in-50 duration-300"
-              style={{ textShadow: "0 0 60px rgba(34,211,238,0.6)" }}
+              className="select-none font-black leading-none animate-in zoom-in-50 duration-300"
+              style={{
+                fontSize: count === "GO" ? "10rem" : "13rem",
+                color: count === "3" ? "#ef4444" : count === "2" ? "#f59e0b" : count === "1" ? "#22c55e" : "#629ff8",
+                textShadow: `0 0 80px ${count === "GO" ? "rgba(98,159,248,0.9)" : "rgba(255,255,255,0.5)"}, 0 0 30px currentColor`,
+                letterSpacing: "-0.05em",
+              }}
             >
               {count}
+            </div>
+            <div className="absolute bottom-[28%] flex gap-3 text-2xl opacity-70">
+              <span className="text-primary-glow">△</span>
+              <span className="text-rose-400">○</span>
+              <span className="text-sky-400">✕</span>
+              <span className="text-fuchsia-400">□</span>
             </div>
           </div>
         )}
 
         {result && (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-background/70 backdrop-blur-md">
-            <div className="w-[min(92%,420px)] rounded-2xl border border-primary/50 bg-card/80 p-5 text-center shadow-glow">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-gradient-primary text-primary-foreground">
-                <Trophy className="h-6 w-6" />
-              </div>
-              <div className="mt-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Race finished</div>
-              <div className="mt-1 text-2xl font-black">
+          <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
+            <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/30 blur-[120px]" />
+            <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-primary-glow/25 blur-[120px]" />
+            <div className="relative w-[min(94%,520px)] rounded-3xl border border-primary/40 bg-card/80 p-8 text-center shadow-glow animate-in zoom-in-95 duration-300">
+              <div className="ps-chip ps-chip-solid mx-auto">Race Finished</div>
+              <div className="mt-4 text-[7rem] leading-none font-thin tracking-tight">
                 <span className="text-gradient-title">P{result.rank}</span>
               </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Reward: <span className="font-black text-amber-300">+{result.reward} coins</span>
+              <div className="ps-hairline mt-2 mb-4" />
+              <div className="grid grid-cols-3 gap-3 text-left">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</div>
+                  <div className="text-lg font-bold tabular-nums">{formatTime(result.time)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Best</div>
+                  <div className="text-lg font-bold tabular-nums text-primary-glow">
+                    {formatTime(result.isNewBest ? result.time : (result.best ?? result.time))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reward</div>
+                  <div className="text-lg font-bold text-amber-300">+{result.reward}</div>
+                </div>
               </div>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <button onClick={() => window.location.reload()} className="rounded-xl bg-gradient-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-button">
-                  Race again
+              {result.isNewBest && (
+                <div className="mt-4 ps-chip ps-chip-solid mx-auto" style={{ background: "linear-gradient(90deg,#f59e0b,#ef4444)" }}>
+                  🏆 New Best Time!
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <button onClick={() => window.location.reload()} className="ps-pill">
+                  <Trophy className="h-4 w-4" /> Race again
                 </button>
-                <Link to="/quiz" className="rounded-xl border border-border bg-background/60 px-4 py-2 text-xs font-black uppercase tracking-wider">
+                <Link to="/quiz" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
                   Quiz
                 </Link>
-                <Link to="/" className="rounded-xl border border-border bg-background/60 px-4 py-2 text-xs font-black uppercase tracking-wider">
+                <Link to="/" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
                   HUB
                 </Link>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* First-run controls overlay */}
+        {showHint && !result && (
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-background/70 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={dismissHint}
+          >
+            <div className="w-[min(92%,440px)] rounded-3xl border border-primary/40 bg-card/85 p-6 text-center shadow-glow">
+              <div className="ps-chip ps-chip-solid mx-auto">Controls</div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-left text-sm">
+                <Kbd label="W / ↑" desc="Accelerate" />
+                <Kbd label="S / ↓" desc="Brake / Reverse" />
+                <Kbd label="A / ←" desc="Steer left" />
+                <Kbd label="D / →" desc="Steer right" />
+                <Kbd label="Space / Shift" desc="Nitro boost (+15 km/h)" />
+                <Kbd label="🎮 △○✕□" desc="Look for next-turn arrow" />
+              </div>
+              <button onClick={dismissHint} className="ps-pill mt-6">Start Racing</button>
+              <div className="mt-2 text-[10px] text-muted-foreground">Click anywhere to dismiss</div>
             </div>
           </div>
         )}
@@ -918,5 +1004,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · Space/Shift nitro
       </div>
     </section>
+  );
+}
+
+function Kbd({ label, desc }: { label: string; desc: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <kbd className="inline-flex min-w-[68px] items-center justify-center rounded-md border border-primary/40 bg-background/80 px-2 py-1 text-[11px] font-bold text-primary-glow">
+        {label}
+      </kbd>
+      <span className="text-muted-foreground">{desc}</span>
+    </div>
   );
 }
