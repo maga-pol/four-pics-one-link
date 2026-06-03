@@ -99,12 +99,19 @@ function HomeHUD() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-primary/20 blur-[140px] animate-float-slow" />
+      {/* PS dot-grid backdrop */}
+      <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-60" />
+      {/* Ambient PS-blue glow */}
+      <div className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-primary/30 blur-[140px] animate-float-slow" />
       <div
-        className="pointer-events-none absolute -right-40 bottom-0 h-[32rem] w-[32rem] rounded-full bg-secondary/20 blur-[160px] animate-float-slow"
+        className="pointer-events-none absolute -right-40 bottom-0 h-[32rem] w-[32rem] rounded-full bg-primary-glow/20 blur-[160px] animate-float-slow"
         style={{ animationDelay: "-7s" }}
       />
+      {/* Floating PS controller symbols */}
+      <span className="ps-symbol" style={{ top: "12%", left: "6%", animationDelay: "0s" }}>△</span>
+      <span className="ps-symbol" style={{ top: "28%", right: "8%", animationDelay: "-2s" }}>○</span>
+      <span className="ps-symbol" style={{ bottom: "18%", left: "12%", animationDelay: "-4s" }}>✕</span>
+      <span className="ps-symbol" style={{ bottom: "30%", right: "6%", animationDelay: "-5s" }}>□</span>
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1400px] flex-col gap-3 p-3 sm:p-4">
         {/* HUD HEADER */}
