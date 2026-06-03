@@ -1228,14 +1228,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         </div>
 
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
-          <div className="rounded-xl border border-primary/40 bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur shadow-[0_0_30px_-12px_rgba(98,159,248,0.7)]">
-            <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              <Gauge className="h-3 w-3 text-primary-glow" /> Speed
-            </div>
-            <div className="text-lg tabular-nums leading-none text-foreground">
-              {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
-            </div>
-          </div>
+          {(() => {
+            const frac = Math.min(1, hud.speed / 90);
+            const color = frac < 0.5 ? "#22c55e" : frac < 0.7 ? "#facc15" : "#ef4444";
+            return (
+              <div className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
+                   style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}>
+                <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <Gauge className="h-3 w-3" style={{ color }} /> Speed
+                </div>
+                <div className="font-display text-2xl tabular-nums leading-none" style={{ color }}>
+                  {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
+                </div>
+                <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full transition-[width] duration-150" style={{ width: `${frac * 100}%`, background: color }} />
+                </div>
+              </div>
+            );
+          })()}
           <div className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}>
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
               <Zap className="h-3 w-3" /> Nitro
@@ -1268,6 +1278,37 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             >
               {nextTurn.dir < 0 ? "↰" : "↱"}
             </span>
+          </div>
+        )}
+
+        {/* DANGER CORNER WARNING */}
+        {warning && !result && !count && (
+          <div className="pointer-events-none absolute inset-x-0 top-[18%] z-20 grid place-items-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="font-display select-none text-center"
+                 style={{
+                   fontSize: "clamp(3rem, 8vw, 6rem)",
+                   color: "#ef4444",
+                   letterSpacing: "0.06em",
+                   textShadow: "0 0 30px rgba(239,68,68,0.9), 0 4px 0 rgba(0,0,0,0.6)",
+                   animation: "warn-shake 0.18s ease-in-out infinite",
+                 }}>
+              ⚠ SLOW DOWN!
+            </div>
+          </div>
+        )}
+
+        {/* SPINOUT label */}
+        {spinning && !result && (
+          <div className="pointer-events-none absolute inset-x-0 top-[44%] z-20 grid place-items-center">
+            <div className="font-display select-none text-center"
+                 style={{
+                   fontSize: "clamp(2.4rem, 6vw, 4.5rem)",
+                   color: "#facc15",
+                   letterSpacing: "0.08em",
+                   textShadow: "0 0 30px rgba(250,204,21,0.9)",
+                 }}>
+              SPIN OUT!
+            </div>
           </div>
         )}
 
