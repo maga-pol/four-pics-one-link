@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -62,32 +63,35 @@
 }
 
 :root {
-  --radius: 1rem;
-  --background: oklch(0.16 0.03 270);
-  --foreground: oklch(0.98 0.01 270);
-  --card: oklch(0.21 0.04 270);
-  --card-foreground: oklch(0.98 0.01 270);
-  --popover: oklch(0.21 0.04 270);
-  --popover-foreground: oklch(0.98 0.01 270);
-  --primary: oklch(0.68 0.22 285);
-  --primary-foreground: oklch(0.98 0.01 270);
-  --primary-glow: oklch(0.75 0.25 295);
-  --secondary: oklch(0.65 0.22 240);
-  --secondary-foreground: oklch(0.98 0.01 270);
-  --neon: oklch(0.82 0.22 200);
-  --muted: oklch(0.25 0.03 270);
-  --muted-foreground: oklch(0.72 0.04 270);
-  --accent: oklch(0.68 0.22 285);
-  --accent-foreground: oklch(0.98 0.01 270);
-  --destructive: oklch(0.65 0.25 25);
-  --destructive-foreground: oklch(0.98 0.01 270);
-  --border: oklch(0.3 0.04 270);
-  --input: oklch(0.25 0.03 270);
-  --ring: oklch(0.68 0.22 285);
-  --gradient-title: linear-gradient(135deg, oklch(0.75 0.25 295), oklch(0.7 0.22 240), oklch(0.82 0.22 200));
-  --gradient-primary: linear-gradient(135deg, oklch(0.68 0.22 285), oklch(0.65 0.22 240));
-  --shadow-glow: 0 0 60px oklch(0.68 0.22 285 / 0.45);
-  --shadow-button: 0 10px 40px -10px oklch(0.68 0.22 285 / 0.6);
+  /* PlayStation Design System
+   * Surfaces alternate black / white / PlayStation Blue.
+   * Default canvas = pure black (editorial hero mode). */
+  --radius: 0.5rem; /* 8px — card radius (rounded.md) */
+  --background: oklch(0 0 0);                  /* #000 canvas-dark */
+  --foreground: oklch(1 0 0);                  /* #fff on-dark */
+  --card: oklch(0.18 0 0);                     /* #181818 surface-dark-card */
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.18 0 0);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.55 0.17 248);             /* #0070d1 PlayStation Blue */
+  --primary-foreground: oklch(1 0 0);
+  --primary-glow: oklch(0.65 0.17 248);
+  --secondary: oklch(0.58 0.21 36);            /* #d53b00 commerce orange */
+  --secondary-foreground: oklch(1 0 0);
+  --neon: oklch(0.95 0.18 120);                /* #deff20 marathon yellow */
+  --muted: oklch(0.15 0.003 270);              /* #121314 surface-dark-elevated */
+  --muted-foreground: oklch(0.83 0 0);         /* #cccccc on-dark-mute */
+  --accent: oklch(0.55 0.17 248);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.55 0.22 22);          /* #c81b3a warning */
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.83 0 0 / 0.2);             /* hairline-dark */
+  --input: oklch(1 0 0);                       /* white text-input */
+  --ring: oklch(0.55 0.17 248);
+  --gradient-title: linear-gradient(90deg, oklch(0.88 0.16 90), oklch(0.78 0.17 70), oklch(0.7 0.17 55)); /* PS Plus gold */
+  --gradient-primary: linear-gradient(135deg, oklch(0.55 0.17 248), oklch(0.5 0.17 250)); /* PS blue */
+  --shadow-glow: 0 0 60px oklch(0.55 0.17 248 / 0.35);
+  --shadow-button: 0 8px 24px -10px oklch(0 0 0 / 0.55);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -104,25 +108,25 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.18 0 0);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.18 0 0);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.55 0.17 248);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.58 0.21 36);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.15 0.003 270);
+  --muted-foreground: oklch(0.83 0 0);
+  --accent: oklch(0.55 0.17 248);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.55 0.22 22);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 0.2);
+  --input: oklch(1 0 0 / 0.15);
+  --ring: oklch(0.55 0.17 248);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -146,6 +150,22 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: "Inter", "PlayStation SST", "sst", Arial, Helvetica, sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.1px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Inter", "PlayStation SST", "sst", Arial, Helvetica, sans-serif;
+    font-weight: 300; /* PlayStation signature airy display weight */
+    letter-spacing: -0.1px;
+    line-height: 1.25;
+  }
+
+  button {
+    font-weight: 700;
+    letter-spacing: 0.4px;
   }
 }
 
