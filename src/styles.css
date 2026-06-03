@@ -275,28 +275,72 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    height: 76px;
-    padding: 0 56px;
+    gap: 14px;
+    height: 104px;
+    padding: 0 84px;
     border-radius: 9999px;
     font-family: "Baloo 2", sans-serif;
     font-weight: 800;
-    font-size: 26px;
-    letter-spacing: 0.06em;
-    color: oklch(0.20 0.10 60);
-    background: var(--gradient-play);
+    font-size: 38px;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-shadow: 0 2px 0 oklch(0.18 0.14 280 / 0.6), 0 0 24px oklch(1 0 0 / 0.35);
+    background:
+      linear-gradient(135deg,
+        oklch(0.82 0.18 210) 0%,
+        oklch(0.72 0.22 240) 35%,
+        oklch(0.68 0.28 330) 70%,
+        oklch(0.78 0.26 350) 100%);
     box-shadow:
       inset 0 3px 0 oklch(1 0 0 / 0.55),
-      0 10px 0 oklch(0.42 0.20 30 / 0.65),
-      0 24px 50px -10px oklch(0.78 0.26 30 / 0.55);
-    animation: play-pulse 1.8s ease-in-out infinite;
+      inset 0 -6px 0 oklch(0.34 0.18 320 / 0.55),
+      0 12px 0 oklch(0.32 0.18 320 / 0.7),
+      0 0 50px oklch(0.80 0.20 210 / 0.6),
+      0 0 90px oklch(0.72 0.26 340 / 0.55),
+      0 30px 60px -10px oklch(0.72 0.26 340 / 0.55);
+    animation: play-pulse 1.6s ease-in-out infinite;
     transition: transform 0.12s ease;
   }
-  .play-btn:hover  { transform: translateY(-2px) scale(1.02); }
-  .play-btn:active { transform: translateY(3px); box-shadow: inset 0 3px 0 oklch(1 0 0 / 0.45), 0 4px 0 oklch(0.42 0.20 30 / 0.65); }
+  .play-btn::before {
+    content: "";
+    position: absolute; inset: -4px;
+    border-radius: 9999px; padding: 4px;
+    background: linear-gradient(135deg, oklch(0.95 0.18 210), oklch(0.92 0.20 95), oklch(0.85 0.22 340));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  .play-btn::after {
+    content: "";
+    position: absolute; left: 12%; right: 12%; top: 6px; height: 32%;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, oklch(1 0 0 / 0.55), transparent);
+    pointer-events: none;
+  }
+  .play-btn:hover  { transform: translateY(-3px) scale(1.03); }
+  .play-btn:active { transform: translateY(4px); box-shadow: inset 0 3px 0 oklch(1 0 0 / 0.45), 0 4px 0 oklch(0.32 0.18 320 / 0.7); }
   @keyframes play-pulse {
-    0%, 100% { box-shadow: inset 0 3px 0 oklch(1 0 0 / 0.55), 0 10px 0 oklch(0.42 0.20 30 / 0.65), 0 24px 50px -10px oklch(0.78 0.26 30 / 0.55); }
-    50%      { box-shadow: inset 0 3px 0 oklch(1 0 0 / 0.55), 0 10px 0 oklch(0.42 0.20 30 / 0.65), 0 28px 70px -10px oklch(0.92 0.20 95 / 0.7), 0 0 36px oklch(0.92 0.20 95 / 0.45); }
+    0%, 100% {
+      box-shadow:
+        inset 0 3px 0 oklch(1 0 0 / 0.55),
+        inset 0 -6px 0 oklch(0.34 0.18 320 / 0.55),
+        0 12px 0 oklch(0.32 0.18 320 / 0.7),
+        0 0 40px oklch(0.80 0.20 210 / 0.55),
+        0 0 80px oklch(0.72 0.26 340 / 0.50),
+        0 30px 60px -10px oklch(0.72 0.26 340 / 0.55);
+    }
+    50% {
+      box-shadow:
+        inset 0 3px 0 oklch(1 0 0 / 0.55),
+        inset 0 -6px 0 oklch(0.34 0.18 320 / 0.55),
+        0 12px 0 oklch(0.32 0.18 320 / 0.7),
+        0 0 70px oklch(0.85 0.22 200 / 0.85),
+        0 0 130px oklch(0.78 0.26 340 / 0.8),
+        0 36px 70px -10px oklch(0.78 0.26 340 / 0.7);
+    }
   }
 
   /* ===== Legacy compatibility (race screen still uses these) ===== */

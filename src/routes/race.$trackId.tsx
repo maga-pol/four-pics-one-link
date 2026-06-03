@@ -116,12 +116,15 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 120;
+const ROAD_W = 200;     // 4 lanes (50 each)
+const LANE_COUNT = 4;
+const LANE_W = ROAD_W / LANE_COUNT;
 
 function rawPoint(t: number) {
+  // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
-  const rx = TRACK_RX + Math.sin(a * 3) * 140 + Math.cos(a * 2) * 70 + Math.sin(a * 5) * 40;
-  const ry = TRACK_RY + Math.cos(a * 3) * 120 + Math.sin(a * 5) * 50 + Math.cos(a * 7) * 30;
+  const rx = TRACK_RX + Math.sin(a * 2) * 160 + Math.cos(a * 3) * 60;
+  const ry = TRACK_RY + Math.cos(a * 2) * 120 + Math.sin(a * 3) * 50;
   return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
 }
 
@@ -205,9 +208,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       },
       ...AI_NAMES.map((n, i) => {
         const sp = pathPoint(-0.004 * (i + 1));
+        // spread across the 4-lane road
+        const lane = -0.85 + (i % 5) * 0.42;
         return {
           id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
-          t: -0.004 * (i + 1), lap: 0, speed: 0, lane: -0.6 + i * 0.3,
+          t: -0.004 * (i + 1), lap: 0, speed: 0, lane,
           x: sp.x, y: sp.y, angle: Math.atan2(sp.hy, sp.hx),
         } as Car;
       }),
@@ -248,8 +253,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
 
-    // Decorations (trees, rocks) placed off-road, deterministic
-    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number };
+    // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
+    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag" | "billboard" | "pole"; size: number; angle?: number };
     const decor: Decor[] = [];
     {
       let seed = 1337;
@@ -286,16 +291,65 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const kind = rnd() > 0.4 ? "tree" : "rock";
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
-      // Flags along edges of the road for festive feel
+      // Light poles every ~5% along both edges
+      for (let i = 0; i < 40; i++) {
+        const t = i / 40;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 36) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "pole", size: 30, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Billboards on the straights
+      for (let i = 0; i < 8; i++) {
+        const t = (i + 0.5) / 8;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 90) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "billboard", size: 70, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Festive flags between poles
       for (let i = 0; i < 60; i++) {
+        if (i % 2 === 0) continue;
         const t = i / 60;
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
-        const off = (ROAD_W / 2 + 28) * side;
-        const x = p.x + (-p.hy) * off;
-        const y = p.y + (p.hx) * off;
-        decor.push({ x, y, kind: "flag", size: 22 });
+        const off = (ROAD_W / 2 + 22) * side;
+        decor.push({ x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, kind: "flag", size: 18 });
       }
+    }
+
+    // ===== Track features: boost pads + ramps =====
+    type Feature = { t: number; lane: number; kind: "boost" | "ramp" };
+    const features: Feature[] = [
+      { t: 0.08, lane:  0.5, kind: "boost" },
+      { t: 0.22, lane: -0.4, kind: "ramp"  },
+      { t: 0.38, lane:  0.0, kind: "boost" },
+      { t: 0.55, lane:  0.6, kind: "ramp"  },
+      { t: 0.68, lane: -0.5, kind: "boost" },
+      { t: 0.84, lane:  0.3, kind: "boost" },
+    ];
+    const featurePos = features.map((f) => {
+      const p = pathPoint(f.t);
+      const off = f.lane * (ROAD_W / 2 - 14);
+      return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
+    });
+    let boostUntil = 0;     // ms timestamp until extra boost from pad
+    let airUntil = 0;       // ms timestamp until ramp jump lands
+
+    // ===== Particle system (sparks, nitro trail, dust) =====
+    type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string };
+    const particles: Particle[] = [];
+    function spawnParticle(x: number, y: number, vx: number, vy: number, color: string, life = 0.5, size = 3) {
+      if (particles.length > 220) particles.shift();
+      particles.push({ x, y, vx, vy, life, max: life, size, color });
     }
 
     // Countdown
@@ -426,22 +480,102 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const dx = b.x - player.x;
         const dy = b.y - player.y;
         const d2 = dx * dx + dy * dy;
-        const R = 30;
+        const R = 34;
         if (d2 < R * R && d2 > 0.001) {
           const d = Math.sqrt(d2);
           const nx = dx / d, ny = dy / d;
-          const push = (R - d) * 0.6;
+          const push = (R - d) * 0.75;
           player.x -= nx * push;
           player.y -= ny * push;
-          b.x += nx * push * 0.4;
-          b.y += ny * push * 0.4;
-          player.speed *= 0.78;
-          b.speed *= 0.92;
+          b.x += nx * push * 0.55;
+          b.y += ny * push * 0.55;
+          // Bouncy, not punishing
+          player.speed *= 0.88;
+          b.speed   *= 0.95;
+          // Spark particles
+          for (let s = 0; s < 6; s++) {
+            spawnParticle(
+              (player.x + b.x) / 2,
+              (player.y + b.y) / 2,
+              (Math.random() - 0.5) * 220,
+              (Math.random() - 0.5) * 220,
+              "#fde68a", 0.35, 3
+            );
+          }
           if (Math.abs(player.speed) > 0.05) {
             shake = Math.max(shake, 8);
             playCrash();
           }
         }
+      }
+      // AI ↔ AI collisions (lighter)
+      for (let i = 1; i < cars.length; i++) {
+        for (let j = i + 1; j < cars.length; j++) {
+          const a = cars[i], c = cars[j];
+          const dx = c.x - a.x, dy = c.y - a.y;
+          const d2 = dx * dx + dy * dy;
+          const R = 32;
+          if (d2 < R * R && d2 > 0.001) {
+            const d = Math.sqrt(d2);
+            const nx = dx / d, ny = dy / d;
+            const push = (R - d) * 0.5;
+            a.x -= nx * push; a.y -= ny * push;
+            c.x += nx * push; c.y += ny * push;
+            a.speed *= 0.94; c.speed *= 0.94;
+          }
+        }
+      }
+
+      // ===== Track feature interactions =====
+      for (const f of featurePos) {
+        const dx = player.x - f.x, dy = player.y - f.y;
+        if (dx * dx + dy * dy < 38 * 38) {
+          if (f.kind === "boost" && boostUntil < now) {
+            boostUntil = now + 900;
+            playNitroSwoosh();
+            shake = Math.max(shake, 4);
+          } else if (f.kind === "ramp" && airUntil < now) {
+            airUntil = now + 750;
+            shake = Math.max(shake, 6);
+          }
+        }
+      }
+      if (boostUntil > now) {
+        player.speed = Math.min(maxSpeed * 1.35, player.speed + accel * 1.6 * dt);
+      }
+
+      // ===== Spawn nitro / speed particles =====
+      if ((boosting || boostUntil > now) && Math.abs(player.speed) > 0.05) {
+        for (let s = 0; s < 3; s++) {
+          const back = -player.angle;
+          const bx = player.x - Math.cos(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          const by = player.y - Math.sin(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          spawnParticle(
+            bx, by,
+            -Math.cos(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            -Math.sin(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            s % 2 ? "#22d3ee" : "#f472b6",
+            0.45, 5
+          );
+          void back;
+        }
+      } else if (speedFrac > 0.7) {
+        // speed dust
+        spawnParticle(
+          player.x - Math.cos(player.angle) * 18,
+          player.y - Math.sin(player.angle) * 18,
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 60,
+          "rgba(255,255,255,0.6)", 0.35, 2.5
+        );
+      }
+      // Step particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.vx *= 0.92; p.vy *= 0.92;
       }
 
       // ===== Camera shake triggers =====
@@ -588,27 +722,36 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.lineWidth = ROAD_W;
       ctx.stroke();
 
-      // Kerbs (outer + inner)
+      // Bright guardrails (outer glow + inner kerb)
+      drawGuardrail(ROAD_W / 2 + 14);
+      drawGuardrail(-ROAD_W / 2 - 14);
       drawKerb(ROAD_W / 2);
       drawKerb(-ROAD_W / 2);
 
-      // Centerline
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 3;
+      // Lane dividers (3 dashed lines for 4 lanes)
+      ctx.strokeStyle = "rgba(255,255,255,0.45)";
+      ctx.lineWidth = 2.5;
       ctx.setLineDash([18, 18]);
-      ctx.beginPath();
-      const N = 480;
-      for (let i = 0; i <= N; i++) {
-        const p = pathPoint(i / N);
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+      for (let l = 1; l < LANE_COUNT; l++) {
+        const off = -ROAD_W / 2 + l * LANE_W;
+        ctx.beginPath();
+        const N = 360;
+        for (let i = 0; i <= N; i++) {
+          const p = pathPoint(i / N);
+          const x = p.x + (-p.hy) * off;
+          const y = p.y + (p.hx) * off;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
       }
-      ctx.closePath();
-      ctx.stroke();
       ctx.setLineDash([]);
 
       // Start/finish checkered line
       drawStartLine();
+
+      // Track features (under cars)
+      for (const f of featurePos) drawFeature(f, now);
 
       // Decorations
       for (const d of decor) drawDecor(d);
@@ -629,7 +772,18 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // Cars (sorted so leader on top)
       const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
-      for (const c of sorted) drawCar(c);
+      for (const c of sorted) drawCar(c, now);
+
+      // Particles on top
+      for (const p of particles) {
+        const a = Math.max(0, p.life / p.max);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.6 + a * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
 
       ctx.restore();
 
@@ -703,6 +857,28 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.closePath();
     }
 
+    function drawGuardrail(offset: number) {
+      const steps = 600;
+      ctx.lineCap = "round";
+      // outer glow
+      ctx.strokeStyle = "rgba(34, 211, 238, 0.35)";
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const p = pathPoint(t);
+        const x = p.x + (-p.hy) * offset;
+        const y = p.y + (p.hx) * offset;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      // bright inner rail
+      ctx.strokeStyle = "#22d3ee";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+
     function drawKerb(offset: number) {
       const steps = 600;
       ctx.lineWidth = 6;
@@ -723,7 +899,57 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
     }
 
-    function drawDecor(d: { x: number; y: number; kind: "tree" | "rock" | "flag"; size: number }) {
+    function drawFeature(f: { x: number; y: number; angle: number; kind: "boost" | "ramp" }, now: number) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.angle);
+      if (f.kind === "boost") {
+        const pulse = 0.6 + 0.4 * Math.sin(now / 120);
+        // glow
+        ctx.fillStyle = `rgba(34,211,238,${0.25 * pulse})`;
+        ctx.beginPath(); ctx.ellipse(0, 0, 44, 22, 0, 0, Math.PI * 2); ctx.fill();
+        // pad
+        const grad = ctx.createLinearGradient(-30, 0, 30, 0);
+        grad.addColorStop(0, "#22d3ee");
+        grad.addColorStop(0.5, "#ffffff");
+        grad.addColorStop(1, "#22d3ee");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-30, -16, 60, 32, 6) : (() => {
+          ctx.rect(-30, -16, 60, 32);
+        })();
+        ctx.fill();
+        // arrows
+        ctx.fillStyle = `rgba(255,255,255,${0.7 + 0.3 * pulse})`;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * 14 - 6, -8);
+          ctx.lineTo(i * 14 + 6, 0);
+          ctx.lineTo(i * 14 - 6, 8);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        // ramp — yellow/orange wedge with stripes
+        ctx.fillStyle = "#1f1f24";
+        ctx.beginPath(); ctx.ellipse(0, 6, 40, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#f59e0b";
+        ctx.beginPath();
+        ctx.moveTo(-32, 14);
+        ctx.lineTo(32, 14);
+        ctx.lineTo(20, -12);
+        ctx.lineTo(-20, -12);
+        ctx.closePath();
+        ctx.fill();
+        // top stripes
+        ctx.fillStyle = "#0a0a0f";
+        for (let i = -2; i <= 2; i++) {
+          ctx.fillRect(i * 8 - 2, -12, 4, 26);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawDecor(d: Decor) {
       ctx.save();
       ctx.translate(d.x, d.y);
       if (d.kind === "tree") {
@@ -742,7 +968,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath(); ctx.arc(0, 0, d.size * 0.55, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#9ca3af";
         ctx.beginPath(); ctx.arc(-d.size * 0.15, -d.size * 0.15, d.size * 0.25, 0, Math.PI * 2); ctx.fill();
-      } else {
+      } else if (d.kind === "flag") {
         // flag
         ctx.fillStyle = "#9ca3af";
         ctx.fillRect(-1, -d.size, 2, d.size);
@@ -753,6 +979,42 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.lineTo(1, -d.size * 0.5);
         ctx.closePath();
         ctx.fill();
+      } else if (d.kind === "pole") {
+        // light pole — vertical post + warm bulb
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(3, 4, d.size * 0.35, d.size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fillRect(-1.5, -d.size, 3, d.size);
+        ctx.fillStyle = "#fde047";
+        ctx.beginPath(); ctx.arc(0, -d.size, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(253,224,71,0.35)";
+        ctx.beginPath(); ctx.arc(0, -d.size, 10, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "billboard") {
+        ctx.save();
+        if (d.angle !== undefined) ctx.rotate(d.angle);
+        // shadow
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(3, 6, d.size * 0.6, d.size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+        // legs
+        ctx.fillStyle = "#475569";
+        ctx.fillRect(-d.size * 0.5, 0, 4, d.size * 0.45);
+        ctx.fillRect( d.size * 0.5 - 4, 0, 4, d.size * 0.45);
+        // panel
+        const w = d.size * 1.1, h = d.size * 0.55;
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(-w / 2 - 2, -h - 4, w + 4, h + 6);
+        const grad = ctx.createLinearGradient(-w / 2, -h, w / 2, 0);
+        grad.addColorStop(0, "#22d3ee");
+        grad.addColorStop(0.5, "#a855f7");
+        grad.addColorStop(1, "#ec4899");
+        ctx.fillStyle = grad;
+        ctx.fillRect(-w / 2, -h, w, h);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("RACE!", 0, -h / 2);
+        ctx.restore();
       }
       ctx.restore();
     }
@@ -776,13 +1038,18 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.restore();
     }
 
-    function drawCar(c: Car) {
+    function drawCar(c: Car, now: number) {
       ctx.save();
       ctx.translate(c.x, c.y);
+      // ramp jump bounce — scale up briefly while airborne
+      const jump = c.isPlayer && airUntil > now ? Math.sin(((airUntil - now) / 750) * Math.PI) : 0;
+      const s = 1 + jump * 0.35;
       ctx.rotate(c.angle);
+      ctx.scale(s, s);
 
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      roundRect(-22, -13, 46, 28, 6); ctx.fill();
+      // shadow (stays lower while jumping)
+      ctx.fillStyle = `rgba(0,0,0,${0.35 - jump * 0.2})`;
+      roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6); ctx.fill();
 
       ctx.fillStyle = c.color;
       roundRect(-20, -12, 42, 24, 5); ctx.fill();
