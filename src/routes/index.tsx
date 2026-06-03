@@ -310,7 +310,12 @@ function HomeHUD() {
                       )}
                     </div>
                     {unlocked && (
-                      <p className="mt-3 text-[12px] leading-relaxed text-[#969696]">{t.description}</p>
+                      <p
+                        className="mt-3 text-[12px] leading-relaxed text-[#969696]"
+                        style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif", letterSpacing: "0.01em", textTransform: "none" }}
+                      >
+                        {t.description}
+                      </p>
                     )}
                   </Link>
                 );
