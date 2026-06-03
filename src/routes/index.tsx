@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Gauge, Zap, Rocket, Move, Coins, Trophy, Flag, ChevronRight,
-  Brain, Wrench, Sparkles, Play, LogOut,
+  Brain, Wrench, Sparkles, Play, LogOut, Star, Lock, ArrowUp, Crown,
 } from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,15 +32,34 @@ const STORAGE = "wqr-state";
 const MAX_LEVEL = 5;
 const COSTS = [100, 200, 350, 550, 800];
 
+type Rarity = "common" | "rare" | "epic" | "legendary";
+const RARITY: Record<Rarity, { label: string; color: string; glow: string; border: string; bg: string }> = {
+  common:    { label: "Common",    color: "#9aa3b8", glow: "rgba(154,163,184,0.4)",  border: "rgba(154,163,184,0.5)",  bg: "rgba(154,163,184,0.08)" },
+  rare:      { label: "Rare",      color: "#22e6ff", glow: "rgba(34,230,255,0.55)",  border: "rgba(34,230,255,0.6)",   bg: "rgba(34,230,255,0.08)" },
+  epic:      { label: "Epic",      color: "#9b5cff", glow: "rgba(155,92,255,0.55)",  border: "rgba(155,92,255,0.6)",   bg: "rgba(155,92,255,0.10)" },
+  legendary: { label: "Legendary", color: "#ffd042", glow: "rgba(255,208,66,0.55)",  border: "rgba(255,208,66,0.6)",   bg: "rgba(255,208,66,0.10)" },
+};
+function rarityForLevel(lvl: number): Rarity {
+  if (lvl >= 4) return "legendary";
+  if (lvl >= 3) return "epic";
+  if (lvl >= 2) return "rare";
+  return "common";
+}
+
 const UPGRADES: {
-  key: UpgradeKey; label: string; emoji: string; icon: React.ReactNode;
-  gradient: string; tint: string;
+  key: UpgradeKey; label: string; icon: React.ReactNode;
+  accent: string; bonus: string;
 }[] = [
-  { key: "speed",        label: "Speed",        emoji: "⚡", icon: <Gauge className="h-5 w-5" />,  gradient: "bg-gradient-cyan",  tint: "from-cyan-300 to-sky-500" },
-  { key: "acceleration", label: "Acceleration", emoji: "🚀", icon: <Rocket className="h-5 w-5" />, gradient: "bg-gradient-primary", tint: "from-fuchsia-400 to-pink-600" },
-  { key: "nitro",        label: "Nitro",        emoji: "🔥", icon: <Zap className="h-5 w-5" />,    gradient: "bg-gradient-coin",  tint: "from-amber-300 to-orange-500" },
-  { key: "control",      label: "Control",      emoji: "🎯", icon: <Move className="h-5 w-5" />,   gradient: "bg-gradient-mint",  tint: "from-emerald-300 to-teal-500" },
+  { key: "speed",        label: "Top Speed",    icon: <Gauge className="h-5 w-5" />,  accent: "#22e6ff", bonus: "+8 km/h" },
+  { key: "acceleration", label: "Acceleration", icon: <Rocket className="h-5 w-5" />, accent: "#ff2bd6", bonus: "+0.3s 0-60" },
+  { key: "nitro",        label: "Nitro Boost",  icon: <Zap className="h-5 w-5" />,    accent: "#ffd042", bonus: "+1 charge" },
+  { key: "control",      label: "Handling",     icon: <Move className="h-5 w-5" />,   accent: "#00ffa3", bonus: "+5% grip" },
 ];
+
+const TRACK_META: Record<string, { difficulty: number; reward: number; thumbAccent: string; thumbAccent2: string }> = {
+  circuit:    { difficulty: 2, reward: 150, thumbAccent: "#22e6ff", thumbAccent2: "#9b5cff" },
+};
+const DEFAULT_TRACK_META = { difficulty: 3, reward: 250, thumbAccent: "#ff2bd6", thumbAccent2: "#ffd042" };
 
 function defaultState(): GameState {
   return { coins: 250, upgrades: { speed: 1, acceleration: 1, nitro: 0, control: 0 }, unlockedTracks: 1, wins: 0 };
@@ -96,36 +115,47 @@ function HomeHUD() {
   const tracks = TRACKS;
   const firstTrack = tracks[0];
 
+  // Season progress derived from wins (purely visual)
+  const seasonLevel = Math.min(50, 1 + Math.floor(state.wins / 2));
+  const xpInLevel = (state.wins % 2) * 50 + Math.min(50, state.coins % 50);
+  const xpPct = Math.min(100, (xpInLevel / 100) * 100);
+
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
-      {/* Backdrop */}
-      <div className="pointer-events-none absolute inset-0" style={{ background: "#181818" }} />
+      {/* Atmospheric backdrop */}
+      <div className="pointer-events-none absolute inset-0 neon-grid-bg opacity-50" />
+      <div className="pointer-events-none absolute -left-32 top-1/4 h-[28rem] w-[28rem] rounded-full bg-[#ff2bd6]/20 blur-[140px] animate-float-slow" />
+      <div className="pointer-events-none absolute -right-32 bottom-1/4 h-[32rem] w-[32rem] rounded-full bg-[#22e6ff]/15 blur-[160px] animate-float-slow" style={{ animationDelay: "-6s" }} />
+      {/* Particles */}
+      <Particles />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1280px] flex-col gap-4 p-3 sm:p-5">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1320px] flex-col gap-5 p-3 sm:p-6">
 
         {/* HEADER */}
-        <header className="flex items-center justify-between gap-3 border-b border-[#303030] pb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center bg-[#da291c] text-lg">🏁</span>
+        <header className="flex items-center justify-between gap-3 rounded-2xl border border-[rgba(155,92,255,0.25)] bg-[rgba(18,10,40,0.6)] px-4 py-3 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-lg text-xl"
+                  style={{ background: "var(--gradient-primary)", boxShadow: "0 0 24px rgba(255,43,214,0.6)" }}>🏁</span>
             <div className="leading-tight">
-              <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Scuderia</div>
-              <div className="text-sm font-semibold uppercase tracking-[0.05em] text-white sm:text-base">World Quiz Race</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] neon-text-cyan">Scuderia Neon</div>
+              <div className="font-display text-base text-white sm:text-lg">World Quiz Race</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <StatPill icon={<Coins className="h-4 w-4" />} value={state.coins} tone="gold" />
-            <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins} tone="primary" />
+            <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins} tone="red" />
             {user ? (
               <button
                 type="button"
                 onClick={() => supabase.auth.signOut()}
-                className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:bg-[#252525]"
+                className="arcade-btn arcade-btn-ghost h-10 px-3"
                 title={user.user_metadata?.full_name ?? user.email ?? "Account"}
               >
                 {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
+                  <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6 rounded-full" />
                 ) : (
-                  <span className="grid h-6 w-6 place-items-center bg-[#da291c] text-[11px]">
+                  <span className="grid h-6 w-6 place-items-center rounded-full text-[11px]"
+                        style={{ background: "var(--gradient-primary)" }}>
                     {(user.email?.[0] ?? "U").toUpperCase()}
                   </span>
                 )}
@@ -137,187 +167,240 @@ function HomeHUD() {
           </div>
         </header>
 
-        {/* HERO */}
-        <section className="relative overflow-hidden border border-[#303030]"
-                 style={{ background: "#181818" }}>
-          {/* subtle red radial glow behind car */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]"
-               style={{ background: "rgba(218,41,28,0.06)" }} />
-
-          <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
-            {/* LEFT — title + CTA + flow */}
-            <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
-              <span className="font-display inline-flex items-center bg-[#da291c] px-3 py-1 text-[14px] uppercase tracking-[0.14em] text-white">
-                Season 1
-              </span>
-              <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", letterSpacing: "0.01em", lineHeight: 1 }}>
-                WORLD QUIZ RACE
-              </h1>
-              <Link to={`/race/${firstTrack.id}`} className="play-btn font-display z-20" style={{ fontSize: 18, letterSpacing: "0.12em" }}>
-                <Play className="h-3.5 w-3.5 fill-current" /> Play Now
-              </Link>
-              <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
-                <Brain className="h-3.5 w-3.5" /> Play Quiz · earn coins
-              </Link>
-              <div className="mt-1">
-                <FlowChain />
+        {/* SEASON PROGRESS */}
+        <section className="arcade-card flex items-center gap-4 px-5 py-4">
+          <div className="grid h-14 w-14 place-items-center rounded-xl border"
+               style={{ background: "var(--gradient-primary)", borderColor: "rgba(255,43,214,0.6)", boxShadow: "0 0 24px rgba(255,43,214,0.5)" }}>
+            <Crown className="h-7 w-7 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.22em] neon-text-magenta">Season 1 · Neon Drift</div>
+                <div className="font-display text-lg text-white">Driver Level <span className="neon-text-cyan">{seasonLevel}</span></div>
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#cfd4ff]/70">
+                Next reward · <span className="neon-text-gold">Aurora Skin</span>
               </div>
             </div>
-
-            {/* CENTER — car */}
-            <div className="relative mx-auto w-full max-w-[420px]">
-              {/* speed lines */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 opacity-30">
-                <div className="absolute top-[20%] h-px w-16 -rotate-[8deg] bg-white" />
-                <div className="absolute top-[35%] h-px w-20 -rotate-[6deg] bg-white" />
-                <div className="absolute top-[50%] h-px w-14 -rotate-[10deg] bg-[#da291c]" />
-                <div className="absolute top-[65%] h-px w-20 -rotate-[6deg] bg-white" />
-                <div className="absolute top-[80%] h-px w-16 -rotate-[8deg] bg-white" />
-              </div>
-              <Car />
-              <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(155,92,255,0.18)]">
+              <div className="h-full rounded-full transition-all"
+                   style={{ width: `${xpPct}%`, background: "linear-gradient(90deg,#ff2bd6,#9b5cff,#22e6ff)", boxShadow: "0 0 12px rgba(255,43,214,0.6)" }} />
             </div>
-
-            {/* RIGHT — stat boxes stacked vertically */}
-            <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-2">
-              <HeroStat icon={<Coins  className="h-4 w-4" />} label="Coins"  value={state.coins} bg="#2a1f08" border="#5a4218" accent="#c8a050" />
-              <HeroStat icon={<Trophy className="h-4 w-4" />} label="Wins"   value={state.wins}  bg="#1f0a0a" border="#5a1a1a" accent="#da291c" />
-              <HeroStat icon={<Flag   className="h-4 w-4" />} label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} bg="#080f1f" border="#18305a" accent="#4a7ac8" />
+            <div className="mt-1.5 flex justify-between text-[10px] font-bold uppercase tracking-[0.18em] text-[#cfd4ff]/60">
+              <span>{xpInLevel} / 100 XP</span>
+              <span>Lvl {seasonLevel + 1} · Phantom GT unlock</span>
             </div>
           </div>
         </section>
 
+        {/* HERO */}
+        <section className="relative overflow-hidden rounded-3xl border border-[rgba(155,92,255,0.35)]"
+                 style={{
+                   background:
+                     "radial-gradient(120% 80% at 50% 100%, rgba(255,43,214,0.25), transparent 60%)," +
+                     "radial-gradient(80% 60% at 20% 0%, rgba(34,230,255,0.15), transparent 60%)," +
+                     "linear-gradient(180deg, #15082e 0%, #0b0420 100%)",
+                   boxShadow: "0 30px 80px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
+                 }}>
+          {/* Skyline silhouette */}
+          <CitySkyline />
+          {/* Perspective neon floor */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%]">
+            <div className="absolute inset-0 neon-floor opacity-70" />
+          </div>
+          {/* Speed streaks */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {[12, 30, 48, 62, 78].map((top, i) => (
+              <div key={i}
+                   className="absolute h-px animate-streak"
+                   style={{
+                     top: `${top}%`,
+                     left: 0, right: 0,
+                     background: i % 2 ? "linear-gradient(90deg, transparent, #22e6ff, transparent)" : "linear-gradient(90deg, transparent, #ff2bd6, transparent)",
+                     animationDelay: `${i * 0.25}s`,
+                     opacity: 0.65,
+                   }} />
+            ))}
+          </div>
+
+          <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_1.2fr] lg:items-center">
+            {/* LEFT */}
+            <div className="relative z-10 flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[rgba(34,230,255,0.5)] bg-[rgba(34,230,255,0.08)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.28em] neon-text-cyan">
+                <Sparkles className="h-3 w-3" /> Season 1 · Live
+              </span>
+              <h1 className="text-gradient-title font-display" style={{ fontSize: "clamp(2.6rem, 7vw, 88px)", lineHeight: 0.95 }}>
+                World<br/>Quiz Race
+              </h1>
+              <p className="max-w-md text-[14px] uppercase tracking-[0.18em] text-[#cfd4ff]/70">
+                Answer · Earn · Upgrade · <span className="neon-text-magenta">Dominate the grid</span>
+              </p>
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center lg:items-start">
+                <Link to={`/race/${firstTrack.id}`} className="play-btn">
+                  <Play className="h-5 w-5 fill-current" /> Play Now
+                </Link>
+                <Link to="/quiz" className="arcade-btn arcade-btn-ghost h-14 px-6 text-base">
+                  <Brain className="h-4 w-4" /> Quiz · earn coins
+                </Link>
+              </div>
+              <FlowChain />
+            </div>
+
+            {/* RIGHT — car stage */}
+            <div className="relative mx-auto flex w-full max-w-[560px] items-end justify-center">
+              {/* Glow disc under car */}
+              <div className="pointer-events-none absolute bottom-6 left-1/2 h-12 w-[80%] -translate-x-1/2 rounded-[50%]"
+                   style={{ background: "radial-gradient(ellipse, rgba(255,43,214,0.6), transparent 70%)", filter: "blur(20px)" }} />
+              <div className="pointer-events-none absolute -inset-4 rounded-full"
+                   style={{ background: "radial-gradient(circle, rgba(155,92,255,0.25), transparent 60%)" }} />
+              <Car />
+            </div>
+          </div>
+        </section>
+
+        {/* PLAYER STATS DASHBOARD */}
+        <section className="grid gap-4 sm:grid-cols-3">
+          <DashStat
+            icon={<Coins className="h-6 w-6" />}
+            label="Coins" value={state.coins}
+            accent="#ffd042" gradient="linear-gradient(135deg, rgba(255,208,66,0.18), rgba(255,138,0,0.08))"
+            sub="Spend in garage"
+          />
+          <DashStat
+            icon={<Trophy className="h-6 w-6" />}
+            label="Wins" value={state.wins}
+            accent="#ff3a55" gradient="linear-gradient(135deg, rgba(255,58,85,0.18), rgba(255,43,214,0.08))"
+            sub="Podium finishes"
+          />
+          <DashStat
+            icon={<Flag className="h-6 w-6" />}
+            label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`}
+            accent="#3a7dff" gradient="linear-gradient(135deg, rgba(58,125,255,0.18), rgba(34,230,255,0.08))"
+            sub="Unlocked circuits"
+          />
+        </section>
+
         {/* BIG QUIZ CTA */}
-        <section className="-mx-3 sm:-mx-5" style={{ background: "#111", padding: "20px 0" }}>
-          <div className="mx-auto flex max-w-[1280px] justify-center px-3 sm:px-5">
+        <section className="relative overflow-hidden rounded-2xl border border-[rgba(34,230,255,0.4)] p-6 text-center"
+                 style={{ background: "linear-gradient(135deg, rgba(34,230,255,0.12), rgba(155,92,255,0.18))", boxShadow: "0 0 40px rgba(34,230,255,0.2)" }}>
+          <div className="pointer-events-none absolute -inset-px opacity-50 neon-grid-bg" />
+          <div className="relative flex flex-col items-center justify-between gap-4 sm:flex-row sm:text-left">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.28em] neon-text-cyan">Quick coins</div>
+              <div className="font-display mt-1 text-2xl text-white">Answer geography · win bounty</div>
+            </div>
             <Link
               to="/quiz"
-              className="inline-flex items-center justify-center gap-3 bg-[#da291c] text-white transition hover:bg-[#b01e0a]"
-              style={{
-                fontSize: 22,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                padding: "18px 64px",
-                borderRadius: 0,
-              }}
+              className="arcade-btn arcade-btn-coin h-14 px-8 text-base"
+              style={{ boxShadow: "0 0 30px rgba(255,208,66,0.5), inset 0 1px 0 rgba(255,255,255,0.3)" }}
             >
-              <Coins className="h-6 w-6" />
+              <Coins className="h-5 w-5" />
               Play Quiz · Earn Coins
             </Link>
           </div>
         </section>
 
         {/* GARAGE */}
-        <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="arcade-card p-6">
-            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Garage</div>
-                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Upgrade your racer</h2>
-              </div>
-              <div className="inline-flex items-center gap-1.5 border border-[#5a4218] bg-[#2a1f08] px-3 py-1.5 text-sm font-bold text-[#c8a050]">
-                <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins}</span>
-              </div>
+        <section className="arcade-card p-6">
+          <div className="mb-5 flex items-end justify-between border-b border-[rgba(155,92,255,0.25)] pb-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.28em] neon-text-magenta">Garage</div>
+              <h2 className="font-display mt-1 text-2xl text-white">Upgrade your racer</h2>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {UPGRADES.map((u) => {
-                const lvl = state.upgrades[u.key];
-                const max = lvl >= MAX_LEVEL;
-                const cost = max ? 0 : COSTS[lvl];
-                const afford = state.coins >= cost;
-                return (
-                  <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#404040]">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-11 w-11 place-items-center bg-[#252525] border border-[#303030] text-xl">
-                          {u.emoji}
-                        </span>
-                        <div>
-                          <div className="font-display text-lg uppercase tracking-[0.06em] text-white leading-tight">{u.label}</div>
-                          <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
-                            Lv {lvl} {!max && <span className="text-[#da291c]">→ Lv {lvl + 1}</span>}
-                          </div>
-                        </div>
-                      </div>
-                      {max && <span className="bg-[#da291c] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.11em] text-white">Max</span>}
-                    </div>
-                    <div className="mt-4 h-[3px] bg-[#2a2a2a]">
-                      <div className="h-full bg-[#da291c] transition-all" style={{ width: `${(lvl / MAX_LEVEL) * 100}%` }} />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => buyUpgrade(u.key)}
-                      disabled={max || !afford}
-                      className={`mt-4 flex w-full items-center justify-center gap-1.5 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] transition ${
-                        max ? "bg-[#252525] text-[#696969] cursor-not-allowed" :
-                        afford ? "bg-[#f5c518] text-[#1a1100] hover:bg-[#ffd633]" :
-                        "bg-[#1e1e1e] text-[#696969] border border-[#303030] cursor-not-allowed"
-                      } font-display`}
-                      style={{ fontSize: 14, letterSpacing: "0.12em" }}
-                    >
-                      {max ? "Maxed out" : (
-                        <>
-                          <Wrench className="h-3.5 w-3.5" /> Upgrade · {cost}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,208,66,0.5)] bg-[rgba(255,208,66,0.1)] px-3 py-1.5 text-sm font-bold neon-text-gold">
+              <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins}</span>
             </div>
           </div>
-
-          {/* TRACKS */}
-          <div className="arcade-card p-6">
-            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Race</div>
-                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Tracks</h2>
-              </div>
-              <Flag className="h-5 w-5 text-[#969696]" />
-            </div>
-            <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto pr-1">
-              {tracks.map((t, i) => {
-                const unlocked = i < state.unlockedTracks;
-                return (
-                  <Link
-                    key={t.id}
-                    to="/race/$trackId"
-                    params={{ trackId: t.id }}
-                    className={`group relative overflow-hidden border p-4 transition ${
-                      unlocked
-                        ? "border-[#303030] bg-[#1e1e1e] hover:border-[#da291c]"
-                        : "border-[#252525] bg-[#181818] opacity-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="grid h-12 w-12 place-items-center border border-[#303030] bg-[#252525] text-2xl">{t.flag}</span>
-                      <div className="flex-1">
-                        <div className="font-display text-lg uppercase tracking-[0.04em] text-white">{t.name}</div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.11em]">
-                          <span className={unlocked ? "text-[#03904a]" : "text-[#696969]"}>
-                            {unlocked ? "● Ready" : "🔒 Locked"}
-                          </span>
-                          <span className="text-[#303030]">·</span>
-                          <span className="text-[#969696]">Laps {t.laps}</span>
-                        </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {UPGRADES.map((u) => {
+              const lvl = state.upgrades[u.key];
+              const max = lvl >= MAX_LEVEL;
+              const cost = max ? 0 : COSTS[lvl];
+              const afford = state.coins >= cost;
+              const rar = RARITY[rarityForLevel(lvl)];
+              return (
+                <div key={u.key}
+                     className="group relative overflow-hidden rounded-xl border p-5 transition hover:-translate-y-0.5"
+                     style={{
+                       borderColor: rar.border,
+                       background: `linear-gradient(180deg, ${rar.bg}, rgba(15,8,32,0.85))`,
+                       boxShadow: `0 0 0 1px ${rar.border} inset, 0 0 24px -8px ${rar.glow}`,
+                     }}>
+                  {/* Rarity ribbon */}
+                  <span className="absolute right-3 top-3 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em]"
+                        style={{ color: rar.color, border: `1px solid ${rar.border}`, background: "rgba(0,0,0,0.3)" }}>
+                    {rar.label}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-12 w-12 place-items-center rounded-lg"
+                          style={{ background: `linear-gradient(135deg, ${u.accent}, transparent)`, color: "#fff", boxShadow: `0 0 18px ${u.accent}55` }}>
+                      {u.icon}
+                    </span>
+                    <div>
+                      <div className="font-display text-lg text-white">{u.label}</div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#cfd4ff]/70">
+                        Lv <span className="text-white">{lvl}</span>
+                        {!max && <><ArrowUp className="h-3 w-3" style={{ color: u.accent }} /><span style={{ color: u.accent }}>Lv {lvl + 1}</span></>}
                       </div>
-                      {unlocked && (
-                        <span className="font-display inline-flex items-center gap-1 bg-[#da291c] px-4 py-2.5 text-[14px] uppercase tracking-[0.12em] text-white transition group-hover:bg-[#b01e0a]">
-                          Drive <ChevronRight className="h-3.5 w-3.5" />
-                        </span>
-                      )}
                     </div>
-                    {unlocked && (
-                      <p className="mt-3 text-[12px] leading-relaxed text-[#969696]">
-                        {t.description}
-                      </p>
-                    )}
-                  </Link>
-                );
-              })}
-              <div className="border border-dashed border-[#303030] p-4 text-center text-[11px] font-bold uppercase tracking-[0.11em] text-[#696969]">
-                <Sparkles className="mx-auto mb-1 h-4 w-4" /> More tracks coming soon
+                  </div>
+
+                  {/* Pip levels */}
+                  <div className="mt-4 flex items-center gap-1.5">
+                    {Array.from({ length: MAX_LEVEL }).map((_, i) => (
+                      <div key={i} className="h-1.5 flex-1 rounded-full"
+                           style={{
+                             background: i < lvl ? u.accent : "rgba(255,255,255,0.08)",
+                             boxShadow: i < lvl ? `0 0 8px ${u.accent}` : "none",
+                           }} />
+                    ))}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.18em]">
+                    <span className="text-[#cfd4ff]/60">Next bonus</span>
+                    <span style={{ color: u.accent }}>{u.bonus}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => buyUpgrade(u.key)}
+                    disabled={max || !afford}
+                    className="arcade-btn mt-4 w-full"
+                    style={ max ? { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", boxShadow: "none" }
+                           : afford ? { background: `linear-gradient(135deg, ${u.accent}, ${rar.color})`, color: "#0a0420", boxShadow: `0 0 24px ${u.accent}55, inset 0 1px 0 rgba(255,255,255,0.3)` }
+                           : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)", boxShadow: "none" }}
+                  >
+                    {max ? <><Star className="h-4 w-4" /> Maxed Out</>
+                         : <><Wrench className="h-4 w-4" /> Upgrade · {cost}</>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* TRACKS */}
+        <section className="arcade-card p-6">
+          <div className="mb-5 flex items-end justify-between border-b border-[rgba(34,230,255,0.25)] pb-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.28em] neon-text-cyan">Race</div>
+              <h2 className="font-display mt-1 text-2xl text-white">Select your mission</h2>
+            </div>
+            <Flag className="h-5 w-5 text-[#cfd4ff]/60" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {tracks.map((t, i) => {
+              const unlocked = i < state.unlockedTracks;
+              const meta = TRACK_META[t.id] ?? DEFAULT_TRACK_META;
+              return (
+                <TrackCard key={t.id} track={t} unlocked={unlocked} meta={meta} />
+              );
+            })}
+            <div className="flex items-center justify-center rounded-xl border border-dashed border-[rgba(155,92,255,0.3)] p-6 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-[#cfd4ff]/50">
+              <div>
+                <Sparkles className="mx-auto mb-2 h-5 w-5 animate-neon-pulse text-[#9b5cff]" />
+                More tracks dropping soon
               </div>
             </div>
           </div>
@@ -329,31 +412,194 @@ function HomeHUD() {
 
 /* ============== components ============== */
 
-function StatPill({ icon, value, tone }: { icon: React.ReactNode; value: number | string; tone: "gold" | "primary" }) {
-  const cls = tone === "gold"
-    ? "border-[#5a4218] bg-[#2a1f08] text-[#c8a050]"
-    : "border-[#5a1a1a] bg-[#1f0a0a] text-[#da291c]";
+function StatPill({ icon, value, tone }: { icon: React.ReactNode; value: number | string; tone: "gold" | "red" | "cyan" }) {
+  const colorMap = {
+    gold: { border: "rgba(255,208,66,0.5)", bg: "rgba(255,208,66,0.08)", color: "#ffd97a", glow: "rgba(255,208,66,0.4)" },
+    red:  { border: "rgba(255,58,85,0.5)",  bg: "rgba(255,58,85,0.08)",  color: "#ff8a98", glow: "rgba(255,58,85,0.4)" },
+    cyan: { border: "rgba(34,230,255,0.5)", bg: "rgba(34,230,255,0.08)", color: "#9beaff", glow: "rgba(34,230,255,0.4)" },
+  } as const;
+  const c = colorMap[tone];
   return (
-    <div className={`flex items-center gap-1.5 border ${cls} px-3 py-2 text-[13px] font-bold tabular-nums`}>
+    <div className="flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-bold tabular-nums"
+         style={{ borderColor: c.border, background: c.bg, color: c.color, boxShadow: `0 0 14px -4px ${c.glow}` }}>
       {icon}
       <span>{value}</span>
     </div>
   );
 }
 
-function HeroStat({ icon, label, value, bg, border, accent }: {
-  icon: React.ReactNode; label: string; value: number | string; bg: string; border: string; accent: string;
+function DashStat({ icon, label, value, accent, gradient, sub }: {
+  icon: React.ReactNode; label: string; value: number | string; accent: string; gradient: string; sub: string;
 }) {
   return (
-    <div className="relative overflow-hidden border p-3.5"
-         style={{ background: bg, borderColor: border }}>
-      {/* thin red left border accent */}
-      <div className="absolute inset-y-0 left-0 w-px" style={{ background: "#da291c" }} />
-      <div className="flex items-center gap-2" style={{ color: accent }}>
-        {icon}
-        <span className="text-[11px] font-bold uppercase tracking-[0.11em]">{label}</span>
+    <div className="relative overflow-hidden rounded-2xl border p-5 transition hover:-translate-y-1"
+         style={{
+           borderColor: `${accent}66`,
+           background: gradient + ", rgba(15,8,32,0.85)",
+           boxShadow: `0 0 24px -8px ${accent}80, inset 0 1px 0 rgba(255,255,255,0.06)`,
+         }}>
+      <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full"
+           style={{ background: `radial-gradient(circle, ${accent}40, transparent 70%)` }} />
+      <div className="relative flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-12 w-12 place-items-center rounded-xl"
+                style={{ background: `${accent}22`, color: accent, border: `1px solid ${accent}55`, boxShadow: `0 0 16px ${accent}55` }}>
+            {icon}
+          </span>
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: `${accent}` }}>{label}</div>
+            <div className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-[#cfd4ff]/50">{sub}</div>
+          </div>
+        </div>
       </div>
-      <div className="font-display mt-1.5 text-[32px] tabular-nums leading-none text-white" style={{ letterSpacing: "0.02em" }}>{value}</div>
+      <div className="relative mt-4 font-display text-[44px] leading-none tabular-nums text-white"
+           style={{ textShadow: `0 0 18px ${accent}80` }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function TrackCard({ track, unlocked, meta }: {
+  track: { id: string; name: string; flag: string; description: string; laps: number };
+  unlocked: boolean;
+  meta: { difficulty: number; reward: number; thumbAccent: string; thumbAccent2: string };
+}) {
+  const card = (
+    <div className={`group relative overflow-hidden rounded-xl border transition ${
+      unlocked ? "hover:-translate-y-1" : "opacity-60"
+    }`}
+         style={{
+           borderColor: unlocked ? "rgba(34,230,255,0.35)" : "rgba(155,92,255,0.15)",
+           background: "linear-gradient(180deg, rgba(20,10,45,0.9), rgba(10,4,28,0.95))",
+           boxShadow: unlocked ? "0 0 20px -8px rgba(34,230,255,0.5)" : "none",
+         }}>
+      {/* Thumbnail */}
+      <div className="relative h-32 overflow-hidden"
+           style={{
+             background:
+               `linear-gradient(135deg, ${meta.thumbAccent}33, ${meta.thumbAccent2}33), ` +
+               `radial-gradient(circle at 30% 70%, ${meta.thumbAccent}55, transparent 60%), ` +
+               `radial-gradient(circle at 70% 30%, ${meta.thumbAccent2}55, transparent 60%), #0a0420`,
+           }}>
+        <div className="absolute inset-0 neon-grid-bg opacity-40" />
+        {/* Stylized track loop */}
+        <svg viewBox="0 0 200 80" className="absolute inset-0 h-full w-full">
+          <path d="M30 60 Q30 20 70 20 L130 20 Q170 20 170 60 Q170 70 130 70 L70 70 Q30 70 30 60 Z"
+                fill="none" stroke={meta.thumbAccent} strokeWidth="2"
+                style={{ filter: `drop-shadow(0 0 6px ${meta.thumbAccent})` }} />
+          <path d="M30 60 Q30 20 70 20 L130 20 Q170 20 170 60"
+                fill="none" stroke={meta.thumbAccent2} strokeWidth="1" strokeDasharray="4 4" opacity="0.7" />
+        </svg>
+        <span className="absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-lg border text-xl backdrop-blur-md"
+              style={{ borderColor: `${meta.thumbAccent}66`, background: "rgba(0,0,0,0.4)" }}>{track.flag}</span>
+        {!unlocked && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <Lock className="h-7 w-7 text-[#cfd4ff]/70" />
+          </div>
+        )}
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="font-display text-lg text-white">{track.name}</div>
+            <div className="mt-1 flex items-center gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className="h-3 w-3"
+                      style={{
+                        color: i < meta.difficulty ? "#ffd042" : "rgba(255,255,255,0.15)",
+                        fill: i < meta.difficulty ? "#ffd042" : "transparent",
+                        filter: i < meta.difficulty ? "drop-shadow(0 0 4px #ffd042)" : "none",
+                      }} />
+              ))}
+            </div>
+          </div>
+          {unlocked && (
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em]"
+                  style={{ color: "#00ffa3", border: "1px solid rgba(0,255,163,0.4)", background: "rgba(0,255,163,0.08)" }}>
+              ● Ready
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-[rgba(255,208,66,0.3)] bg-[rgba(255,208,66,0.06)] px-2.5 py-2">
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#cfd4ff]/50">Reward</div>
+            <div className="mt-0.5 flex items-center gap-1 text-sm font-bold neon-text-gold">
+              <Coins className="h-3.5 w-3.5" /> {meta.reward}
+            </div>
+          </div>
+          <div className="rounded-lg border border-[rgba(34,230,255,0.3)] bg-[rgba(34,230,255,0.06)] px-2.5 py-2">
+            <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#cfd4ff]/50">Laps</div>
+            <div className="mt-0.5 flex items-center gap-1 text-sm font-bold neon-text-cyan">
+              <Flag className="h-3.5 w-3.5" /> {track.laps}
+            </div>
+          </div>
+        </div>
+
+        {unlocked ? (
+          <div className="arcade-btn mt-4 w-full group-hover:brightness-110">
+            Drive <ChevronRight className="h-4 w-4" />
+          </div>
+        ) : (
+          <div className="mt-4 w-full rounded-lg border border-[rgba(155,92,255,0.2)] bg-white/[0.02] py-3 text-center text-[11px] font-bold uppercase tracking-[0.22em] text-[#cfd4ff]/40">
+            Locked · win to unlock
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!unlocked) return card;
+  return (
+    <Link to="/race/$trackId" params={{ trackId: track.id }} className="block">
+      {card}
+    </Link>
+  );
+}
+
+function CitySkyline() {
+  return (
+    <svg viewBox="0 0 1200 220" className="pointer-events-none absolute inset-x-0 bottom-[35%] h-[40%] w-full opacity-60" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="cityGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#9b5cff" stopOpacity="0.0" />
+          <stop offset="60%" stopColor="#9b5cff" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#ff2bd6" stopOpacity="0.8" />
+        </linearGradient>
+      </defs>
+      <path d="M0 220 L0 140 L40 140 L40 100 L80 100 L80 130 L120 130 L120 80 L160 80 L160 60 L200 60 L200 120 L240 120 L240 90 L290 90 L290 50 L330 50 L330 110 L380 110 L380 70 L420 70 L420 100 L470 100 L470 40 L510 40 L510 90 L560 90 L560 120 L610 120 L610 60 L660 60 L660 100 L710 100 L710 80 L760 80 L760 130 L810 130 L810 70 L860 70 L860 110 L910 110 L910 50 L950 50 L950 90 L1000 90 L1000 130 L1050 130 L1050 100 L1100 100 L1100 140 L1200 140 L1200 220 Z"
+            fill="url(#cityGrad)" />
+      {/* Window lights */}
+      {[120, 200, 290, 380, 470, 560, 660, 760, 860, 950, 1050].map((x, i) => (
+        <rect key={i} x={x + 8} y={90 + (i % 3) * 8} width="3" height="3" fill="#22e6ff" opacity="0.9" />
+      ))}
+    </svg>
+  );
+}
+
+function Particles() {
+  const dots = Array.from({ length: 18 });
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {dots.map((_, i) => {
+        const left = (i * 53) % 100;
+        const delay = (i * 0.37) % 5;
+        const size = 2 + (i % 3);
+        const color = i % 3 === 0 ? "#ff2bd6" : i % 3 === 1 ? "#22e6ff" : "#9b5cff";
+        return (
+          <span key={i}
+                className="absolute bottom-0 animate-particle rounded-full"
+                style={{
+                  left: `${left}%`,
+                  width: size, height: size,
+                  background: color,
+                  boxShadow: `0 0 ${size * 3}px ${color}`,
+                  animationDelay: `${delay}s`,
+                }} />
+        );
+      })}
     </div>
   );
 }
@@ -366,13 +612,19 @@ function FlowChain() {
     { label: "Race" },
   ];
   return (
-    <div className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2">
-      {steps.map((s, i) => (
-        <div key={s.label} className="flex items-center gap-2">
-          <span className="font-display text-[14px] uppercase tracking-[0.12em] text-[#969696]">{s.label}</span>
-          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-[#404040]" />}
-        </div>
-      ))}
+    <div className="flex flex-wrap items-center gap-2 rounded-full border border-[rgba(155,92,255,0.3)] bg-[rgba(20,10,45,0.6)] px-4 py-2 backdrop-blur-md">
+      {steps.map((s, i) => {
+        const colors = ["#22e6ff", "#ffd042", "#9b5cff", "#ff2bd6"];
+        return (
+          <div key={s.label} className="flex items-center gap-2">
+            <span className="font-display text-[12px] uppercase tracking-[0.22em]"
+                  style={{ color: colors[i], textShadow: `0 0 8px ${colors[i]}80` }}>
+              {s.label}
+            </span>
+            {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-[#cfd4ff]/40" />}
+          </div>
+        );
+      })}
     </div>
   );
 }
