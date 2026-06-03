@@ -704,8 +704,27 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        // Equal AI baseline — no per-index advantage. Player upgrades give the edge.
-        const desired = AI_TOP_T * 0.94;
+        // Per-car top speed comes from this car's own upgrade level — no rubber-banding.
+        const ownTop = c.topT ?? AI_TOP_T;
+        // Bots automatically slow to 84% before sharp corners so they never spin out.
+        let speedCap = ownTop;
+        for (const dc of DANGER_CORNERS) {
+          const ahead = ((dc - c.t + 1) % 1);
+          if (ahead < CORNER_WARN_AHEAD || ahead > 1 - CORNER_HIT_RADIUS) {
+            speedCap = Math.min(speedCap, ownTop * 0.84);
+          }
+        }
+        // Boost pads — same +20% for 2s as the player.
+        for (const f of featurePos) {
+          const dx = c.x - f.x, dy = c.y - f.y;
+          if (dx * dx + dy * dy < 38 * 38) {
+            if (f.kind === "boost" && (c.boostUntil ?? 0) < now) {
+              c.boostUntil = now + 2000;
+            }
+          }
+        }
+        if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.20;
+        const desired = speedCap;
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
         // Lane is fixed at spawn — no wandering, no overlap with other cars.
         c.t += c.speed * dt;
