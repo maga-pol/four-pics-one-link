@@ -1,7 +1,11 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, Trophy, Zap } from "lucide-react";
+import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
+import {
+  startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
+  playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
+} from "@/lib/audio";
 
 export const Route = createFileRoute("/race/$trackId")({
   head: () => ({ meta: [{ title: "Race · World Quiz Race" }] }),
@@ -9,6 +13,9 @@ export const Route = createFileRoute("/race/$trackId")({
 });
 
 const STORAGE = "wqr-state";
+const BEST_KEY = "wqr-best-times";
+const HINT_KEY = "wqr-controls-hint-seen";
+
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
@@ -27,6 +34,24 @@ function readUpgrades() {
   } catch {
     return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
   }
+}
+function readBestTime(trackId: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    return typeof obj?.[trackId] === "number" ? obj[trackId] : null;
+  } catch { return null; }
+}
+function writeBestTime(trackId: string, t: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[trackId] = t;
+    localStorage.setItem(BEST_KEY, JSON.stringify(obj));
+  } catch {}
 }
 
 function RaceScreen() {
@@ -63,7 +88,7 @@ function RaceScreen() {
           </div>
         </header>
 
-        <CircuitRace laps={track.laps} />
+        <CircuitRace laps={track.laps} trackId={track.id} />
       </div>
     </main>
   );
@@ -111,7 +136,7 @@ function pathPoint(t: number) {
   return { x: p.x, y: p.y, hx: dx, hy: dy };
 }
 
-function CircuitRace({ laps }: { laps: number }) {
+function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = (s - m * 60);
@@ -122,7 +147,24 @@ function CircuitRace({ laps }: { laps: number }) {
   const keysRef = useRef<Record<string, boolean>>({});
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
   const [count, setCount] = useState<string | null>("3");
-  const [result, setResult] = useState<{ rank: number; reward: number } | null>(null);
+  const [result, setResult] = useState<{ rank: number; reward: number; time: number; best: number | null; isNewBest: boolean } | null>(null);
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem(HINT_KEY);
+  });
+  const [bestTime] = useState<number | null>(() => readBestTime(trackId));
+  const [nextTurn, setNextTurn] = useState<{ dir: number; sharp: number }>({ dir: 0, sharp: 0 });
+
+  function toggleMute() {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  }
+  function dismissHint() {
+    setShowHint(false);
+    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -268,16 +310,40 @@ function CircuitRace({ laps }: { laps: number }) {
     let finished = false;
 
     function onKey(e: KeyboardEvent, down: boolean) {
+      // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
       const k = e.key.toLowerCase();
-      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(k)) {
+      const codeMap: Record<string, string> = {
+        KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d",
+        ArrowUp: "arrowup", ArrowDown: "arrowdown", ArrowLeft: "arrowleft", ArrowRight: "arrowright",
+        Space: " ", ShiftLeft: "shift", ShiftRight: "shift",
+      };
+      const mapped = codeMap[e.code] ?? k;
+      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(mapped)) {
         e.preventDefault();
       }
-      keysRef.current[k] = down;
+      keysRef.current[mapped] = down;
+      // first key press also kicks off audio (autoplay policy)
+      if (down) startEngine();
     }
     const kd = (e: KeyboardEvent) => onKey(e, true);
     const ku = (e: KeyboardEvent) => onKey(e, false);
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
+
+    // Auto-focus the canvas wrapper so keys work without click
+    wrap.focus();
+
+    // Tire trail buffer (world-space line segments, fade with time)
+    type Trail = { x1: number; y1: number; x2: number; y2: number; born: number };
+    const trails: Trail[] = [];
+    let lastTrailX = cars[0].x;
+    let lastTrailY = cars[0].y;
+    let drifting = false;
+
+    // Camera shake
+    let shake = 0;
+    let prevBoosting = false;
+    let lastCountdownBeep = -1;
 
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -290,10 +356,15 @@ function CircuitRace({ laps }: { laps: number }) {
       const racing = sinceStart >= COUNTDOWN_MS;
       if (!racing) {
         const remain = COUNTDOWN_MS - sinceStart;
-        if (remain > 2500) setCount("3");
-        else if (remain > 1500) setCount("2");
-        else if (remain > 500) setCount("1");
-        else setCount("GO");
+        let idx = 3;
+        if (remain > 2500) { setCount("3"); idx = 3; }
+        else if (remain > 1500) { setCount("2"); idx = 2; }
+        else if (remain > 500) { setCount("1"); idx = 1; }
+        else { setCount("GO"); idx = 0; }
+        if (idx !== lastCountdownBeep) {
+          lastCountdownBeep = idx;
+          playCountdownBeep(idx === 0);
+        }
         // freeze cars
         player.speed = 0;
         for (let i = 1; i < cars.length; i++) cars[i].speed = 0;
@@ -330,6 +401,71 @@ function CircuitRace({ laps }: { laps: number }) {
       const moveScale = 1200;
       player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
       player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // ===== Drift detection + tire trails =====
+      const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
+      drifting = !!steer && speedFrac > 0.55;
+      if (drifting || boosting) {
+        // record trail segment
+        const dxT = player.x - lastTrailX;
+        const dyT = player.y - lastTrailY;
+        if (dxT * dxT + dyT * dyT > 30 * 30) {
+          trails.push({ x1: lastTrailX, y1: lastTrailY, x2: player.x, y2: player.y, born: now });
+          lastTrailX = player.x;
+          lastTrailY = player.y;
+          if (trails.length > 280) trails.shift();
+        }
+      } else {
+        lastTrailX = player.x;
+        lastTrailY = player.y;
+      }
+
+      // ===== Bot collisions: elastic separation =====
+      for (let i = 1; i < cars.length; i++) {
+        const b = cars[i];
+        const dx = b.x - player.x;
+        const dy = b.y - player.y;
+        const d2 = dx * dx + dy * dy;
+        const R = 30;
+        if (d2 < R * R && d2 > 0.001) {
+          const d = Math.sqrt(d2);
+          const nx = dx / d, ny = dy / d;
+          const push = (R - d) * 0.6;
+          player.x -= nx * push;
+          player.y -= ny * push;
+          b.x += nx * push * 0.4;
+          b.y += ny * push * 0.4;
+          player.speed *= 0.78;
+          b.speed *= 0.92;
+          if (Math.abs(player.speed) > 0.05) {
+            shake = Math.max(shake, 8);
+            playCrash();
+          }
+        }
+      }
+
+      // ===== Camera shake triggers =====
+      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); playNitroSwoosh(); }
+      prevBoosting = boosting;
+      shake *= Math.pow(0.001, dt); // decay fast
+
+      // ===== Engine audio =====
+      setEngine(speedFrac, boosting);
+
+      // ===== Next-turn predictor =====
+      {
+        const lookAhead = 0.02 + Math.min(0.04, speedFrac * 0.04);
+        const p0 = pathPoint(player.t);
+        const p1 = pathPoint(player.t + lookAhead);
+        const a0 = Math.atan2(p0.hy, p0.hx);
+        const a1 = Math.atan2(p1.hy, p1.hx);
+        let da = a1 - a0;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        const sharp = Math.min(1, Math.abs(da) * 3);
+        const dir = da > 0.02 ? 1 : da < -0.02 ? -1 : 0;
+        setNextTurn({ dir, sharp });
+      }
 
       // Project to track for lap detection / off-road
       const proj = projectToTrack(player.x, player.y, player.t);
@@ -387,7 +523,13 @@ function CircuitRace({ laps }: { laps: number }) {
         const rewards = [300, 220, 160, 110, 70, 40];
         const reward = rewards[pos - 1] ?? 30;
         addCoins(reward);
-        setResult({ rank: pos, reward });
+        const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
+        const prevBest = readBestTime(trackId);
+        const isNewBest = prevBest === null || t < prevBest;
+        if (isNewBest) writeBestTime(trackId, t);
+        playFanfare();
+        stopEngine();
+        setResult({ rank: pos, reward, time: t, best: prevBest, isNewBest });
         running = false;
         return;
       }
@@ -412,8 +554,11 @@ function CircuitRace({ laps }: { laps: number }) {
       const pcy = player.y;
       const heading = player.angle;
 
+      const shakeX = (Math.random() - 0.5) * shake;
+      const shakeY = (Math.random() - 0.5) * shake;
+
       ctx.save();
-      ctx.translate(cssW / 2, cssH * 0.72);
+      ctx.translate(cssW / 2 + shakeX, cssH * 0.72 + shakeY);
       ctx.scale(scale, scale);
       ctx.rotate(-heading - Math.PI / 2);
       ctx.translate(-pcx, -pcy);
@@ -468,12 +613,94 @@ function CircuitRace({ laps }: { laps: number }) {
       // Decorations
       for (const d of decor) drawDecor(d);
 
+      // Tire trails (under cars)
+      ctx.lineCap = "round";
+      for (const tr of trails) {
+        const age = (now - tr.born) / 1000;
+        const alpha = Math.max(0, 0.55 - age * 0.18);
+        if (alpha <= 0) continue;
+        ctx.strokeStyle = `rgba(15,15,15,${alpha})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(tr.x1, tr.y1);
+        ctx.lineTo(tr.x2, tr.y2);
+        ctx.stroke();
+      }
+
       // Cars (sorted so leader on top)
       const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
       for (const c of sorted) drawCar(c);
 
       ctx.restore();
+
+      // ===== Mini-map (screen-space, bottom-left) =====
+      drawMiniMap(cssW, cssH);
       void now;
+    }
+
+    function drawMiniMap(cssW: number, cssH: number) {
+      const mw = 150, mh = 90;
+      const pad = 12;
+      const x0 = pad, y0 = cssH - mh - pad;
+      // bg
+      ctx.save();
+      ctx.fillStyle = "rgba(8,18,32,0.78)";
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.fill();
+      ctx.strokeStyle = "rgba(98,159,248,0.45)";
+      ctx.lineWidth = 1;
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.stroke();
+
+      // map world bounds to mini-map
+      const margin = 10;
+      const ww = mw - margin * 2, hh = mh - margin * 2;
+      const sx = ww / WORLD_W, sy = hh / WORLD_H;
+      const s = Math.min(sx, sy);
+      const ox = x0 + margin + (mw - margin * 2 - WORLD_W * s) / 2;
+      const oy = y0 + margin + (mh - margin * 2 - WORLD_H * s) / 2;
+
+      // track outline
+      ctx.strokeStyle = "rgba(180,210,255,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const NM = 120;
+      for (let i = 0; i <= NM; i++) {
+        const p = rawPoint(i / NM);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // cars
+      for (const c of cars) {
+        ctx.fillStyle = c.isPlayer ? "#ffffff" : c.color;
+        ctx.beginPath();
+        ctx.arc(ox + c.x * s, oy + c.y * s, c.isPlayer ? 3 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        if (c.isPlayer) {
+          ctx.strokeStyle = "rgba(98,159,248,0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(ox + c.x * s, oy + c.y * s, 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function roundRectAbs(x: number, y: number, w: number, h: number, r: number) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
     }
 
     function drawKerb(offset: number) {
@@ -593,9 +820,10 @@ function CircuitRace({ laps }: { laps: number }) {
       ro.disconnect();
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
+      stopEngine();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laps]);
+  }, [laps, trackId]);
 
   return (
     <section className="relative flex flex-1 flex-col gap-3">
@@ -609,76 +837,162 @@ function CircuitRace({ laps }: { laps: number }) {
         <canvas ref={canvasRef} className="block h-full w-full" />
 
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
-          <div className="w-40 rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
+          <div className="w-44 rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur shadow-[0_0_24px_-12px_rgba(98,159,248,0.6)]">
             <div className="flex items-center justify-between">
-              <span><span className="text-muted-foreground">LAP </span><span className="text-foreground">{hud.lap}/{laps}</span></span>
-              <span className="text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+              <span className="ps-chip ps-chip-solid" style={{ padding: "2px 8px", fontSize: 9 }}>LAP {hud.lap}/{laps}</span>
+              <span className="tabular-nums text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
             </div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
-              <div className="h-full bg-gradient-to-r from-neon to-cyan-400" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-primary-glow to-primary transition-[width] duration-150" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
-            <span className="text-muted-foreground">TIME </span>
-            <span className="text-foreground">{formatTime(hud.elapsed)}</span>
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</span>
+            <div className="text-foreground">{formatTime(hud.elapsed)}</div>
+            {bestTime !== null && (
+              <div className="text-[10px] text-primary-glow">Best {formatTime(bestTime)}</div>
+            )}
           </div>
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <span className="text-muted-foreground">POS </span>
-            <span className="text-foreground">P{hud.pos}/{hud.total}</span>
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
+            <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
           </div>
         </div>
 
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <Gauge className="mr-1 inline h-3.5 w-3.5 text-neon" />
-            {hud.speed} <span className="text-muted-foreground">km/h</span>
+          <div className="rounded-xl border border-primary/40 bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur shadow-[0_0_30px_-12px_rgba(98,159,248,0.7)]">
+            <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              <Gauge className="h-3 w-3 text-primary-glow" /> Speed
+            </div>
+            <div className="text-lg tabular-nums leading-none text-foreground">
+              {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
+            </div>
           </div>
-          <div className="w-32 rounded-xl border border-border bg-background/60 px-2 py-1 backdrop-blur">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+          <div className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
               <Zap className="h-3 w-3" /> Nitro
             </div>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
-              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-background/70 text-muted-foreground backdrop-blur transition hover:text-foreground"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
         </div>
 
+        {/* Next-turn predictor */}
+        {nextTurn.dir !== 0 && nextTurn.sharp > 0.1 && !result && !count && (
+          <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Next</span>
+            <span
+              className="text-2xl leading-none"
+              style={{
+                color: `hsl(${(1 - nextTurn.sharp) * 120}, 90%, 60%)`,
+                transform: `scale(${0.85 + nextTurn.sharp * 0.4})`,
+                transition: "all 0.2s",
+              }}
+            >
+              {nextTurn.dir < 0 ? "↰" : "↱"}
+            </span>
+          </div>
+        )}
+
         {count && !result && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/30 backdrop-blur-[2px]">
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/40 backdrop-blur-[3px]">
+            {/* echo rings */}
+            <div key={count + "-ring"} className="absolute h-40 w-40 rounded-full border-2 border-primary/60 animate-ping" />
             <div
               key={count}
-              className="select-none text-[12rem] font-black leading-none text-gradient-title drop-shadow-[0_0_40px_rgba(34,211,238,0.5)] animate-in zoom-in-50 duration-300"
-              style={{ textShadow: "0 0 60px rgba(34,211,238,0.6)" }}
+              className="select-none font-black leading-none animate-in zoom-in-50 duration-300"
+              style={{
+                fontSize: count === "GO" ? "10rem" : "13rem",
+                color: count === "3" ? "#ef4444" : count === "2" ? "#f59e0b" : count === "1" ? "#22c55e" : "#629ff8",
+                textShadow: `0 0 80px ${count === "GO" ? "rgba(98,159,248,0.9)" : "rgba(255,255,255,0.5)"}, 0 0 30px currentColor`,
+                letterSpacing: "-0.05em",
+              }}
             >
               {count}
+            </div>
+            <div className="absolute bottom-[28%] flex gap-3 text-2xl opacity-70">
+              <span className="text-primary-glow">△</span>
+              <span className="text-rose-400">○</span>
+              <span className="text-sky-400">✕</span>
+              <span className="text-fuchsia-400">□</span>
             </div>
           </div>
         )}
 
         {result && (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-background/70 backdrop-blur-md">
-            <div className="w-[min(92%,420px)] rounded-2xl border border-primary/50 bg-card/80 p-5 text-center shadow-glow">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-gradient-primary text-primary-foreground">
-                <Trophy className="h-6 w-6" />
-              </div>
-              <div className="mt-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Race finished</div>
-              <div className="mt-1 text-2xl font-black">
+          <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
+            <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/30 blur-[120px]" />
+            <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-primary-glow/25 blur-[120px]" />
+            <div className="relative w-[min(94%,520px)] rounded-3xl border border-primary/40 bg-card/80 p-8 text-center shadow-glow animate-in zoom-in-95 duration-300">
+              <div className="ps-chip ps-chip-solid mx-auto">Race Finished</div>
+              <div className="mt-4 text-[7rem] leading-none font-thin tracking-tight">
                 <span className="text-gradient-title">P{result.rank}</span>
               </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Reward: <span className="font-black text-amber-300">+{result.reward} coins</span>
+              <div className="ps-hairline mt-2 mb-4" />
+              <div className="grid grid-cols-3 gap-3 text-left">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</div>
+                  <div className="text-lg font-bold tabular-nums">{formatTime(result.time)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Best</div>
+                  <div className="text-lg font-bold tabular-nums text-primary-glow">
+                    {formatTime(result.isNewBest ? result.time : (result.best ?? result.time))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reward</div>
+                  <div className="text-lg font-bold text-amber-300">+{result.reward}</div>
+                </div>
               </div>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <button onClick={() => window.location.reload()} className="rounded-xl bg-gradient-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-button">
-                  Race again
+              {result.isNewBest && (
+                <div className="mt-4 ps-chip ps-chip-solid mx-auto" style={{ background: "linear-gradient(90deg,#f59e0b,#ef4444)" }}>
+                  🏆 New Best Time!
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <button onClick={() => window.location.reload()} className="ps-pill">
+                  <Trophy className="h-4 w-4" /> Race again
                 </button>
-                <Link to="/quiz" className="rounded-xl border border-border bg-background/60 px-4 py-2 text-xs font-black uppercase tracking-wider">
+                <Link to="/quiz" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
                   Quiz
                 </Link>
-                <Link to="/" className="rounded-xl border border-border bg-background/60 px-4 py-2 text-xs font-black uppercase tracking-wider">
+                <Link to="/" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
                   HUB
                 </Link>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* First-run controls overlay */}
+        {showHint && !result && (
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-background/70 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={dismissHint}
+          >
+            <div className="w-[min(92%,440px)] rounded-3xl border border-primary/40 bg-card/85 p-6 text-center shadow-glow">
+              <div className="ps-chip ps-chip-solid mx-auto">Controls</div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-left text-sm">
+                <Kbd label="W / ↑" desc="Accelerate" />
+                <Kbd label="S / ↓" desc="Brake / Reverse" />
+                <Kbd label="A / ←" desc="Steer left" />
+                <Kbd label="D / →" desc="Steer right" />
+                <Kbd label="Space / Shift" desc="Nitro boost (+15 km/h)" />
+                <Kbd label="🎮 △○✕□" desc="Look for next-turn arrow" />
+              </div>
+              <button onClick={dismissHint} className="ps-pill mt-6">Start Racing</button>
+              <div className="mt-2 text-[10px] text-muted-foreground">Click anywhere to dismiss</div>
             </div>
           </div>
         )}
@@ -688,5 +1002,16 @@ function CircuitRace({ laps }: { laps: number }) {
         <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · Space/Shift nitro
       </div>
     </section>
+  );
+}
+
+function Kbd({ label, desc }: { label: string; desc: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <kbd className="inline-flex min-w-[68px] items-center justify-center rounded-md border border-primary/40 bg-background/80 px-2 py-1 text-[11px] font-bold text-primary-glow">
+        {label}
+      </kbd>
+      <span className="text-muted-foreground">{desc}</span>
+    </div>
   );
 }
