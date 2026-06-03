@@ -673,8 +673,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         // Equal AI baseline — no per-index advantage. Player upgrades give the edge.
         const desired = AI_TOP_T * 0.94;
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
-        c.lane += Math.sin(now / 600 + i) * dt * 0.2;
-        c.lane = Math.max(-0.8, Math.min(0.8, c.lane));
+        // Lane is fixed at spawn — no wandering, no overlap with other cars.
         c.t += c.speed * dt;
         if (c.t >= 1) {
           c.t -= 1;
