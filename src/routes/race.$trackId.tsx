@@ -272,13 +272,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
-    // Now assign each bot a top speed driven purely by its own speed upgrade level,
-    // using the exact same formula as the player (baseSpeed = 0.20 + lvl*0.035).
-    const PLAYER_SPEED_LVL = up.speed;
+    // All cars share the exact same top speed — no per-car advantage.
     for (let i = 1; i < cars.length; i++) {
-      const lvl = AI_SPEED_UPGRADES[i - 1] ?? 1;
-      const ratio = (0.20 + lvl * 0.035) / (0.20 + PLAYER_SPEED_LVL * 0.035);
-      cars[i].topT = AI_TOP_T * ratio;
+      cars[i].topT = AI_TOP_T;
     }
 
     // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
@@ -370,9 +366,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let boostUntil = 0;     // player boost-pad active until (ms)
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
-    // ===== DANGER CORNERS — spinout if entered above 85% of max speed =====
-    const DANGER_CORNERS = [0.30, 0.55, 0.80];
-    const SPIN_THRESHOLD = 0.85;
+    // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
+    const DANGER_CORNERS: number[] = [];
+    const SPIN_THRESHOLD = 999; // effectively disabled
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
     const dangerPos = DANGER_CORNERS.map((t) => {
