@@ -67,32 +67,32 @@
    * Surfaces alternate black / white / PlayStation Blue.
    * Default canvas = pure black (editorial hero mode). */
   --radius: 0.5rem; /* 8px — card radius (rounded.md) */
-  --background: oklch(0 0 0);                  /* #000 canvas-dark */
+  --background: oklch(0.12 0.03 252);          /* deep midnight blue, not pure black */
   --foreground: oklch(1 0 0);                  /* #fff on-dark */
-  --card: oklch(0.18 0 0);                     /* #181818 surface-dark-card */
+  --card: oklch(0.21 0.04 252);                /* elevated blue-tinted card */
   --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.18 0 0);
+  --popover: oklch(0.21 0.04 252);
   --popover-foreground: oklch(1 0 0);
-  --primary: oklch(0.55 0.17 248);             /* #0070d1 PlayStation Blue */
+  --primary: oklch(0.62 0.20 248);             /* brighter PS Blue */
   --primary-foreground: oklch(1 0 0);
-  --primary-glow: oklch(0.65 0.17 248);
+  --primary-glow: oklch(0.78 0.18 240);        /* icy cyan-blue glow */
   --secondary: oklch(0.58 0.21 36);            /* #d53b00 commerce orange */
   --secondary-foreground: oklch(1 0 0);
   --neon: oklch(0.95 0.18 120);                /* #deff20 marathon yellow */
-  --muted: oklch(0.15 0.003 270);              /* #121314 surface-dark-elevated */
+  --muted: oklch(0.18 0.03 252);               /* blue-tinted elevated surface */
   --muted-foreground: oklch(0.83 0 0);         /* #cccccc on-dark-mute */
-  --accent: oklch(0.55 0.17 248);
+  --accent: oklch(0.78 0.18 240);
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.55 0.22 22);          /* #c81b3a warning */
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.83 0 0 / 0.2);             /* hairline-dark */
   --input: oklch(1 0 0);                       /* white text-input */
   --ring: oklch(0.55 0.17 248);
-  --gradient-title: linear-gradient(120deg, oklch(1 0 0), oklch(0.85 0.09 248), oklch(0.65 0.18 248)); /* white → PS blue */
-  --gradient-primary: linear-gradient(135deg, oklch(0.62 0.18 248), oklch(0.5 0.17 250) 60%, oklch(0.4 0.15 252)); /* PS blue depth */
-  --gradient-hero: radial-gradient(ellipse at top, oklch(0.55 0.17 248 / 0.35), transparent 60%), linear-gradient(180deg, oklch(0.08 0.02 250), oklch(0 0 0));
-  --shadow-glow: 0 0 80px oklch(0.55 0.17 248 / 0.55), 0 0 24px oklch(0.7 0.18 248 / 0.4);
-  --shadow-button: 0 10px 30px -8px oklch(0.55 0.17 248 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.2);
+  --gradient-title: linear-gradient(120deg, oklch(1 0 0), oklch(0.88 0.14 240), oklch(0.7 0.22 248)); /* white → bright PS blue */
+  --gradient-primary: linear-gradient(135deg, oklch(0.78 0.18 240), oklch(0.55 0.20 250) 60%, oklch(0.42 0.18 252)); /* luminous blue */
+  --gradient-hero: radial-gradient(ellipse at top, oklch(0.62 0.20 248 / 0.45), transparent 60%), linear-gradient(180deg, oklch(0.15 0.04 252), oklch(0.08 0.03 252));
+  --shadow-glow: 0 0 100px oklch(0.62 0.20 248 / 0.7), 0 0 30px oklch(0.85 0.18 240 / 0.55);
+  --shadow-button: 0 12px 36px -6px oklch(0.62 0.20 248 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.3);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
