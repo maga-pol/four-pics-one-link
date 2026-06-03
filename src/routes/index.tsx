@@ -12,6 +12,8 @@ import {
   Globe2,
 } from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/")({
   head: () => ({
