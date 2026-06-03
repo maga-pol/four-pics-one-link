@@ -194,7 +194,6 @@ function HomeHUD() {
               to="/quiz"
               className="inline-flex items-center justify-center gap-3 bg-[#da291c] text-white transition hover:bg-[#b01e0a]"
               style={{
-                fontFamily: "'Anton', sans-serif",
                 fontSize: 22,
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
