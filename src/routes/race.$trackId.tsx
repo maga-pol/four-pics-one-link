@@ -88,7 +88,7 @@ function RaceScreen() {
           </div>
         </header>
 
-        <CircuitRace laps={track.laps} />
+        <CircuitRace laps={track.laps} trackId={track.id} />
       </div>
     </main>
   );
