@@ -342,7 +342,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     // Camera shake
     let shake = 0;
-    let prevSpeed = 0;
     let prevBoosting = false;
     let lastCountdownBeep = -1;
 
@@ -448,7 +447,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // ===== Camera shake triggers =====
       if (boosting && !prevBoosting) { shake = Math.max(shake, 5); playNitroSwoosh(); }
       prevBoosting = boosting;
-      prevSpeed = player.speed;
       shake *= Math.pow(0.001, dt); // decay fast
 
       // ===== Engine audio =====
