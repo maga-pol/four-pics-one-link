@@ -147,47 +147,37 @@ function HomeHUD() {
           <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/40 blur-[100px]" />
           <div className="pointer-events-none absolute -left-24 -bottom-24 h-72 w-72 rounded-full bg-secondary/40 blur-[100px]" />
 
-          <div className="relative flex flex-col items-center gap-5 p-5 pt-7 sm:p-8 sm:pt-10">
-            {/* TITLE */}
-            <span className="ps-chip ps-chip-solid">Season 1</span>
-            <h1 className="text-center text-[clamp(2.8rem,8vw,6rem)] font-extrabold leading-[0.9]">
-              <span className="text-gradient-title">WORLD QUIZ RACE</span>
-            </h1>
-
-            {/* MAIN CTA — hero element */}
-            <Link to={`/race/${firstTrack.id}`} className="play-btn mt-1 z-20">
-              <Play className="h-9 w-9 fill-current" /> PLAY NOW
-            </Link>
-
-            {/* Secondary CTA */}
-            <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-11 px-5 text-xs opacity-90">
-              <Brain className="h-4 w-4" /> Play Quiz · earn coins
-            </Link>
-
-            {/* CAR + STATS row, supporting role */}
-            <div className="mt-2 grid w-full gap-5 md:grid-cols-[1fr_2fr_1fr] md:items-center">
-              {/* Stats left */}
-              <div className="order-2 grid grid-cols-3 gap-2 md:order-1 md:grid-cols-1 md:gap-3">
-                <HeroStat icon={<Coins className="h-5 w-5" />} label="Coins"  value={state.coins} tone="bg-gradient-coin" textTone="text-amber-950" />
-                <HeroStat icon={<Trophy className="h-5 w-5" />} label="Wins"   value={state.wins} tone="bg-gradient-primary" textTone="text-white" />
-                <HeroStat icon={<Flag className="h-5 w-5" />}   label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} tone="bg-gradient-cyan" textTone="text-cyan-950" />
+          <div className="relative grid gap-6 p-5 pt-7 sm:p-8 sm:pt-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
+            {/* LEFT — title + CTA + flow */}
+            <div className="flex flex-col items-center gap-4 text-center lg:items-start lg:text-left">
+              <span className="ps-chip ps-chip-solid">Season 1</span>
+              <h1 className="text-[clamp(2.4rem,6vw,5rem)] font-extrabold leading-[0.9]">
+                <span className="text-gradient-title">WORLD QUIZ RACE</span>
+              </h1>
+              <Link to={`/race/${firstTrack.id}`} className="play-btn mt-1 z-20">
+                <Play className="h-9 w-9 fill-current" /> PLAY NOW
+              </Link>
+              <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-11 px-5 text-xs">
+                <Brain className="h-4 w-4" /> Play Quiz · earn coins
+              </Link>
+              <div className="mt-1 opacity-80">
+                <FlowChain />
               </div>
-
-              {/* Car centerpiece */}
-              <div className="relative order-1 mx-auto w-full max-w-[420px] md:order-2 md:w-[380px]">
-                <div className="pointer-events-none absolute inset-x-6 top-1/3 h-32 rounded-[50%] bg-primary/35 blur-3xl" />
-                <div className="pointer-events-none absolute inset-x-10 top-1/2 h-28 rounded-[50%] bg-secondary/35 blur-3xl" />
-                <Car />
-                <div className="mt-1.5 h-2.5 rounded-full bg-[repeating-linear-gradient(90deg,transparent_0_24px,oklch(0.92_0.18_105/0.85)_24px_42px)] animate-road" />
-              </div>
-
-              {/* Spacer right for symmetry on desktop */}
-              <div className="order-3 hidden md:block" />
             </div>
 
-            {/* Subtle flow chain — demoted to footer hint */}
-            <div className="mt-1 opacity-60 transition hover:opacity-90">
-              <FlowChain />
+            {/* CENTER — car */}
+            <div className="relative mx-auto w-full max-w-[420px]">
+              <div className="pointer-events-none absolute inset-x-6 top-1/3 h-32 rounded-[50%] bg-primary/35 blur-3xl" />
+              <div className="pointer-events-none absolute inset-x-10 top-1/2 h-28 rounded-[50%] bg-secondary/35 blur-3xl" />
+              <Car />
+              <div className="mt-1.5 h-2.5 rounded-full bg-[repeating-linear-gradient(90deg,transparent_0_24px,oklch(0.92_0.18_105/0.85)_24px_42px)] animate-road" />
+            </div>
+
+            {/* RIGHT — stat boxes stacked vertically */}
+            <div className="grid grid-cols-3 gap-2.5 lg:grid-cols-1 lg:gap-3">
+              <HeroStat icon={<Coins className="h-5 w-5" />} label="Coins"  value={state.coins} tone="bg-gradient-coin"    textTone="text-amber-950" />
+              <HeroStat icon={<Trophy className="h-5 w-5" />} label="Wins"   value={state.wins}  tone="bg-gradient-primary" textTone="text-white" />
+              <HeroStat icon={<Flag className="h-5 w-5" />}   label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} tone="bg-gradient-cyan" textTone="text-cyan-950" />
             </div>
           </div>
         </section>
