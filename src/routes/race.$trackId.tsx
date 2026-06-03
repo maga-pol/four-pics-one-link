@@ -108,6 +108,9 @@ type Car = {
   y: number;
   angle: number;
   finishedAt?: number;
+  // per-car balance
+  topT?: number;     // max track-progress per second for this car
+  boostUntil?: number; // ms timestamp until +20% boost from pad
 };
 
 const WORLD_W = 8800;
