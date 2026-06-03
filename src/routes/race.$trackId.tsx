@@ -1019,3 +1019,12 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
     </div>
   );
 }
+
+function ResultStat({ label, value, tone, valueClass }: { label: string; value: string; tone: string; valueClass: string }) {
+  return (
+    <div className={`rounded-2xl ${tone} p-3 shadow-button`}>
+      <div className={`text-[10px] font-extrabold uppercase tracking-[0.18em] opacity-70 ${valueClass}`}>{label}</div>
+      <div className={`mt-0.5 text-lg font-extrabold tabular-nums ${valueClass}`}>{value}</div>
+    </div>
+  );
+}
