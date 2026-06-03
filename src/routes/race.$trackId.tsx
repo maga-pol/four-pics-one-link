@@ -1,7 +1,11 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, Trophy, Zap } from "lucide-react";
+import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
+import {
+  startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
+  playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
+} from "@/lib/audio";
 
 export const Route = createFileRoute("/race/$trackId")({
   head: () => ({ meta: [{ title: "Race · World Quiz Race" }] }),
@@ -9,6 +13,9 @@ export const Route = createFileRoute("/race/$trackId")({
 });
 
 const STORAGE = "wqr-state";
+const BEST_KEY = "wqr-best-times";
+const HINT_KEY = "wqr-controls-hint-seen";
+
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
@@ -27,6 +34,24 @@ function readUpgrades() {
   } catch {
     return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
   }
+}
+function readBestTime(trackId: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    return typeof obj?.[trackId] === "number" ? obj[trackId] : null;
+  } catch { return null; }
+}
+function writeBestTime(trackId: string, t: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[trackId] = t;
+    localStorage.setItem(BEST_KEY, JSON.stringify(obj));
+  } catch {}
 }
 
 function RaceScreen() {
