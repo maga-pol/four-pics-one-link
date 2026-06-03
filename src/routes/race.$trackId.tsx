@@ -1,10 +1,9 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
-import * as THREE from "three";
+import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
 import {
-  startEngine, stopEngine, setEngine, playNitroSwoosh,
+  startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
   playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
 } from "@/lib/audio";
 
@@ -15,6 +14,7 @@ export const Route = createFileRoute("/race/$trackId")({
 
 const STORAGE = "wqr-state";
 const BEST_KEY = "wqr-best-times";
+const HINT_KEY = "wqr-controls-hint-seen";
 
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
@@ -31,7 +31,9 @@ function readUpgrades() {
     const raw = localStorage.getItem(STORAGE);
     const obj = raw ? JSON.parse(raw) : {};
     return obj.upgrades ?? { speed: 1, acceleration: 1, nitro: 0, control: 0 };
-  } catch { return { speed: 1, acceleration: 1, nitro: 0, control: 0 }; }
+  } catch {
+    return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
+  }
 }
 function readBestTime(trackId: string): number | null {
   if (typeof window === "undefined") return null;
@@ -52,698 +54,9 @@ function writeBestTime(trackId: string, t: number) {
   } catch {}
 }
 
-// ---------------- Track geometry ----------------
-// Centerline as parametric curve t in [0,1]. Oval with 2 hairpins (at t=0.30 and t=0.75).
-const TRACK_SCALE = 60;
-const TRACK_WIDTH = 12;
-
-function trackPoint(t: number): THREE.Vector3 {
-  // Base oval
-  const a = t * Math.PI * 2;
-  let x = Math.cos(a) * TRACK_SCALE * 1.6;
-  let z = Math.sin(a) * TRACK_SCALE;
-  // Pinch into hairpins at t=0.30 and t=0.75
-  const hairpin = (center: number, depth: number) => {
-    const d = Math.abs(((t - center + 0.5) % 1) - 0.5);
-    const k = Math.max(0, 1 - d / 0.06);
-    return k * depth;
-  };
-  const h1 = hairpin(0.30, 1);
-  const h2 = hairpin(0.75, 1);
-  // Push toward center (sharp bend)
-  x -= Math.cos(a) * h1 * 40;
-  z -= Math.sin(a) * h1 * 25;
-  x -= Math.cos(a) * h2 * 40;
-  z -= Math.sin(a) * h2 * 25;
-  // Slight elevation hills on straights
-  const y = Math.sin(a * 2) * 1.5;
-  return new THREE.Vector3(x, y, z);
-}
-
-function trackTangent(t: number): THREE.Vector3 {
-  const dt = 0.001;
-  const a = trackPoint((t - dt + 1) % 1);
-  const b = trackPoint((t + dt) % 1);
-  return b.sub(a).normalize();
-}
-
-function buildTrackCurve() {
-  const pts: THREE.Vector3[] = [];
-  const N = 400;
-  for (let i = 0; i < N; i++) pts.push(trackPoint(i / N));
-  return new THREE.CatmullRomCurve3(pts, true, "catmullrom", 0.5);
-}
-
-// Approximate the closest track t for a world position (XZ plane)
-function closestT(curve: THREE.CatmullRomCurve3, pos: THREE.Vector3, hintT: number, samples = 24, range = 0.08) {
-  let bestT = hintT;
-  let bestD = Infinity;
-  for (let i = -samples; i <= samples; i++) {
-    const t = ((hintT + (i / samples) * range) + 1) % 1;
-    const p = curve.getPointAt(t);
-    const dx = p.x - pos.x;
-    const dz = p.z - pos.z;
-    const d = dx * dx + dz * dz;
-    if (d < bestD) { bestD = d; bestT = t; }
-  }
-  return { t: bestT, dist: Math.sqrt(bestD) };
-}
-
-const DANGER_TS = [0.30, 0.75];
-function nearDanger(t: number, window = 0.04): number {
-  let best = 0;
-  for (const d of DANGER_TS) {
-    const diff = Math.abs(((t - d + 0.5) % 1) - 0.5);
-    if (diff < window) best = Math.max(best, 1 - diff / window);
-  }
-  return best;
-}
-
-const BOOST_TS = [0.20, 0.55];
-
-function fmtTime(s: number) {
-  const m = Math.floor(s / 60);
-  const sec = (s - m * 60).toFixed(1);
-  return `${m}:${sec.padStart(4, "0")}`;
-}
-
-type CarState = {
-  t: number;          // progress around lap
-  lapDist: number;    // continuous distance accumulator
-  laps: number;
-  speed: number;      // 0..1 normalized
-  side: number;       // lateral offset from centerline
-  heading: number;    // yaw (radians)
-  pos: THREE.Vector3;
-  mesh: THREE.Group;
-  color: number;
-  isPlayer: boolean;
-  spinTimer: number;
-  boostTimer: number;
-  nitroActiveUntil: number;
-  nitroReadyAt: number;
-  finishedAt?: number;
-  topT: number;       // top speed factor
-  accel: number;
-};
-
-function makeCar(color: number): THREE.Group {
-  const g = new THREE.Group();
-  // Body
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 0.5, 3.2),
-    new THREE.MeshStandardMaterial({ color, metalness: 0.6, roughness: 0.35 })
-  );
-  body.position.y = 0.6;
-  body.castShadow = true;
-  g.add(body);
-  // Cabin
-  const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.2, 0.4, 1.4),
-    new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.3, roughness: 0.2 })
-  );
-  cabin.position.set(0, 1.0, -0.1);
-  g.add(cabin);
-  // Wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.9 });
-  const wpos = [
-    [-0.85, 0.35, 1.05],
-    [0.85, 0.35, 1.05],
-    [-0.85, 0.35, -1.05],
-    [0.85, 0.35, -1.05],
-  ];
-  const wheels: THREE.Mesh[] = [];
-  for (const [x, y, z] of wpos) {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.rotation.z = Math.PI / 2;
-    w.position.set(x, y, z);
-    g.add(w);
-    wheels.push(w);
-  }
-  (g as any).wheels = wheels;
-  // Brake lights
-  const brake = new THREE.PointLight(0xff0000, 0, 4);
-  brake.position.set(0, 0.6, -1.6);
-  g.add(brake);
-  (g as any).brake = brake;
-  // Headlights
-  const hlMat = new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 0.8 });
-  const hlGeo = new THREE.BoxGeometry(0.3, 0.2, 0.1);
-  const hl1 = new THREE.Mesh(hlGeo, hlMat); hl1.position.set(-0.55, 0.65, 1.6); g.add(hl1);
-  const hl2 = new THREE.Mesh(hlGeo, hlMat); hl2.position.set(0.55, 0.65, 1.6); g.add(hl2);
-  return g;
-}
-
 function RaceScreen() {
   const { trackId } = useParams({ from: "/race/$trackId" });
   const track = getTrack(trackId);
-
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const miniRef = useRef<HTMLCanvasElement | null>(null);
-  const [status, setStatus] = useState<"countdown" | "racing" | "finished">("countdown");
-  const [countdown, setCountdown] = useState(3);
-  const [hud, setHud] = useState({
-    speed: 0, lap: 1, pos: 1, total: 4,
-    nitroPct: 1, nitroActive: false, warning: false,
-    elapsed: 0,
-  });
-  const [muted, setMutedState] = useState(typeof window !== "undefined" ? isMuted() : false);
-  const [result, setResult] = useState<null | { rank: number; coins: number; time: number; best: boolean }>(null);
-
-  useEffect(() => {
-    if (!track || !mountRef.current) return;
-    const mount = mountRef.current;
-    const upg = readUpgrades();
-    const best = readBestTime(track.id);
-
-    // ---------------- Scene ----------------
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a0f1a);
-    scene.fog = new THREE.Fog(0x2a1a25, 80, 320);
-
-    const camera = new THREE.PerspectiveCamera(70, mount.clientWidth / mount.clientHeight, 0.1, 1000);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(mount.clientWidth, mount.clientHeight);
-    renderer.shadowMap.enabled = true;
-    mount.appendChild(renderer.domElement);
-
-    // Lighting
-    scene.add(new THREE.AmbientLight(0x404050, 1.0));
-    const sun = new THREE.DirectionalLight(0xffb070, 1.4);
-    sun.position.set(60, 80, 30);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -150;
-    sun.shadow.camera.right = 150;
-    sun.shadow.camera.top = 150;
-    sun.shadow.camera.bottom = -150;
-    scene.add(sun);
-
-    // Skybox — gradient sunset (sphere)
-    {
-      const geo = new THREE.SphereGeometry(500, 32, 16);
-      const mat = new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        uniforms: {
-          top: { value: new THREE.Color(0x2a0f3a) },
-          mid: { value: new THREE.Color(0xc04a30) },
-          bot: { value: new THREE.Color(0x401020) },
-        },
-        vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-        fragmentShader: `varying vec3 vP; uniform vec3 top; uniform vec3 mid; uniform vec3 bot;
-          void main(){ float h = normalize(vP).y;
-            vec3 c = mix(bot, mid, smoothstep(-0.2, 0.2, h));
-            c = mix(c, top, smoothstep(0.2, 0.8, h));
-            gl_FragColor = vec4(c, 1.0);
-          }`,
-      });
-      scene.add(new THREE.Mesh(geo, mat));
-    }
-
-    // Ground
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(800, 800, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0x1a3320, roughness: 1 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // Track
-    const curve = buildTrackCurve();
-    const N = 400;
-    // Build road as a flat ribbon
-    const roadGeo = new THREE.BufferGeometry();
-    const positions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    for (let i = 0; i <= N; i++) {
-      const t = (i % N) / N;
-      const p = curve.getPointAt(t);
-      const tg = curve.getTangentAt(t).normalize();
-      const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
-      const left = p.clone().add(normal.clone().multiplyScalar(TRACK_WIDTH / 2));
-      const right = p.clone().add(normal.clone().multiplyScalar(-TRACK_WIDTH / 2));
-      positions.push(left.x, left.y + 0.05, left.z, right.x, right.y + 0.05, right.z);
-      uvs.push(0, i / 4, 1, i / 4);
-    }
-    for (let i = 0; i < N; i++) {
-      const a = i * 2, b = i * 2 + 1, c = i * 2 + 2, d = i * 2 + 3;
-      indices.push(a, b, c, b, d, c);
-    }
-    roadGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    roadGeo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-    roadGeo.setIndex(indices);
-    roadGeo.computeVertexNormals();
-
-    // Asphalt texture procedural
-    const asphaltCanvas = document.createElement("canvas");
-    asphaltCanvas.width = 64; asphaltCanvas.height = 256;
-    const actx = asphaltCanvas.getContext("2d")!;
-    actx.fillStyle = "#222"; actx.fillRect(0, 0, 64, 256);
-    for (let i = 0; i < 800; i++) {
-      actx.fillStyle = `rgba(${50+Math.random()*40},${50+Math.random()*40},${50+Math.random()*40},0.5)`;
-      actx.fillRect(Math.random()*64, Math.random()*256, 1.5, 1.5);
-    }
-    // Center dashed line
-    for (let y = 0; y < 256; y += 24) {
-      actx.fillStyle = "#fff";
-      actx.fillRect(31, y, 2, 12);
-    }
-    // Side lines
-    actx.fillStyle = "#fff";
-    actx.fillRect(2, 0, 1.5, 256);
-    actx.fillRect(60.5, 0, 1.5, 256);
-    const asphaltTex = new THREE.CanvasTexture(asphaltCanvas);
-    asphaltTex.wrapS = asphaltTex.wrapT = THREE.RepeatWrapping;
-    const road = new THREE.Mesh(roadGeo, new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.9 }));
-    road.receiveShadow = true;
-    scene.add(road);
-
-    // Curbs (red/white)
-    const curbCanvas = document.createElement("canvas");
-    curbCanvas.width = 32; curbCanvas.height = 32;
-    const cctx = curbCanvas.getContext("2d")!;
-    cctx.fillStyle = "#fff"; cctx.fillRect(0,0,32,32);
-    cctx.fillStyle = "#d22"; cctx.fillRect(0,0,16,32);
-    const curbTex = new THREE.CanvasTexture(curbCanvas);
-    curbTex.wrapS = curbTex.wrapT = THREE.RepeatWrapping;
-    curbTex.repeat.set(80, 1);
-
-    for (const side of [1, -1]) {
-      const cg = new THREE.BufferGeometry();
-      const cp: number[] = []; const ci: number[] = []; const cu: number[] = [];
-      for (let i = 0; i <= N; i++) {
-        const t = (i % N) / N;
-        const p = curve.getPointAt(t);
-        const tg = curve.getTangentAt(t).normalize();
-        const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
-        const inner = p.clone().add(normal.clone().multiplyScalar(side * (TRACK_WIDTH / 2)));
-        const outer = p.clone().add(normal.clone().multiplyScalar(side * (TRACK_WIDTH / 2 + 0.8)));
-        cp.push(inner.x, inner.y + 0.1, inner.z, outer.x, outer.y + 0.15, outer.z);
-        cu.push(0, i, 1, i);
-      }
-      for (let i = 0; i < N; i++) {
-        const a = i*2, b = i*2+1, c = i*2+2, d = i*2+3;
-        ci.push(a,b,c,b,d,c);
-      }
-      cg.setAttribute("position", new THREE.Float32BufferAttribute(cp, 3));
-      cg.setAttribute("uv", new THREE.Float32BufferAttribute(cu, 2));
-      cg.setIndex(ci); cg.computeVertexNormals();
-      const curb = new THREE.Mesh(cg, new THREE.MeshStandardMaterial({ map: curbTex, roughness: 0.7 }));
-      scene.add(curb);
-    }
-
-    // Concrete barriers near danger corners
-    for (const dt of DANGER_TS) {
-      for (let k = -8; k <= 8; k++) {
-        const t = (dt + k * 0.003 + 1) % 1;
-        const p = curve.getPointAt(t);
-        const tg = curve.getTangentAt(t).normalize();
-        const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
-        for (const s of [1, -1]) {
-          const bp = p.clone().add(normal.clone().multiplyScalar(s * (TRACK_WIDTH / 2 + 1.5)));
-          const bar = new THREE.Mesh(
-            new THREE.BoxGeometry(0.6, 1.2, 1.2),
-            new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 1 })
-          );
-          bar.position.copy(bp); bar.position.y = bp.y + 0.6;
-          bar.lookAt(p.x, bp.y + 0.6, p.z);
-          bar.castShadow = true;
-          scene.add(bar);
-        }
-      }
-    }
-
-    // Boost pads (yellow arrows)
-    const boostPads: THREE.Mesh[] = [];
-    for (const bt of BOOST_TS) {
-      const p = curve.getPointAt(bt);
-      const tg = curve.getTangentAt(bt).normalize();
-      const pad = new THREE.Mesh(
-        new THREE.PlaneGeometry(4, 6),
-        new THREE.MeshStandardMaterial({ color: 0xffd010, emissive: 0xffaa00, emissiveIntensity: 1.2 })
-      );
-      pad.rotation.x = -Math.PI / 2;
-      pad.rotation.z = Math.atan2(tg.x, tg.z);
-      pad.position.set(p.x, p.y + 0.06, p.z);
-      (pad as any).boostT = bt;
-      scene.add(pad);
-      boostPads.push(pad);
-    }
-
-    // Start/finish banner
-    {
-      const p = curve.getPointAt(0);
-      const tg = curve.getTangentAt(0).normalize();
-      const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
-      const checker = document.createElement("canvas");
-      checker.width = 128; checker.height = 16;
-      const ctx2 = checker.getContext("2d")!;
-      for (let i = 0; i < 16; i++) {
-        ctx2.fillStyle = i % 2 ? "#fff" : "#000";
-        ctx2.fillRect(i * 8, 0, 8, 8);
-        ctx2.fillStyle = i % 2 ? "#000" : "#fff";
-        ctx2.fillRect(i * 8, 8, 8, 8);
-      }
-      const ctex = new THREE.CanvasTexture(checker);
-      const banner = new THREE.Mesh(
-        new THREE.BoxGeometry(TRACK_WIDTH + 2, 1, 0.3),
-        new THREE.MeshStandardMaterial({ map: ctex })
-      );
-      banner.position.set(p.x, p.y + 5, p.z);
-      banner.lookAt(p.x + tg.x, p.y + 5, p.z + tg.z);
-      scene.add(banner);
-      // Posts
-      for (const s of [1, -1]) {
-        const post = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.2, 0.2, 5.2, 8),
-          new THREE.MeshStandardMaterial({ color: 0xcccccc })
-        );
-        const pp = p.clone().add(normal.clone().multiplyScalar(s * (TRACK_WIDTH / 2 + 1)));
-        post.position.set(pp.x, pp.y + 2.6, pp.z);
-        scene.add(post);
-      }
-    }
-
-    // ---------------- Cars ----------------
-    const playerTopT = 0.20 + upg.speed * 0.035;
-    const playerAccel = 0.18 + upg.acceleration * 0.04;
-
-    const carColors = [0xff3a4a, 0x3a8aff, 0xffd040, 0xf0f0f0];
-    const cars: CarState[] = [];
-    for (let i = 0; i < 4; i++) {
-      const color = carColors[i];
-      const mesh = makeCar(color);
-      scene.add(mesh);
-      const isPlayer = i === 0;
-      const lvl = isPlayer ? upg.speed : (1 + Math.floor(Math.random() * 4));
-      const accLvl = isPlayer ? upg.acceleration : (1 + Math.floor(Math.random() * 4));
-      const startT = ((-0.005 * i) + 1) % 1;
-      const sideOffset = (i % 2 === 0 ? -1 : 1) * 2 - (i > 1 ? 0 : 0);
-      const p0 = curve.getPointAt(startT);
-      const tg0 = curve.getTangentAt(startT).normalize();
-      const normal0 = new THREE.Vector3(-tg0.z, 0, tg0.x);
-      const pos = p0.clone().add(normal0.multiplyScalar(sideOffset));
-      mesh.position.copy(pos);
-      mesh.rotation.y = Math.atan2(tg0.x, tg0.z);
-      cars.push({
-        t: startT,
-        lapDist: 0,
-        laps: 0,
-        speed: 0,
-        side: sideOffset,
-        heading: Math.atan2(tg0.x, tg0.z),
-        pos,
-        mesh,
-        color,
-        isPlayer,
-        spinTimer: 0,
-        boostTimer: 0,
-        nitroActiveUntil: 0,
-        nitroReadyAt: 0,
-        topT: 0.20 + lvl * 0.035,
-        accel: 0.18 + accLvl * 0.04,
-      });
-    }
-    const player = cars[0];
-    void playerTopT; void playerAccel;
-
-    // ---------------- Input ----------------
-    const keys: Record<string, boolean> = {};
-    const onKey = (e: KeyboardEvent, down: boolean) => {
-      const k = e.code;
-      keys[k] = down;
-      if (down && (k === "Space" || k === "ShiftLeft" || k === "ShiftRight")) {
-        // nitro trigger
-        const now = performance.now();
-        if (now >= player.nitroReadyAt && status !== "finished") {
-          player.nitroActiveUntil = now + 3000;
-          player.nitroReadyAt = now + 8000 + 3000;
-          playNitroSwoosh();
-        }
-      }
-    };
-    const kd = (e: KeyboardEvent) => onKey(e, true);
-    const ku = (e: KeyboardEvent) => onKey(e, false);
-    window.addEventListener("keydown", kd);
-    window.addEventListener("keyup", ku);
-
-    // ---------------- Countdown ----------------
-    let countdownN = 3;
-    setCountdown(3);
-    let countdownTimer: number | undefined;
-    let raceStartMs = 0;
-    let raceState: "countdown" | "racing" | "finished" = "countdown";
-    const tick = () => {
-      playCountdownBeep(countdownN === 0);
-      if (countdownN > 0) {
-        countdownN -= 1;
-        setCountdown(countdownN);
-        countdownTimer = window.setTimeout(tick, 1000);
-      } else {
-        raceState = "racing";
-        setStatus("racing");
-        raceStartMs = performance.now();
-        startEngine();
-      }
-    };
-    countdownTimer = window.setTimeout(tick, 800);
-
-    // ---------------- Resize ----------------
-    const onResize = () => {
-      const w = mount.clientWidth, h = mount.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h; camera.updateProjectionMatrix();
-    };
-    window.addEventListener("resize", onResize);
-
-    // ---------------- Animation loop ----------------
-    let raf = 0;
-    let last = performance.now();
-    const tmp = new THREE.Vector3();
-    const camPos = new THREE.Vector3();
-    const camTarget = new THREE.Vector3();
-
-    const miniCtx = miniRef.current?.getContext("2d") ?? null;
-
-    function step() {
-      const now = performance.now();
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-
-      if (raceState === "racing") {
-        for (const car of cars) {
-          if (car.finishedAt) continue;
-          // Inputs
-          let throttle = 0, brake = 0, steer = 0;
-          if (car.isPlayer) {
-            if (keys["KeyW"] || keys["ArrowUp"]) throttle = 1;
-            if (keys["KeyS"] || keys["ArrowDown"]) brake = 1;
-            if (keys["KeyA"] || keys["ArrowLeft"]) steer = -1;
-            if (keys["KeyD"] || keys["ArrowRight"]) steer = 1;
-          } else {
-            // AI: full throttle, slow down before danger corners
-            const danger = nearDanger(car.t, 0.05);
-            throttle = danger > 0.4 ? 0.3 : 1;
-            // Steering toward centerline
-            steer = -Math.sign(car.side) * Math.min(1, Math.abs(car.side) / 2);
-          }
-
-          if (car.spinTimer > 0) {
-            car.spinTimer -= dt;
-            car.speed *= 0.95;
-            car.heading += dt * 6;
-          } else {
-            // Accel/brake
-            if (throttle > 0) car.speed += car.accel * throttle * dt * 0.5;
-            if (brake > 0) car.speed -= 0.6 * dt;
-            car.speed -= 0.05 * dt; // drag
-            // Nitro/boost multipliers
-            let topMul = 1;
-            if (now < car.nitroActiveUntil) topMul *= 1.2;
-            if (car.boostTimer > 0) { topMul *= 1.2; car.boostTimer -= dt; }
-            const top = car.topT * topMul;
-            car.speed = Math.max(0, Math.min(top, car.speed));
-            // Steer
-            const steerStrength = 1.6 * (0.5 + car.speed / car.topT * 0.5);
-            car.heading += steer * steerStrength * dt;
-
-            // Corner spinout if too fast through danger
-            const danger = nearDanger(car.t, 0.05);
-            if (danger > 0.6 && car.speed > car.topT * 0.85) {
-              car.spinTimer = 2.5;
-              playCrash();
-            }
-          }
-
-          // Advance position in world space
-          const dir = new THREE.Vector3(Math.sin(car.heading), 0, Math.cos(car.heading));
-          const moveDist = car.speed * 120 * dt; // world units
-          car.pos.add(dir.multiplyScalar(moveDist));
-
-          // Snap roughly to track using curve
-          const { t: newT } = closestT(curve, car.pos, car.t, 18, 0.05);
-          const onTrackPos = curve.getPointAt(newT);
-          const tg = curve.getTangentAt(newT).normalize();
-          const normal = new THREE.Vector3(-tg.z, 0, tg.x).normalize();
-          // Lateral offset
-          const off = new THREE.Vector3(car.pos.x - onTrackPos.x, 0, car.pos.z - onTrackPos.z);
-          const side = off.dot(normal);
-          car.side = THREE.MathUtils.clamp(side, -TRACK_WIDTH / 2 + 0.5, TRACK_WIDTH / 2 - 0.5);
-          // Re-position
-          car.pos.set(
-            onTrackPos.x + normal.x * car.side,
-            onTrackPos.y + 0.0,
-            onTrackPos.z + normal.z * car.side
-          );
-
-          // Lap counting
-          const prevT = car.t;
-          if (prevT > 0.85 && newT < 0.15) car.laps += 1;
-          car.t = newT;
-          car.lapDist += moveDist;
-
-          // Boost pads
-          for (const pad of boostPads) {
-            const bt = (pad as any).boostT as number;
-            const diff = Math.abs(((car.t - bt + 0.5) % 1) - 0.5);
-            if (diff < 0.005 && Math.abs(car.side) < 2.5) {
-              car.boostTimer = Math.max(car.boostTimer, 2);
-            }
-          }
-
-          // Apply to mesh
-          car.mesh.position.copy(car.pos);
-          car.mesh.rotation.y = car.heading;
-          // Wheel spin
-          const wheels = (car.mesh as any).wheels as THREE.Mesh[];
-          for (const w of wheels) w.rotation.x += car.speed * 8 * dt * 20;
-          // Brake light
-          const brakeLight = (car.mesh as any).brake as THREE.PointLight;
-          brakeLight.intensity = brake > 0 ? 3 : 0;
-
-          // Finish?
-          if (car.laps >= track!.laps) {
-            car.finishedAt = (now - raceStartMs) / 1000;
-          }
-        }
-
-        // Camera follow player
-        const playerDir = new THREE.Vector3(Math.sin(player.heading), 0, Math.cos(player.heading));
-        const back = playerDir.clone().multiplyScalar(-6);
-        const up = new THREE.Vector3(0, 3, 0);
-        const target = player.pos.clone().add(back).add(up);
-        camPos.lerp(target, 0.12);
-        camera.position.copy(camPos);
-        camTarget.lerp(player.pos, 0.2);
-        camera.lookAt(camTarget.x, camTarget.y + 1, camTarget.z);
-
-        // Audio engine
-        setEngine(player.speed / player.topT, now < player.nitroActiveUntil);
-
-        // HUD updates
-        const ranks = [...cars].sort((a, b) => {
-          const A = a.laps + a.t, B = b.laps + b.t;
-          return B - A;
-        });
-        const playerRank = ranks.indexOf(player) + 1;
-        const elapsed = (now - raceStartMs) / 1000;
-        const dangerHere = nearDanger(player.t, 0.06) > 0.5 && player.speed > player.topT * 0.7;
-        const nitroPct = now >= player.nitroReadyAt ? 1 :
-          (now < player.nitroActiveUntil ? Math.max(0, (player.nitroActiveUntil - now) / 3000) :
-           1 - (player.nitroReadyAt - now) / 8000);
-
-        setHud({
-          speed: player.speed / player.topT,
-          lap: Math.min(track!.laps, player.laps + 1),
-          pos: playerRank,
-          total: cars.length,
-          nitroPct: Math.max(0, Math.min(1, nitroPct)),
-          nitroActive: now < player.nitroActiveUntil,
-          warning: dangerHere,
-          elapsed,
-        });
-
-        // Minimap
-        if (miniCtx) {
-          const W = miniCtx.canvas.width, H = miniCtx.canvas.height;
-          miniCtx.clearRect(0, 0, W, H);
-          miniCtx.fillStyle = "rgba(0,0,0,0.5)";
-          miniCtx.fillRect(0, 0, W, H);
-          // Track outline
-          miniCtx.strokeStyle = "#666"; miniCtx.lineWidth = 6;
-          miniCtx.beginPath();
-          for (let i = 0; i <= 80; i++) {
-            const p = curve.getPointAt(i / 80);
-            const x = (p.x / (TRACK_SCALE * 2)) * (W * 0.4) + W / 2;
-            const y = (p.z / (TRACK_SCALE * 2)) * (H * 0.4) + H / 2;
-            if (i === 0) miniCtx.moveTo(x, y); else miniCtx.lineTo(x, y);
-          }
-          miniCtx.closePath(); miniCtx.stroke();
-          // Boost pads
-          miniCtx.fillStyle = "#ffd010";
-          for (const bt of BOOST_TS) {
-            const p = curve.getPointAt(bt);
-            const x = (p.x / (TRACK_SCALE * 2)) * (W * 0.4) + W / 2;
-            const y = (p.z / (TRACK_SCALE * 2)) * (H * 0.4) + H / 2;
-            miniCtx.beginPath(); miniCtx.arc(x, y, 3, 0, Math.PI * 2); miniCtx.fill();
-          }
-          // Danger corners
-          miniCtx.fillStyle = "#ff3030";
-          for (const dt of DANGER_TS) {
-            const p = curve.getPointAt(dt);
-            const x = (p.x / (TRACK_SCALE * 2)) * (W * 0.4) + W / 2;
-            const y = (p.z / (TRACK_SCALE * 2)) * (H * 0.4) + H / 2;
-            miniCtx.beginPath(); miniCtx.arc(x, y, 4, 0, Math.PI * 2); miniCtx.fill();
-          }
-          // Cars
-          for (const c of cars) {
-            const x = (c.pos.x / (TRACK_SCALE * 2)) * (W * 0.4) + W / 2;
-            const y = (c.pos.z / (TRACK_SCALE * 2)) * (H * 0.4) + H / 2;
-            miniCtx.fillStyle = c.isPlayer ? "#fff" : `#${c.color.toString(16).padStart(6, "0")}`;
-            miniCtx.beginPath(); miniCtx.arc(x, y, c.isPlayer ? 5 : 4, 0, Math.PI * 2); miniCtx.fill();
-            if (c.isPlayer) { miniCtx.strokeStyle = "#000"; miniCtx.lineWidth = 1; miniCtx.stroke(); }
-          }
-        }
-
-        // Finish detection
-        if (player.finishedAt && raceState === "racing") {
-          raceState = "finished";
-          setStatus("finished");
-          stopEngine();
-          const ranks2 = [...cars].sort((a, b) => (b.laps + b.t) - (a.laps + a.t));
-          const rank = ranks2.indexOf(player) + 1;
-          const coins = [200, 120, 80, 40][rank - 1] ?? 20;
-          addCoins(coins);
-          const time = player.finishedAt;
-          const wasBest = best == null || time < best;
-          if (wasBest) writeBestTime(track!.id, time);
-          setResult({ rank, coins, time, best: wasBest });
-          playFanfare();
-        }
-      }
-      tmp.set(0, 0, 0);
-
-      renderer.render(scene, camera);
-      raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      if (countdownTimer) clearTimeout(countdownTimer);
-      window.removeEventListener("keydown", kd);
-      window.removeEventListener("keyup", ku);
-      window.removeEventListener("resize", onResize);
-      stopEngine();
-      renderer.dispose();
-      mount.removeChild(renderer.domElement);
-    };
-  }, [track]);
 
   if (!track) {
     return (
@@ -756,130 +69,1419 @@ function RaceScreen() {
     );
   }
 
-  const speedColor = hud.speed < 0.7 ? "#3fdc6c" : hud.speed < 0.85 ? "#ffd040" : "#ff3030";
-  const positionLabel = ["1ST", "2ND", "3RD", "4TH"][hud.pos - 1] ?? `${hud.pos}TH`;
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-primary/15 blur-[140px]" />
+      <div className="pointer-events-none absolute -right-40 bottom-0 h-[32rem] w-[32rem] rounded-full bg-secondary/15 blur-[160px]" />
+
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1200px] flex-col gap-3 p-3 sm:p-4">
+        <header className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/50 px-4 py-2.5 backdrop-blur-md">
+          <Link to="/" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1 text-xs font-bold transition hover:border-primary/60">
+            <ArrowLeft className="h-3.5 w-3.5" /> HUB
+          </Link>
+          <div className="flex items-center gap-2 text-sm font-black">
+            <span className="text-xl">{track.flag}</span>
+            <span className="text-gradient-title">{track.name}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+            <Flag className="h-3.5 w-3.5 text-neon" /> {track.laps} laps
+          </div>
+        </header>
+
+        <CircuitRace laps={track.laps} trackId={track.id} />
+      </div>
+    </main>
+  );
+}
+
+// ============== Top-down circuit racer ==============
+type Car = {
+  id: string;
+  name: string;
+  color: string;
+  isPlayer: boolean;
+  t: number;
+  lap: number;
+  speed: number;
+  lane: number;
+  x: number;
+  y: number;
+  angle: number;
+  finishedAt?: number;
+  // per-car balance
+  topT?: number;     // max track-progress per second for this car
+  boostUntil?: number; // ms timestamp until +20% boost from pad
+};
+
+const WORLD_W = 8800;
+const WORLD_H = 5200;
+const TRACK_CX = WORLD_W / 2;
+const TRACK_CY = WORLD_H / 2;
+const TRACK_RX = 3280;
+const TRACK_RY = 1840;
+const ROAD_W = 200;     // 4 lanes (50 each)
+const LANE_COUNT = 4;
+const LANE_W = ROAD_W / LANE_COUNT;
+
+function rawPoint(t: number) {
+  // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
+  const a = ((t % 1) + 1) % 1 * Math.PI * 2;
+  const rx = TRACK_RX + Math.sin(a * 2) * 160 + Math.cos(a * 3) * 60;
+  const ry = TRACK_RY + Math.cos(a * 2) * 120 + Math.sin(a * 3) * 50;
+  return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
+}
+
+function pathPoint(t: number) {
+  const eps = 0.0015;
+  const p = rawPoint(t);
+  const p2 = rawPoint(t + eps);
+  let dx = p2.x - p.x;
+  let dy = p2.y - p.y;
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  return { x: p.x, y: p.y, hx: dx, hy: dy };
+}
+
+function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = (s - m * 60);
+    return `${m}:${sec.toFixed(2).padStart(5, "0")}`;
+  };
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const keysRef = useRef<Record<string, boolean>>({});
+  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
+  const [count, setCount] = useState<string | null>("3");
+  const [result, setResult] = useState<{ rank: number; reward: number; time: number; best: number | null; isNewBest: boolean } | null>(null);
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  const [showHint, setShowHint] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem(HINT_KEY);
+  });
+  const [bestTime] = useState<number | null>(() => readBestTime(trackId));
+  const [nextTurn, setNextTurn] = useState<{ dir: number; sharp: number }>({ dir: 0, sharp: 0 });
+  const [warning, setWarning] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+
+  function toggleMute() {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  }
+  function dismissHint() {
+    setShowHint(false);
+    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const wrap = wrapRef.current!;
+
+    function resize() {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      canvas.style.width = rect.width + "px";
+      canvas.style.height = rect.height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+
+    const up = readUpgrades();
+    // Upgrades give a real, noticeable boost on every stat
+    const baseSpeed = 0.20 + up.speed * 0.035;          // ~+28 km/h per level
+    const accel = 0.18 + up.acceleration * 0.08;        // snappier launch
+    const grip = 0.55 + up.control * 0.15;              // sharper steering
+    const nitroCap = 1 + up.nitro * 0.5;                // longer nitro tank
+    const nitroBoost = 1.4 + up.nitro * 0.12;           // (kept for compat — unused; +15km/h is fixed)
+
+    const AI_NAMES = ["Bolt", "Comet", "Hawk", "Viper", "Storm"];
+    const AI_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4"];
+
+    const startP = pathPoint(0);
+    const startAngle = Math.atan2(startP.hy, startP.hx);
+    // ===== EQUAL START — all cars line up at the start line, spread across lanes =====
+    // Player gets center lane; AI fills the other 5 of 6 grid slots, all at t=0.
+    const gridLanes = [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75];
+    const playerLane = gridLanes[2]; // -0.15, just left of center
+    const aiLanes = gridLanes.filter((_, i) => i !== 2);
+    const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
+    const playerOff = startLatOff(playerLane);
+    // Bots roll their own upgrade levels (same system as the player).
+    // The only thing that separates them is upgrades — no rubber-banding.
+    const AI_SPEED_UPGRADES = [1, 2, 3, 2, 4];
+    const cars: Car[] = [
+      {
+        id: "p", name: "You", color: "#22d3ee", isPlayer: true,
+        t: 0, lap: 0, speed: 0, lane: playerLane,
+        x: startP.x + (-startP.hy) * playerOff,
+        y: startP.y + (startP.hx) * playerOff,
+        angle: startAngle,
+      },
+      ...AI_NAMES.map((n, i) => {
+        const lane = aiLanes[i] ?? 0;
+        const off = startLatOff(lane);
+        return {
+          id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
+          t: 0, lap: 0, speed: 0, lane,
+          x: startP.x + (-startP.hy) * off,
+          y: startP.y + (startP.hx) * off,
+          angle: startAngle,
+          // topT scales the SAME way as player baseSpeed scales with upgrades.
+          topT: 0, // filled in below once AI_TOP_T is known
+        } as Car;
+      }),
+    ];
+
+    function projectToTrack(px: number, py: number, hintT: number) {
+      // local search around hintT for performance
+      let bestT = hintT;
+      let bestD = Infinity;
+      const SAMPLES = 40;
+      const RANGE = 0.06;
+      for (let i = 0; i <= SAMPLES; i++) {
+        const tt = hintT + (i / SAMPLES - 0.5) * 2 * RANGE;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      // fine refine
+      for (let i = -8; i <= 8; i++) {
+        const tt = bestT + (i / 8) * 0.005;
+        const p = rawPoint(tt);
+        const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+      }
+      return { t: bestT, dist: Math.sqrt(bestD) };
+    }
+
+    // Approximate track perimeter so AI t-rate matches player's world speed
+    let perimeter = 0;
+    {
+      let prev = rawPoint(0);
+      for (let i = 1; i <= 600; i++) {
+        const p = rawPoint(i / 600);
+        perimeter += Math.hypot(p.x - prev.x, p.y - prev.y);
+        prev = p;
+      }
+    }
+    const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
+    const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
+    // All cars share the exact same top speed — no per-car advantage.
+    for (let i = 1; i < cars.length; i++) {
+      cars[i].topT = AI_TOP_T;
+    }
+
+    // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
+    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag" | "billboard" | "pole"; size: number; angle?: number };
+    const decor: Decor[] = [];
+    {
+      let seed = 1337;
+      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      // Sample road points once for distance test
+      const roadSamples: { x: number; y: number }[] = [];
+      for (let i = 0; i < 400; i++) {
+        const p = rawPoint(i / 400);
+        roadSamples.push({ x: p.x, y: p.y });
+      }
+      const minDist = ROAD_W * 0.9 + 30;
+      const tryAdd = (x: number, y: number, kind: Decor["kind"], size: number) => {
+        for (const r of roadSamples) {
+          if ((r.x - x) ** 2 + (r.y - y) ** 2 < minDist * minDist) return;
+        }
+        decor.push({ x, y, kind, size });
+      };
+      // Outside the ring
+      for (let i = 0; i < 700; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = TRACK_RX + ROAD_W + 60 + rnd() * 900;
+        const x = TRACK_CX + Math.cos(a) * r;
+        const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
+        if (x < 40 || x > WORLD_W - 40 || y < 40 || y > WORLD_H - 40) continue;
+        const kind = rnd() > 0.25 ? "tree" : "rock";
+        tryAdd(x, y, kind, 18 + rnd() * 26);
+      }
+      // Inside the ring (infield)
+      for (let i = 0; i < 300; i++) {
+        const a = rnd() * Math.PI * 2;
+        const r = rnd() * (TRACK_RX - ROAD_W - 100);
+        const x = TRACK_CX + Math.cos(a) * r;
+        const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
+        const kind = rnd() > 0.4 ? "tree" : "rock";
+        tryAdd(x, y, kind, 18 + rnd() * 26);
+      }
+      // Light poles every ~5% along both edges
+      for (let i = 0; i < 40; i++) {
+        const t = i / 40;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 36) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "pole", size: 30, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Billboards on the straights
+      for (let i = 0; i < 8; i++) {
+        const t = (i + 0.5) / 8;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 90) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind: "billboard", size: 70, angle: Math.atan2(p.hy, p.hx),
+        });
+      }
+      // Festive flags between poles
+      for (let i = 0; i < 60; i++) {
+        if (i % 2 === 0) continue;
+        const t = i / 60;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 22) * side;
+        decor.push({ x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, kind: "flag", size: 18 });
+      }
+    }
+
+    // ===== Track features: 2 speed boost pads =====
+    // One sits on the straight just before the 0.30 hairpin — risk/reward:
+    // grab the boost and you must brake hard or spin out at the corner.
+    type Feature = { t: number; lane: number; kind: "boost" };
+    const features: Feature[] = [
+      { t: 0.24, lane: 0.0, kind: "boost" }, // before sharp corner at 0.30
+      { t: 0.65, lane: 0.0, kind: "boost" }, // mid-straight
+    ];
+    const featurePos = features.map((f) => {
+      const p = pathPoint(f.t);
+      const off = f.lane * (ROAD_W / 2 - 14);
+      return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
+    });
+    let boostUntil = 0;     // player boost-pad active until (ms)
+    let airUntil = 0;       // ms timestamp until ramp jump lands
+
+    // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
+    const DANGER_CORNERS: number[] = [];
+    const SPIN_THRESHOLD = 999; // effectively disabled
+    const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
+    const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
+    const dangerPos = DANGER_CORNERS.map((t) => {
+      const p = pathPoint(t);
+      return { t, x: p.x, y: p.y, hx: p.hx, hy: p.hy };
+    });
+    const cornerHit = new Set<number>(); // indices currently "in" a corner
+    let spinUntil = 0;
+    let spinAngVel = 0;
+    let lastWarnState = false;
+
+    // ===== Particle system (sparks, nitro trail, dust) =====
+    type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string };
+    const particles: Particle[] = [];
+    function spawnParticle(x: number, y: number, vx: number, vy: number, color: string, life = 0.5, size = 3) {
+      if (particles.length > 220) particles.shift();
+      particles.push({ x, y, vx, vy, life, max: life, size, color });
+    }
+
+    // Countdown
+    const COUNTDOWN_MS = 3500; // 3, 2, 1, GO
+    let countdownDone = false;
+
+    // ===== NITRO — +20% top speed for 3s, 8s cooldown =====
+    const NITRO_DURATION = 3000;
+    const NITRO_COOLDOWN = 8000;
+    let nitroActiveUntil = 0;
+    let nitroReadyAt = 0;
+    let nitro = 1; // HUD readiness (0..1)
+    let last = performance.now();
+    const startedAt = performance.now();
+    let raf = 0;
+    let running = true;
+    let finished = false;
+
+    function onKey(e: KeyboardEvent, down: boolean) {
+      // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
+      const k = e.key.toLowerCase();
+      const codeMap: Record<string, string> = {
+        KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d",
+        ArrowUp: "arrowup", ArrowDown: "arrowdown", ArrowLeft: "arrowleft", ArrowRight: "arrowright",
+        Space: " ", ShiftLeft: "shift", ShiftRight: "shift",
+      };
+      const mapped = codeMap[e.code] ?? k;
+      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(mapped)) {
+        e.preventDefault();
+      }
+      keysRef.current[mapped] = down;
+      // first key press also kicks off audio (autoplay policy)
+      if (down) startEngine();
+    }
+    const kd = (e: KeyboardEvent) => onKey(e, true);
+    const ku = (e: KeyboardEvent) => onKey(e, false);
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+
+    // Auto-focus the canvas wrapper so keys work without click
+    wrap.focus();
+
+    // Tire trail buffer (world-space line segments, fade with time)
+    type Trail = { x1: number; y1: number; x2: number; y2: number; born: number };
+    const trails: Trail[] = [];
+    let lastTrailX = cars[0].x;
+    let lastTrailY = cars[0].y;
+    let drifting = false;
+
+    // Camera shake
+    let shake = 0;
+    let prevBoosting = false;
+    let lastCountdownBeep = -1;
+
+    function tick(now: number) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+
+      const k = keysRef.current;
+      const player = cars[0];
+
+      const sinceStart = now - startedAt;
+      const racing = sinceStart >= COUNTDOWN_MS;
+      if (!racing) {
+        const remain = COUNTDOWN_MS - sinceStart;
+        let idx = 3;
+        if (remain > 2500) { setCount("3"); idx = 3; }
+        else if (remain > 1500) { setCount("2"); idx = 2; }
+        else if (remain > 500) { setCount("1"); idx = 1; }
+        else { setCount("GO"); idx = 0; }
+        if (idx !== lastCountdownBeep) {
+          lastCountdownBeep = idx;
+          playCountdownBeep(idx === 0);
+        }
+        // freeze cars
+        player.speed = 0;
+        for (let i = 1; i < cars.length; i++) cars[i].speed = 0;
+        draw(now);
+        raf = requestAnimationFrame(tick);
+        return;
+      } else if (!countdownDone) {
+        countdownDone = true;
+        setCount(null);
+      }
+
+      const accelKey = k["w"] || k["arrowup"];
+      const brakeKey = k["s"] || k["arrowdown"];
+      const left = k["a"] || k["arrowleft"];
+      const right = k["d"] || k["arrowright"];
+      // Trigger nitro on press if ready (not currently boosting, cooldown elapsed)
+      const nitroKeyDown = !!(k[" "] || k["shift"]);
+      if (nitroKeyDown && now >= nitroReadyAt && nitroActiveUntil < now) {
+        nitroActiveUntil = now + NITRO_DURATION;
+        nitroReadyAt = nitroActiveUntil + NITRO_COOLDOWN;
+        playNitroSwoosh();
+        shake = Math.max(shake, 6);
+      }
+      const boosting = nitroActiveUntil > now;
+
+      // ===== SPINOUT — overrides controls =====
+      const isSpinning = spinUntil > now;
+
+      // Free-driving physics — nitro and boost pads each give +20% max
+      const baseMax = baseSpeed * 1.4;
+      const padActive = boostUntil > now;
+      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1);
+      const maxSpeed = baseMax * boostMul;
+      if (!isSpinning) {
+        if (accelKey) player.speed += accel * 0.8 * dt;
+        if (brakeKey) player.speed -= accel * 1.6 * dt;
+        if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
+      } else {
+        player.speed *= Math.pow(0.25, dt); // hard slow during spin
+      }
+      if (player.speed > maxSpeed) player.speed = maxSpeed;
+      if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
+
+      // HUD readiness: 1 = ready, fills back during cooldown after a burst
+      if (boosting) {
+        nitro = Math.max(0, (nitroActiveUntil - now) / NITRO_DURATION);
+      } else if (now < nitroReadyAt) {
+        nitro = 1 - (nitroReadyAt - now) / NITRO_COOLDOWN;
+      } else {
+        nitro = 1;
+      }
+
+      if (isSpinning) {
+        player.angle += spinAngVel * dt;
+        spinAngVel *= Math.pow(0.35, dt);
+      } else {
+        const steer = (right ? 1 : 0) - (left ? 1 : 0);
+        const steerStrength = (1.6 + grip * 0.3) * Math.min(1, Math.abs(player.speed) * 6);
+        player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
+      }
+
+      const moveScale = 1200;
+      player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
+      player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+
+      // ===== DANGER CORNER detection + spin trigger =====
+      // Compare against the car's own un-boosted max — boosts don't raise the safe ceiling.
+      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseMax);
+      for (let i = 0; i < dangerPos.length; i++) {
+        const cT = dangerPos[i].t;
+        const dT = Math.abs(((player.t - cT + 0.5 + 1) % 1) - 0.5);
+        if (dT < CORNER_HIT_RADIUS) {
+          if (!cornerHit.has(i)) {
+            cornerHit.add(i);
+            if (speedFracNow > SPIN_THRESHOLD && spinUntil < now) {
+              spinUntil = now + 1900;
+              spinAngVel = (Math.random() < 0.5 ? -1 : 1) * Math.PI * 1.6;
+              player.speed *= 0.35;
+              shake = Math.max(shake, 18);
+              playCrash();
+              // Skid marks — burst of dark tire smudges
+              for (let s = 0; s < 24; s++) {
+                spawnParticle(
+                  player.x + (Math.random() - 0.5) * 36,
+                  player.y + (Math.random() - 0.5) * 36,
+                  (Math.random() - 0.5) * 260,
+                  (Math.random() - 0.5) * 260,
+                  s % 2 ? "rgba(40,40,40,0.9)" : "rgba(120,120,120,0.8)",
+                  0.9, 5
+                );
+              }
+              // Long skid trails
+              for (let s = 0; s < 6; s++) {
+                trails.push({
+                  x1: player.x + (Math.random() - 0.5) * 16,
+                  y1: player.y + (Math.random() - 0.5) * 16,
+                  x2: player.x + Math.cos(player.angle) * (20 + s * 10),
+                  y2: player.y + Math.sin(player.angle) * (20 + s * 10),
+                  born: now,
+                });
+              }
+            }
+          }
+        } else if (dT > CORNER_HIT_RADIUS * 3) {
+          cornerHit.delete(i);
+        }
+      }
+
+      // ===== WARNING — flash "SLOW DOWN!" ahead of a danger corner =====
+      let warnNow = false;
+      for (const dc of dangerPos) {
+        const ahead = ((dc.t - player.t + 1) % 1);
+        if (ahead > 0 && ahead < CORNER_WARN_AHEAD && speedFracNow > SPIN_THRESHOLD - 0.05) {
+          warnNow = true;
+          break;
+        }
+      }
+      if (warnNow !== lastWarnState) {
+        lastWarnState = warnNow;
+        setWarning(warnNow);
+        if (warnNow) shake = Math.max(shake, 5);
+      }
+      const spinNow = spinUntil > now;
+      if (spinNow !== isSpinning) setSpinning(spinNow);
+
+      // ===== Drift detection + tire trails =====
+      const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
+      const steeringInput = (right ? 1 : 0) - (left ? 1 : 0);
+      drifting = !!steeringInput && speedFrac > 0.55;
+      if (drifting || boosting) {
+        // record trail segment
+        const dxT = player.x - lastTrailX;
+        const dyT = player.y - lastTrailY;
+        if (dxT * dxT + dyT * dyT > 30 * 30) {
+          trails.push({ x1: lastTrailX, y1: lastTrailY, x2: player.x, y2: player.y, born: now });
+          lastTrailX = player.x;
+          lastTrailY = player.y;
+          if (trails.length > 280) trails.shift();
+        }
+      } else {
+        lastTrailX = player.x;
+        lastTrailY = player.y;
+      }
+
+      // ===== Car-vs-car collisions disabled =====
+      // Each car runs in its own fixed lane; faster cars cleanly pass through
+      // slower ones without any rigid-body push.
+
+      // ===== Track feature interactions =====
+      for (const f of featurePos) {
+        const dx = player.x - f.x, dy = player.y - f.y;
+        if (dx * dx + dy * dy < 38 * 38) {
+          if (f.kind === "boost" && boostUntil < now) {
+            boostUntil = now + 2000;
+            playNitroSwoosh();
+            shake = Math.max(shake, 4);
+          }
+        }
+      }
+      if (boostUntil > now) {
+        // ramp speed up toward the +20% ceiling quickly
+        player.speed = Math.min(maxSpeed, player.speed + accel * 1.8 * dt);
+      }
+
+      // ===== Spawn nitro / speed particles =====
+      if ((boosting || boostUntil > now) && Math.abs(player.speed) > 0.05) {
+        for (let s = 0; s < 3; s++) {
+          const back = -player.angle;
+          const bx = player.x - Math.cos(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          const by = player.y - Math.sin(player.angle) * 22 + (Math.random() - 0.5) * 10;
+          spawnParticle(
+            bx, by,
+            -Math.cos(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            -Math.sin(player.angle) * 180 + (Math.random() - 0.5) * 120,
+            s % 2 ? "#22d3ee" : "#f472b6",
+            0.45, 5
+          );
+          void back;
+        }
+      } else if (speedFrac > 0.7) {
+        // speed dust
+        spawnParticle(
+          player.x - Math.cos(player.angle) * 18,
+          player.y - Math.sin(player.angle) * 18,
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 60,
+          "rgba(255,255,255,0.6)", 0.35, 2.5
+        );
+      }
+      // Step particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.vx *= 0.92; p.vy *= 0.92;
+      }
+
+      // ===== Camera shake triggers =====
+      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); playNitroSwoosh(); }
+      prevBoosting = boosting;
+      shake *= Math.pow(0.001, dt); // decay fast
+
+      // ===== Engine audio =====
+      setEngine(speedFrac, boosting);
+
+      // ===== Next-turn predictor =====
+      {
+        const lookAhead = 0.02 + Math.min(0.04, speedFrac * 0.04);
+        const p0 = pathPoint(player.t);
+        const p1 = pathPoint(player.t + lookAhead);
+        const a0 = Math.atan2(p0.hy, p0.hx);
+        const a1 = Math.atan2(p1.hy, p1.hx);
+        let da = a1 - a0;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        const sharp = Math.min(1, Math.abs(da) * 3);
+        const dir = da > 0.02 ? 1 : da < -0.02 ? -1 : 0;
+        setNextTurn({ dir, sharp });
+      }
+
+      // Project to track for lap detection / off-road
+      const proj = projectToTrack(player.x, player.y, player.t);
+      const offRoad = proj.dist > ROAD_W / 2;
+      if (offRoad) player.speed *= Math.pow(0.15, dt); // grass slows
+
+      const prevT = player.t;
+      player.t = proj.t;
+      // detect lap crossing (forward wrap)
+      if (prevT > 0.85 && proj.t < 0.15) {
+        player.lap += 1;
+        if (player.lap >= laps && !player.finishedAt) player.finishedAt = now;
+      } else if (prevT < 0.15 && proj.t > 0.85) {
+        // crossed backward
+        player.lap = Math.max(0, player.lap - 1);
+      }
+
+      for (let i = 1; i < cars.length; i++) {
+        const c = cars[i];
+        if (c.finishedAt) continue;
+        // Per-car top speed comes from this car's own upgrade level — no rubber-banding.
+        const ownTop = c.topT ?? AI_TOP_T;
+        // Bots automatically slow to 84% before sharp corners so they never spin out.
+        let speedCap = ownTop;
+        for (const dc of DANGER_CORNERS) {
+          const ahead = ((dc - c.t + 1) % 1);
+          if (ahead < CORNER_WARN_AHEAD || ahead > 1 - CORNER_HIT_RADIUS) {
+            speedCap = Math.min(speedCap, ownTop * 0.84);
+          }
+        }
+        // Boost pads — same +20% for 2s as the player.
+        for (const f of featurePos) {
+          const dx = c.x - f.x, dy = c.y - f.y;
+          if (dx * dx + dy * dy < 38 * 38) {
+            if (f.kind === "boost" && (c.boostUntil ?? 0) < now) {
+              c.boostUntil = now + 2000;
+            }
+          }
+        }
+        if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.20;
+        const desired = speedCap;
+        c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
+        // Lane is fixed at spawn — no wandering, no overlap with other cars.
+        c.t += c.speed * dt;
+        if (c.t >= 1) {
+          c.t -= 1;
+          c.lap += 1;
+          if (c.lap >= laps && !c.finishedAt) c.finishedAt = now;
+        }
+        const pp = pathPoint(c.t);
+        const aoff = c.lane * (ROAD_W / 2 - 14);
+        c.x = pp.x + (-pp.hy) * aoff;
+        c.y = pp.y + (pp.hx) * aoff;
+        c.angle = Math.atan2(pp.hy, pp.hx);
+      }
+
+      draw(now);
+
+      const ranked = [...cars].sort((a, b) => (b.lap + b.t) - (a.lap + a.t));
+      const pos = ranked.findIndex((c) => c.isPlayer) + 1;
+
+      setHud({
+        speed: Math.round(player.speed * 800),
+        lap: Math.min(laps, player.lap + 1),
+        pos,
+        total: cars.length,
+        nitro: nitro / nitroCap,
+        elapsed: Math.max(0, ((player.finishedAt ?? now) - startedAt - COUNTDOWN_MS) / 1000),
+        lapProgress: player.lap >= laps ? 1 : player.t,
+      });
+
+      if (player.finishedAt && !finished) {
+        finished = true;
+        const rewards = [300, 220, 160, 110, 70, 40];
+        const reward = rewards[pos - 1] ?? 30;
+        addCoins(reward);
+        const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
+        const prevBest = readBestTime(trackId);
+        const isNewBest = prevBest === null || t < prevBest;
+        if (isNewBest) writeBestTime(trackId, t);
+        playFanfare();
+        stopEngine();
+        setResult({ rank: pos, reward, time: t, best: prevBest, isNewBest });
+        running = false;
+        return;
+      }
+
+      if (running) raf = requestAnimationFrame(tick);
+    }
+
+    function draw(now: number) {
+      const cssW = canvas.clientWidth;
+      const cssH = canvas.clientHeight;
+      const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H) * 9;
+
+      ctx.fillStyle = "#0b1a2b";
+      ctx.fillRect(0, 0, cssW, cssH);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      ctx.lineWidth = 1;
+
+      // Third-person camera: center on player, rotate so car faces "up"
+      const player = cars[0];
+      const pcx = player.x;
+      const pcy = player.y;
+      const heading = player.angle;
+
+      const shakeX = (Math.random() - 0.5) * shake;
+      const shakeY = (Math.random() - 0.5) * shake;
+
+      ctx.save();
+      ctx.translate(cssW / 2 + shakeX, cssH * 0.72 + shakeY);
+      ctx.scale(scale, scale);
+      ctx.rotate(-heading - Math.PI / 2);
+      ctx.translate(-pcx, -pcy);
+
+      // Grass background
+      ctx.fillStyle = "#14532d";
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+      // Build path once
+      const PN = 720;
+      ctx.beginPath();
+      for (let i = 0; i <= PN; i++) {
+        const p = pathPoint(i / PN);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+
+      // Road shoulder
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = ROAD_W + 10;
+      ctx.stroke();
+      // Road
+      ctx.strokeStyle = "#2a2a35";
+      ctx.lineWidth = ROAD_W;
+      ctx.stroke();
+
+      // Bright guardrails (outer glow + inner kerb)
+      drawGuardrail(ROAD_W / 2 + 14);
+      drawGuardrail(-ROAD_W / 2 - 14);
+      drawKerb(ROAD_W / 2);
+      drawKerb(-ROAD_W / 2);
+
+      // Lane dividers (3 dashed lines for 4 lanes)
+      ctx.strokeStyle = "rgba(255,255,255,0.45)";
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([18, 18]);
+      for (let l = 1; l < LANE_COUNT; l++) {
+        const off = -ROAD_W / 2 + l * LANE_W;
+        ctx.beginPath();
+        const N = 360;
+        for (let i = 0; i <= N; i++) {
+          const p = pathPoint(i / N);
+          const x = p.x + (-p.hy) * off;
+          const y = p.y + (p.hx) * off;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // Start/finish checkered line
+      drawStartLine();
+
+      // Track features (under cars)
+      for (const f of featurePos) drawFeature(f, now);
+
+      // Danger corner warning signs (yellow/red triangles before each hairpin)
+      for (const dc of dangerPos) {
+        const before = pathPoint((dc.t - 0.022 + 1) % 1);
+        const side = ((dc.t * 7) % 1) > 0.5 ? 1 : -1;
+        const off = (ROAD_W / 2 + 28) * side;
+        const sx = before.x + (-before.hy) * off;
+        const sy = before.y + (before.hx) * off;
+        const pulse = 0.85 + Math.sin(now / 220) * 0.15;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.scale(pulse, pulse);
+        // post
+        ctx.fillStyle = "#3a2a18";
+        ctx.fillRect(-2, 6, 4, 22);
+        // triangle sign
+        ctx.beginPath();
+        ctx.moveTo(0, -22);
+        ctx.lineTo(22, 14);
+        ctx.lineTo(-22, 14);
+        ctx.closePath();
+        ctx.fillStyle = "#facc15";
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ef4444";
+        ctx.stroke();
+        // exclamation
+        ctx.fillStyle = "#1a1a1a";
+        ctx.font = "bold 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("!", 0, 2);
+        ctx.restore();
+      }
+
+      // Decorations
+      for (const d of decor) drawDecor(d);
+
+      // Tire trails (under cars)
+      ctx.lineCap = "round";
+      for (const tr of trails) {
+        const age = (now - tr.born) / 1000;
+        const alpha = Math.max(0, 0.55 - age * 0.18);
+        if (alpha <= 0) continue;
+        ctx.strokeStyle = `rgba(15,15,15,${alpha})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(tr.x1, tr.y1);
+        ctx.lineTo(tr.x2, tr.y2);
+        ctx.stroke();
+      }
+
+      // Cars (sorted so leader on top)
+      const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
+      for (const c of sorted) drawCar(c, now);
+
+      // Particles on top
+      for (const p of particles) {
+        const a = Math.max(0, p.life / p.max);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.6 + a * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.restore();
+
+      // ===== Mini-map (screen-space, bottom-left) =====
+      drawMiniMap(cssW, cssH);
+      void now;
+    }
+
+    function drawMiniMap(cssW: number, cssH: number) {
+      const mw = 150, mh = 90;
+      const pad = 12;
+      const x0 = pad, y0 = cssH - mh - pad;
+      // bg
+      ctx.save();
+      ctx.fillStyle = "rgba(8,18,32,0.78)";
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.fill();
+      ctx.strokeStyle = "rgba(98,159,248,0.45)";
+      ctx.lineWidth = 1;
+      roundRectAbs(x0, y0, mw, mh, 10); ctx.stroke();
+
+      // map world bounds to mini-map
+      const margin = 10;
+      const ww = mw - margin * 2, hh = mh - margin * 2;
+      const sx = ww / WORLD_W, sy = hh / WORLD_H;
+      const s = Math.min(sx, sy);
+      const ox = x0 + margin + (mw - margin * 2 - WORLD_W * s) / 2;
+      const oy = y0 + margin + (mh - margin * 2 - WORLD_H * s) / 2;
+
+      // track outline
+      ctx.strokeStyle = "rgba(180,210,255,0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const NM = 120;
+      for (let i = 0; i <= NM; i++) {
+        const p = rawPoint(i / NM);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // cars
+      for (const c of cars) {
+        ctx.fillStyle = c.isPlayer ? "#ffffff" : c.color;
+        ctx.beginPath();
+        ctx.arc(ox + c.x * s, oy + c.y * s, c.isPlayer ? 3 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        if (c.isPlayer) {
+          ctx.strokeStyle = "rgba(98,159,248,0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(ox + c.x * s, oy + c.y * s, 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      // Danger corner markers on minimap
+      for (const dc of dangerPos) {
+        const p = rawPoint(dc.t);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        ctx.fillStyle = "#facc15";
+        ctx.strokeStyle = "#ef4444";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(X, Y - 4);
+        ctx.lineTo(X + 3.5, Y + 2.5);
+        ctx.lineTo(X - 3.5, Y + 2.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function roundRectAbs(x: number, y: number, w: number, h: number, r: number) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    function drawGuardrail(offset: number) {
+      const steps = 600;
+      ctx.lineCap = "round";
+      // outer glow
+      ctx.strokeStyle = "rgba(34, 211, 238, 0.35)";
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const p = pathPoint(t);
+        const x = p.x + (-p.hy) * offset;
+        const y = p.y + (p.hx) * offset;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      // bright inner rail
+      ctx.strokeStyle = "#22d3ee";
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+
+    function drawKerb(offset: number) {
+      const steps = 600;
+      ctx.lineWidth = 6;
+      for (let i = 0; i < steps; i++) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        const p0 = pathPoint(t0);
+        const p1 = pathPoint(t1);
+        const ax = p0.x + (-p0.hy) * offset;
+        const ay = p0.y + (p0.hx) * offset;
+        const bx = p1.x + (-p1.hy) * offset;
+        const by = p1.y + (p1.hx) * offset;
+        ctx.strokeStyle = i % 2 === 0 ? "#fafafa" : "#dc2626";
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+      }
+    }
+
+    function drawFeature(f: { x: number; y: number; angle: number; kind: "boost" | "ramp" }, now: number) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.angle);
+      if (f.kind === "boost") {
+        const pulse = 0.6 + 0.4 * Math.sin(now / 120);
+        // glow
+        ctx.fillStyle = `rgba(34,211,238,${0.25 * pulse})`;
+        ctx.beginPath(); ctx.ellipse(0, 0, 44, 22, 0, 0, Math.PI * 2); ctx.fill();
+        // pad
+        const grad = ctx.createLinearGradient(-30, 0, 30, 0);
+        grad.addColorStop(0, "#22d3ee");
+        grad.addColorStop(0.5, "#ffffff");
+        grad.addColorStop(1, "#22d3ee");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-30, -16, 60, 32, 6) : (() => {
+          ctx.rect(-30, -16, 60, 32);
+        })();
+        ctx.fill();
+        // arrows
+        ctx.fillStyle = `rgba(255,255,255,${0.7 + 0.3 * pulse})`;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * 14 - 6, -8);
+          ctx.lineTo(i * 14 + 6, 0);
+          ctx.lineTo(i * 14 - 6, 8);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        // ramp — yellow/orange wedge with stripes
+        ctx.fillStyle = "#1f1f24";
+        ctx.beginPath(); ctx.ellipse(0, 6, 40, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#f59e0b";
+        ctx.beginPath();
+        ctx.moveTo(-32, 14);
+        ctx.lineTo(32, 14);
+        ctx.lineTo(20, -12);
+        ctx.lineTo(-20, -12);
+        ctx.closePath();
+        ctx.fill();
+        // top stripes
+        ctx.fillStyle = "#0a0a0f";
+        for (let i = -2; i <= 2; i++) {
+          ctx.fillRect(i * 8 - 2, -12, 4, 26);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawDecor(d: Decor) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      if (d.kind === "tree") {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(2, 4, d.size * 0.9, d.size * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#5b3a1e";
+        ctx.fillRect(-d.size * 0.12, -d.size * 0.1, d.size * 0.24, d.size * 0.5);
+        ctx.fillStyle = "#166534";
+        ctx.beginPath(); ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#22c55e";
+        ctx.beginPath(); ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "rock") {
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.beginPath(); ctx.ellipse(2, 3, d.size * 0.7, d.size * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#6b7280";
+        ctx.beginPath(); ctx.arc(0, 0, d.size * 0.55, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#9ca3af";
+        ctx.beginPath(); ctx.arc(-d.size * 0.15, -d.size * 0.15, d.size * 0.25, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "flag") {
+        // flag
+        ctx.fillStyle = "#9ca3af";
+        ctx.fillRect(-1, -d.size, 2, d.size);
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.moveTo(1, -d.size);
+        ctx.lineTo(d.size * 0.9, -d.size * 0.7);
+        ctx.lineTo(1, -d.size * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      } else if (d.kind === "pole") {
+        // light pole — vertical post + warm bulb
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(3, 4, d.size * 0.35, d.size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fillRect(-1.5, -d.size, 3, d.size);
+        ctx.fillStyle = "#fde047";
+        ctx.beginPath(); ctx.arc(0, -d.size, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(253,224,71,0.35)";
+        ctx.beginPath(); ctx.arc(0, -d.size, 10, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "billboard") {
+        ctx.save();
+        if (d.angle !== undefined) ctx.rotate(d.angle);
+        // shadow
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(3, 6, d.size * 0.6, d.size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+        // legs
+        ctx.fillStyle = "#475569";
+        ctx.fillRect(-d.size * 0.5, 0, 4, d.size * 0.45);
+        ctx.fillRect( d.size * 0.5 - 4, 0, 4, d.size * 0.45);
+        // panel
+        const w = d.size * 1.1, h = d.size * 0.55;
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(-w / 2 - 2, -h - 4, w + 4, h + 6);
+        const grad = ctx.createLinearGradient(-w / 2, -h, w / 2, 0);
+        grad.addColorStop(0, "#22d3ee");
+        grad.addColorStop(0.5, "#a855f7");
+        grad.addColorStop(1, "#ec4899");
+        ctx.fillStyle = grad;
+        ctx.fillRect(-w / 2, -h, w, h);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("RACE!", 0, -h / 2);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawStartLine() {
+      const p = pathPoint(0);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.atan2(p.hy, p.hx));
+      const half = ROAD_W / 2;
+      const cellW = 8;
+      const rows = 2;
+      const cols = Math.floor(ROAD_W / 10);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          ctx.fillStyle = (r + c) % 2 === 0 ? "#fff" : "#000";
+          const y = -half + c * (ROAD_W / cols);
+          ctx.fillRect(-cellW + r * cellW, y, cellW, ROAD_W / cols);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawCar(c: Car, now: number) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      // ramp jump bounce — scale up briefly while airborne
+      const jump = c.isPlayer && airUntil > now ? Math.sin(((airUntil - now) / 750) * Math.PI) : 0;
+      const s = 1 + jump * 0.35;
+      ctx.rotate(c.angle);
+      ctx.scale(s, s);
+
+      // shadow (stays lower while jumping)
+      ctx.fillStyle = `rgba(0,0,0,${0.35 - jump * 0.2})`;
+      roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6); ctx.fill();
+
+      ctx.fillStyle = c.color;
+      roundRect(-20, -12, 42, 24, 5); ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      roundRect(-4, -8, 14, 16, 3); ctx.fill();
+
+      ctx.strokeStyle = c.isPlayer ? "#fff" : "rgba(0,0,0,0.5)";
+      ctx.lineWidth = c.isPlayer ? 2.5 : 1.5;
+      roundRect(-20, -12, 42, 24, 5); ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function roundRect(x: number, y: number, w: number, h: number, r: number) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+      stopEngine();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [laps, trackId]);
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-black text-white">
-      <div ref={mountRef} className="absolute inset-0" />
-
-      {/* Top-left HUB */}
-      <Link to="/" className="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/50 px-3 py-1.5 text-xs font-bold backdrop-blur-md hover:border-white/60">
-        <ArrowLeft className="h-3.5 w-3.5" /> HUB
-      </Link>
-
-      {/* Mute */}
-      <button
-        onClick={() => { const nm = !muted; setMuted(nm); setMutedState(nm); }}
-        className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/50 px-3 py-1.5 text-xs font-bold backdrop-blur-md hover:border-white/60"
+    <section className="relative flex flex-1 flex-col gap-3">
+      <div
+        ref={wrapRef}
+        className="relative w-full overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-md outline-none"
+        style={{ aspectRatio: "11 / 6.5" }}
+        onClick={(e) => (e.currentTarget as HTMLElement).focus()}
+        tabIndex={0}
       >
-        {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-      </button>
+        <canvas ref={canvasRef} className="block h-full w-full" />
 
-      {/* Top-center: Lap */}
-      <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg border border-white/20 bg-black/60 px-5 py-2 backdrop-blur-md">
-        <div className="text-[10px] tracking-[0.3em] text-white/60" style={{ fontFamily: "Anton, sans-serif" }}>LAP</div>
-        <div className="text-3xl leading-none" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.05em" }}>
-          {hud.lap}/{track.laps}
-        </div>
-      </div>
-
-      {/* Top-right: Position */}
-      <div className="absolute right-16 top-3 z-20 rounded-lg border border-white/20 bg-black/60 px-4 py-2 backdrop-blur-md text-center">
-        <div className="text-[10px] tracking-[0.3em] text-white/60" style={{ fontFamily: "Anton, sans-serif" }}>POS</div>
-        <div className="text-2xl leading-none text-[#ffd040]" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.05em" }}>
-          {positionLabel}
-        </div>
-      </div>
-
-      {/* Speedometer bottom-left */}
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-white/20 bg-black/60 px-4 py-3 backdrop-blur-md">
-        <Gauge className="h-6 w-6" style={{ color: speedColor }} />
-        <div>
-          <div className="text-[10px] tracking-[0.3em] text-white/60" style={{ fontFamily: "Anton, sans-serif" }}>SPEED</div>
-          <div className="text-4xl leading-none" style={{ fontFamily: "Anton, sans-serif", color: speedColor, letterSpacing: "0.05em" }}>
-            {Math.round(hud.speed * 280)}
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
+          <div className="w-44 rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur shadow-[0_0_24px_-12px_rgba(98,159,248,0.6)]">
+            <div className="flex items-center justify-between">
+              <span className="ps-chip ps-chip-solid" style={{ padding: "2px 8px", fontSize: 9 }}>LAP {hud.lap}/{laps}</span>
+              <span className="tabular-nums text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+            </div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-primary-glow to-primary transition-[width] duration-150" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+            </div>
           </div>
-          <div className="mt-1 h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full transition-all" style={{ width: `${hud.speed * 100}%`, background: speedColor }} />
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</span>
+            <div className="text-foreground">{formatTime(hud.elapsed)}</div>
+            {bestTime !== null && (
+              <div className="text-[10px] text-primary-glow">Best {formatTime(bestTime)}</div>
+            )}
+          </div>
+          <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
+            <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
           </div>
         </div>
-      </div>
 
-      {/* Nitro bottom-center */}
-      <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-2xl border border-white/20 bg-black/60 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-2 text-[11px]" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.2em" }}>
-          <Zap className="h-4 w-4 text-[#da291c]" /> NITRO {hud.nitroActive ? <span className="text-[#ffd040]">• ACTIVE</span> : hud.nitroPct >= 1 ? <span className="text-[#3fdc6c]">• READY</span> : null}
-        </div>
-        <div className="mt-1 h-2 w-48 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full transition-all" style={{ width: `${hud.nitroPct * 100}%`, background: hud.nitroActive ? "#ffd040" : hud.nitroPct >= 1 ? "#3fdc6c" : "#da291c" }} />
-        </div>
-        <div className="mt-1 text-[9px] uppercase tracking-widest text-white/40">SPACE</div>
-      </div>
-
-      {/* Time */}
-      <div className="absolute bottom-4 right-4 z-20 rounded-2xl border border-white/20 bg-black/60 px-4 py-3 backdrop-blur-md text-right">
-        <div className="text-[10px] tracking-[0.3em] text-white/60" style={{ fontFamily: "Anton, sans-serif" }}>TIME</div>
-        <div className="text-2xl leading-none" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.05em" }}>
-          {fmtTime(hud.elapsed)}
-        </div>
-      </div>
-
-      {/* Minimap */}
-      <canvas ref={miniRef} width={160} height={120} className="absolute bottom-24 right-4 z-20 rounded-lg border border-white/20 bg-black/60 backdrop-blur-md" />
-
-      {/* Corner warning */}
-      {hud.warning && status === "racing" && (
-        <div
-          className="pointer-events-none absolute left-1/2 top-1/3 z-30 -translate-x-1/2 text-6xl text-[#ff3030]"
-          style={{
-            fontFamily: "Anton, sans-serif",
-            letterSpacing: "0.1em",
-            textShadow: "0 0 20px rgba(255,48,48,0.8)",
-            animation: "warn-shake 0.3s ease-in-out infinite",
-          }}
-        >
-          SLOW DOWN!
-        </div>
-      )}
-
-      {/* Countdown */}
-      {status === "countdown" && (
-        <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-black/30">
-          <div className="text-[180px] leading-none text-white" style={{ fontFamily: "Anton, sans-serif", textShadow: "0 0 60px rgba(218,41,28,0.8)" }}>
-            {countdown === 0 ? "GO!" : countdown}
+        <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
+          {(() => {
+            const frac = Math.min(1, hud.speed / 90);
+            // Green safe / Yellow caution / Red = above 85% (corner-spinout danger)
+            const color = frac < 0.7 ? "#22c55e" : frac < 0.85 ? "#facc15" : "#ef4444";
+            return (
+              <div className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
+                   style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}>
+                <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <Gauge className="h-3 w-3" style={{ color }} /> Speed
+                </div>
+                <div className="font-display text-2xl tabular-nums leading-none" style={{ color }}>
+                  {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
+                </div>
+                <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full transition-[width] duration-150" style={{ width: `${frac * 100}%`, background: color }} />
+                </div>
+              </div>
+            );
+          })()}
+          <div className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+              <Zap className="h-3 w-3" /> Nitro
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-background/70 text-muted-foreground backdrop-blur transition hover:text-foreground"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
         </div>
-      )}
 
-      {/* Finish overlay */}
-      {status === "finished" && result && (
-        <div className="absolute inset-0 z-40 grid place-items-center bg-gradient-to-b from-black/80 to-[#da291c]/40 backdrop-blur-sm">
-          <div className="rounded-2xl border border-white/20 bg-black/80 p-8 text-center">
-            <div className="text-sm tracking-[0.4em] text-white/60" style={{ fontFamily: "Anton, sans-serif" }}>FINISHED</div>
-            <div className="my-3 flex items-center justify-center gap-3">
-              <Trophy className="h-10 w-10 text-[#ffd040]" />
-              <div className="text-7xl text-white" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.05em" }}>
-                P{result.rank}
+        {/* Next-turn predictor */}
+        {nextTurn.dir !== 0 && nextTurn.sharp > 0.1 && !result && !count && (
+          <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Next</span>
+            <span
+              className="text-2xl leading-none"
+              style={{
+                color: `hsl(${(1 - nextTurn.sharp) * 120}, 90%, 60%)`,
+                transform: `scale(${0.85 + nextTurn.sharp * 0.4})`,
+                transition: "all 0.2s",
+              }}
+            >
+              {nextTurn.dir < 0 ? "↰" : "↱"}
+            </span>
+          </div>
+        )}
+
+        {/* DANGER CORNER WARNING */}
+        {warning && !result && !count && (
+          <div className="pointer-events-none absolute inset-x-0 top-[18%] z-20 grid place-items-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="font-display select-none text-center"
+                 style={{
+                   fontSize: "clamp(3rem, 8vw, 6rem)",
+                   color: "#ef4444",
+                   letterSpacing: "0.06em",
+                   textShadow: "0 0 30px rgba(239,68,68,0.9), 0 4px 0 rgba(0,0,0,0.6)",
+                   animation: "warn-shake 0.18s ease-in-out infinite",
+                 }}>
+              ⚠ SLOW DOWN!
+            </div>
+          </div>
+        )}
+
+        {/* SPINOUT label */}
+        {spinning && !result && (
+          <div className="pointer-events-none absolute inset-x-0 top-[44%] z-20 grid place-items-center">
+            <div className="font-display select-none text-center"
+                 style={{
+                   fontSize: "clamp(2.4rem, 6vw, 4.5rem)",
+                   color: "#facc15",
+                   letterSpacing: "0.08em",
+                   textShadow: "0 0 30px rgba(250,204,21,0.9)",
+                 }}>
+              SPIN OUT!
+            </div>
+          </div>
+        )}
+
+        {count && !result && (
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/40 backdrop-blur-[3px]">
+            {/* echo rings */}
+            <div key={count + "-ring"} className="absolute h-40 w-40 rounded-full border-2 border-primary/60 animate-ping" />
+            <div
+              key={count}
+              className="select-none font-black leading-none animate-in zoom-in-50 duration-300"
+              style={{
+                fontSize: count === "GO" ? "10rem" : "13rem",
+                color: count === "3" ? "#ef4444" : count === "2" ? "#f59e0b" : count === "1" ? "#22c55e" : "#629ff8",
+                textShadow: `0 0 80px ${count === "GO" ? "rgba(98,159,248,0.9)" : "rgba(255,255,255,0.5)"}, 0 0 30px currentColor`,
+                letterSpacing: "-0.05em",
+              }}
+            >
+              {count}
+            </div>
+            <div className="absolute bottom-[28%] flex gap-3 text-2xl opacity-70">
+              <span className="text-primary-glow">△</span>
+              <span className="text-rose-400">○</span>
+              <span className="text-sky-400">✕</span>
+              <span className="text-fuchsia-400">□</span>
+            </div>
+          </div>
+        )}
+
+        {result && (() => {
+          const medal = result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : "🏁";
+          const place = result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
+          const tone = result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
+          return (
+            <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-fade-up">
+              <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vmin] w-[80vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-40" />
+              <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/40 blur-[120px]" />
+              <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-secondary/40 blur-[120px]" />
+              <div className="relative w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
+                {/* Medal */}
+                <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2">
+                  <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-coin text-6xl shadow-button animate-pop-in">
+                    <span className="animate-wobble">{medal}</span>
+                  </div>
+                </div>
+                <div className="mt-16 text-4xl font-extrabold leading-none sm:text-5xl">
+                  <span className="text-gradient-title">{place}</span>
+                </div>
+                <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full ${tone} px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-button`}>
+                  Race Finished
+                </div>
+
+                <div className="mt-6 grid grid-cols-3 gap-2">
+                  <ResultStat label="Time"   value={formatTime(result.time)} tone="bg-white/[0.06]" valueClass="text-white" />
+                  <ResultStat label="Coins"  value={`+${result.reward}`}      tone="bg-gradient-coin" valueClass="text-amber-950" />
+                  <ResultStat label="Best"   value={formatTime(result.isNewBest ? result.time : (result.best ?? result.time))} tone="bg-gradient-cyan" valueClass="text-cyan-950" />
+                </div>
+
+                {result.isNewBest && (
+                  <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-primary px-4 py-2 text-xs font-extrabold text-white shadow-button animate-pop-in">
+                    🏆 NEW BEST TIME!
+                  </div>
+                )}
+
+                <button
+                  onClick={() => window.location.reload()}
+                  className="arcade-btn mt-6 h-14 w-full text-base"
+                >
+                  CONTINUE <Trophy className="h-5 w-5" />
+                </button>
+                <div className="mt-2 flex justify-center gap-2">
+                  <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">Quiz</Link>
+                  <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">HUB</Link>
+                </div>
               </div>
             </div>
-            <div className="text-xl text-white" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.1em" }}>
-              TIME {fmtTime(result.time)} {result.best && <span className="ml-2 text-[#ffd040]">NEW BEST!</span>}
-            </div>
-            <div className="mt-2 text-lg text-[#ffd040]" style={{ fontFamily: "Anton, sans-serif", letterSpacing: "0.1em" }}>
-              +{result.coins} COINS
-            </div>
-            <div className="mt-6 flex gap-3 justify-center">
-              <button onClick={() => window.location.reload()} className="rounded-lg bg-[#da291c] px-6 py-2 text-sm font-bold uppercase tracking-widest text-white hover:bg-[#b01e0a]" style={{ fontFamily: "Anton, sans-serif" }}>
-                Race Again
-              </button>
-              <Link to="/" className="rounded-lg border border-white/30 px-6 py-2 text-sm font-bold uppercase tracking-widest text-white hover:bg-white/10" style={{ fontFamily: "Anton, sans-serif" }}>
-                HUB
-              </Link>
+          );
+        })()}
+
+        {/* First-run controls overlay */}
+        {showHint && !result && (
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-background/70 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={dismissHint}
+          >
+            <div className="w-[min(92%,440px)] rounded-3xl border border-primary/40 bg-card/85 p-6 text-center shadow-glow">
+              <div className="ps-chip ps-chip-solid mx-auto">Controls</div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-left text-sm">
+                <Kbd label="W / ↑" desc="Accelerate" />
+                <Kbd label="S / ↓" desc="Brake / Reverse" />
+                <Kbd label="A / ←" desc="Steer left" />
+                <Kbd label="D / →" desc="Steer right" />
+                <Kbd label="Space / Shift" desc="Nitro boost (+15 km/h)" />
+                <Kbd label="🎮 △○✕□" desc="Look for next-turn arrow" />
+              </div>
+              <button onClick={dismissHint} className="ps-pill mt-6">Start Racing</button>
+              <div className="mt-2 text-[10px] text-muted-foreground">Click anywhere to dismiss</div>
             </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground backdrop-blur-md">
+        <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · Space/Shift nitro
+      </div>
+    </section>
+  );
+}
+
+function Kbd({ label, desc }: { label: string; desc: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <kbd className="inline-flex min-w-[68px] items-center justify-center rounded-md border border-primary/40 bg-background/80 px-2 py-1 text-[11px] font-bold text-primary-glow">
+        {label}
+      </kbd>
+      <span className="text-muted-foreground">{desc}</span>
+    </div>
+  );
+}
+
+function ResultStat({ label, value, tone, valueClass }: { label: string; value: string; tone: string; valueClass: string }) {
+  return (
+    <div className={`rounded-2xl ${tone} p-3 shadow-button`}>
+      <div className={`text-[10px] font-extrabold uppercase tracking-[0.18em] opacity-70 ${valueClass}`}>{label}</div>
+      <div className={`mt-0.5 text-lg font-extrabold tabular-nums ${valueClass}`}>{value}</div>
+    </div>
   );
 }
