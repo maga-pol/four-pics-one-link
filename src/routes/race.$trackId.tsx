@@ -116,12 +116,15 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 120;
+const ROAD_W = 200;     // 4 lanes (50 each)
+const LANE_COUNT = 4;
+const LANE_W = ROAD_W / LANE_COUNT;
 
 function rawPoint(t: number) {
+  // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
-  const rx = TRACK_RX + Math.sin(a * 3) * 140 + Math.cos(a * 2) * 70 + Math.sin(a * 5) * 40;
-  const ry = TRACK_RY + Math.cos(a * 3) * 120 + Math.sin(a * 5) * 50 + Math.cos(a * 7) * 30;
+  const rx = TRACK_RX + Math.sin(a * 2) * 160 + Math.cos(a * 3) * 60;
+  const ry = TRACK_RY + Math.cos(a * 2) * 120 + Math.sin(a * 3) * 50;
   return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
 }
 
