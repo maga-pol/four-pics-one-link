@@ -67,9 +67,11 @@ function HomeHUD() {
     upgrades: { speed: 1, acceleration: 1, nitro: 0, control: 0 },
     unlockedTracks: 1,
   }));
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setState(loadState());
+    setHydrated(true);
   }, []);
   // Refresh coins when user comes back from quiz screen
   useEffect(() => {
@@ -78,8 +80,10 @@ function HomeHUD() {
     return () => window.removeEventListener("focus", onFocus);
   }, []);
   useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE, JSON.stringify(state));
-  }, [state]);
+    // Only persist AFTER first hydration to avoid overwriting saved data with defaults
+    if (!hydrated || typeof window === "undefined") return;
+    localStorage.setItem(STORAGE, JSON.stringify(state));
+  }, [state, hydrated]);
 
   function buyUpgrade(key: UpgradeKey) {
     setState((s) => {

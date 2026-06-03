@@ -143,11 +143,12 @@ function CircuitRace({ laps }: { laps: number }) {
     ro.observe(wrap);
 
     const up = readUpgrades();
-    const baseSpeed = 0.22 + up.speed * 0.020;
-    const accel = 0.18 + up.acceleration * 0.04;
-    const grip = 0.6 + up.control * 0.08;
-    const nitroCap = 1 + up.nitro * 0.25;
-    const nitroBoost = 1.5 + up.nitro * 0.08;
+    // Upgrades give a real, noticeable boost on every stat
+    const baseSpeed = 0.20 + up.speed * 0.035;          // ~+28 km/h per level
+    const accel = 0.18 + up.acceleration * 0.08;        // snappier launch
+    const grip = 0.55 + up.control * 0.15;              // sharper steering
+    const nitroCap = 1 + up.nitro * 0.5;                // longer nitro tank
+    const nitroBoost = 1.4 + up.nitro * 0.12;           // (kept for compat — unused; +15km/h is fixed)
 
     const AI_NAMES = ["Bolt", "Comet", "Hawk", "Viper", "Storm"];
     const AI_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4"];
