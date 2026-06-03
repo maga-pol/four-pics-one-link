@@ -928,52 +928,56 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           </div>
         )}
 
-        {result && (
-          <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
-            <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/30 blur-[120px]" />
-            <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-primary-glow/25 blur-[120px]" />
-            <div className="relative w-[min(94%,520px)] rounded-3xl border border-primary/40 bg-card/80 p-8 text-center shadow-glow animate-in zoom-in-95 duration-300">
-              <div className="ps-chip ps-chip-solid mx-auto">Race Finished</div>
-              <div className="mt-4 text-[7rem] leading-none font-thin tracking-tight">
-                <span className="text-gradient-title">P{result.rank}</span>
-              </div>
-              <div className="ps-hairline mt-2 mb-4" />
-              <div className="grid grid-cols-3 gap-3 text-left">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</div>
-                  <div className="text-lg font-bold tabular-nums">{formatTime(result.time)}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Best</div>
-                  <div className="text-lg font-bold tabular-nums text-primary-glow">
-                    {formatTime(result.isNewBest ? result.time : (result.best ?? result.time))}
+        {result && (() => {
+          const medal = result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : "🏁";
+          const place = result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
+          const tone = result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
+          return (
+            <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-fade-up">
+              <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vmin] w-[80vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-40" />
+              <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/40 blur-[120px]" />
+              <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-secondary/40 blur-[120px]" />
+              <div className="relative w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
+                {/* Medal */}
+                <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2">
+                  <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-coin text-6xl shadow-button animate-pop-in">
+                    <span className="animate-wobble">{medal}</span>
                   </div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Reward</div>
-                  <div className="text-lg font-bold text-amber-300">+{result.reward}</div>
+                <div className="mt-16 text-4xl font-extrabold leading-none sm:text-5xl">
+                  <span className="text-gradient-title">{place}</span>
                 </div>
-              </div>
-              {result.isNewBest && (
-                <div className="mt-4 ps-chip ps-chip-solid mx-auto" style={{ background: "linear-gradient(90deg,#f59e0b,#ef4444)" }}>
-                  🏆 New Best Time!
+                <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full ${tone} px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-button`}>
+                  Race Finished
                 </div>
-              )}
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <button onClick={() => window.location.reload()} className="ps-pill">
-                  <Trophy className="h-4 w-4" /> Race again
+
+                <div className="mt-6 grid grid-cols-3 gap-2">
+                  <ResultStat label="Time"   value={formatTime(result.time)} tone="bg-white/[0.06]" valueClass="text-white" />
+                  <ResultStat label="Coins"  value={`+${result.reward}`}      tone="bg-gradient-coin" valueClass="text-amber-950" />
+                  <ResultStat label="Best"   value={formatTime(result.isNewBest ? result.time : (result.best ?? result.time))} tone="bg-gradient-cyan" valueClass="text-cyan-950" />
+                </div>
+
+                {result.isNewBest && (
+                  <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-primary px-4 py-2 text-xs font-extrabold text-white shadow-button animate-pop-in">
+                    🏆 NEW BEST TIME!
+                  </div>
+                )}
+
+                <button
+                  onClick={() => window.location.reload()}
+                  className="arcade-btn mt-6 h-14 w-full text-base"
+                >
+                  CONTINUE <Trophy className="h-5 w-5" />
                 </button>
-                <Link to="/quiz" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
-                  Quiz
-                </Link>
-                <Link to="/" className="ps-pill" style={{ background: "rgba(255,255,255,0.08)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)" }}>
-                  HUB
-                </Link>
+                <div className="mt-2 flex justify-center gap-2">
+                  <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">Quiz</Link>
+                  <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">HUB</Link>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* First-run controls overlay */}
         {showHint && !result && (
