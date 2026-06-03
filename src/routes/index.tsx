@@ -147,13 +147,13 @@ function HomeHUD() {
           <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
             {/* LEFT — title + CTA + flow */}
             <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
-              <span className="inline-flex items-center bg-[#da291c] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.11em] text-white">
+              <span className="font-display inline-flex items-center bg-[#da291c] px-3 py-1 text-[14px] uppercase tracking-[0.14em] text-white">
                 Season 1
               </span>
-              <h1 className="font-medium text-white" style={{ fontSize: "clamp(2rem, 5vw, 52px)", letterSpacing: "-1px", lineHeight: 1.05 }}>
+              <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", letterSpacing: "0.01em", lineHeight: 1 }}>
                 WORLD QUIZ RACE
               </h1>
-              <Link to={`/race/${firstTrack.id}`} className="play-btn z-20">
+              <Link to={`/race/${firstTrack.id}`} className="play-btn font-display z-20" style={{ fontSize: 18, letterSpacing: "0.12em" }}>
                 <Play className="h-3.5 w-3.5 fill-current" /> Play Now
               </Link>
               <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
@@ -193,7 +193,7 @@ function HomeHUD() {
             <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Garage</div>
-                <h2 className="mt-1 text-xl font-medium text-white" style={{ letterSpacing: "-0.5px" }}>Upgrade your racer</h2>
+                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Upgrade your racer</h2>
               </div>
               <div className="inline-flex items-center gap-1.5 border border-[#5a4218] bg-[#2a1f08] px-3 py-1.5 text-sm font-bold text-[#c8a050]">
                 <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins}</span>
@@ -213,7 +213,7 @@ function HomeHUD() {
                           {u.emoji}
                         </span>
                         <div>
-                          <div className="text-sm font-bold uppercase tracking-[0.11em] text-white leading-tight">{u.label}</div>
+                          <div className="font-display text-lg uppercase tracking-[0.06em] text-white leading-tight">{u.label}</div>
                           <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
                             Lv {lvl} {!max && <span className="text-[#da291c]">→ Lv {lvl + 1}</span>}
                           </div>
@@ -232,7 +232,8 @@ function HomeHUD() {
                         max ? "bg-[#252525] text-[#696969] cursor-not-allowed" :
                         afford ? "bg-[#f5c518] text-[#1a1100] hover:bg-[#ffd633]" :
                         "bg-[#1e1e1e] text-[#696969] border border-[#303030] cursor-not-allowed"
-                      }`}
+                      } font-display`}
+                      style={{ fontSize: 14, letterSpacing: "0.12em" }}
                     >
                       {max ? "Maxed out" : (
                         <>
@@ -251,7 +252,7 @@ function HomeHUD() {
             <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Race</div>
-                <h2 className="mt-1 text-xl font-medium text-white" style={{ letterSpacing: "-0.5px" }}>Tracks</h2>
+                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Tracks</h2>
               </div>
               <Flag className="h-5 w-5 text-[#969696]" />
             </div>
@@ -272,7 +273,7 @@ function HomeHUD() {
                     <div className="flex items-center gap-3">
                       <span className="grid h-12 w-12 place-items-center border border-[#303030] bg-[#252525] text-2xl">{t.flag}</span>
                       <div className="flex-1">
-                        <div className="text-sm font-bold uppercase tracking-[0.05em] text-white">{t.name}</div>
+                        <div className="font-display text-lg uppercase tracking-[0.04em] text-white">{t.name}</div>
                         <div className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.11em]">
                           <span className={unlocked ? "text-[#03904a]" : "text-[#696969]"}>
                             {unlocked ? "● Ready" : "🔒 Locked"}
@@ -282,7 +283,7 @@ function HomeHUD() {
                         </div>
                       </div>
                       {unlocked && (
-                        <span className="inline-flex items-center gap-1 bg-[#da291c] px-4 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] text-white transition group-hover:bg-[#b01e0a]">
+                        <span className="font-display inline-flex items-center gap-1 bg-[#da291c] px-4 py-2.5 text-[14px] uppercase tracking-[0.12em] text-white transition group-hover:bg-[#b01e0a]">
                           Drive <ChevronRight className="h-3.5 w-3.5" />
                         </span>
                       )}
@@ -330,7 +331,7 @@ function HeroStat({ icon, label, value, bg, border, accent }: {
         {icon}
         <span className="text-[11px] font-bold uppercase tracking-[0.11em]">{label}</span>
       </div>
-      <div className="mt-1.5 text-[28px] font-bold tabular-nums leading-none text-white">{value}</div>
+      <div className="font-display mt-1.5 text-[32px] tabular-nums leading-none text-white" style={{ letterSpacing: "0.02em" }}>{value}</div>
     </div>
   );
 }
@@ -346,7 +347,7 @@ function FlowChain() {
     <div className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2">
       {steps.map((s, i) => (
         <div key={s.label} className="flex items-center gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">{s.label}</span>
+          <span className="font-display text-[14px] uppercase tracking-[0.12em] text-[#969696]">{s.label}</span>
           {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-[#404040]" />}
         </div>
       ))}

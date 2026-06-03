@@ -1,7 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
-@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Baloo+2:wght@600;700;800&family=Bebas+Neue&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -201,11 +201,17 @@
 
 @layer utilities {
   .text-gradient-title {
+    font-family: "Bebas Neue", cursive;
+    letter-spacing: 0.02em;
     background: var(--gradient-title);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     filter: none;
+  }
+  .font-display {
+    font-family: "Bebas Neue", cursive !important;
+    letter-spacing: 0.02em;
   }
   .text-stroke-dark {
     -webkit-text-stroke: 2px oklch(0.16 0.10 280);
@@ -397,4 +403,10 @@
     50%      { box-shadow: 0 0 60px oklch(0.92 0.20 95 / 0.8),  0 10px 50px -10px oklch(0.78 0.26 30 / 0.8); }
   }
   .animate-pulse-glow { animation: pulse-glow 2.6s ease-in-out infinite; }
+
+  @keyframes warn-shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25%      { transform: translateX(-6px) rotate(-1deg); }
+    75%      { transform: translateX(6px)  rotate(1deg); }
+  }
 }
