@@ -212,6 +212,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const aiLanes = gridLanes.filter((_, i) => i !== 2);
     const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
     const playerOff = startLatOff(playerLane);
+    // Bots roll their own upgrade levels (same system as the player).
+    // The only thing that separates them is upgrades — no rubber-banding.
+    const AI_SPEED_UPGRADES = [1, 2, 3, 2, 4];
     const cars: Car[] = [
       {
         id: "p", name: "You", color: "#22d3ee", isPlayer: true,
@@ -229,6 +232,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           x: startP.x + (-startP.hy) * off,
           y: startP.y + (startP.hx) * off,
           angle: startAngle,
+          // topT scales the SAME way as player baseSpeed scales with upgrades.
+          topT: 0, // filled in below once AI_TOP_T is known
         } as Car;
       }),
     ];
