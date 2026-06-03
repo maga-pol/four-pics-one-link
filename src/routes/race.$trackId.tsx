@@ -310,8 +310,9 @@ function CircuitRace({ laps }: { laps: number }) {
       const right = k["d"] || k["arrowright"];
       const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
 
-      // Free-driving physics
-      const maxSpeed = baseSpeed * (boosting ? nitroBoost : 1.4);
+      // Free-driving physics — nitro adds exactly +15 km/h on top of max
+      const NITRO_KMH = 15 / 800; // HUD km/h = speed * 800
+      const maxSpeed = baseSpeed * 1.4 + (boosting ? NITRO_KMH : 0);
       if (accelKey) player.speed += accel * 0.8 * dt;
       if (brakeKey) player.speed -= accel * 1.6 * dt;
       if (!accelKey && !brakeKey) player.speed -= player.speed * 0.5 * dt;
