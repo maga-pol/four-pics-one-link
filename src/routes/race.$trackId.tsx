@@ -108,6 +108,9 @@ type Car = {
   y: number;
   angle: number;
   finishedAt?: number;
+  // per-car balance
+  topT?: number;     // max track-progress per second for this car
+  boostUntil?: number; // ms timestamp until +20% boost from pad
 };
 
 const WORLD_W = 8800;
@@ -209,6 +212,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const aiLanes = gridLanes.filter((_, i) => i !== 2);
     const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
     const playerOff = startLatOff(playerLane);
+    // Bots roll their own upgrade levels (same system as the player).
+    // The only thing that separates them is upgrades — no rubber-banding.
+    const AI_SPEED_UPGRADES = [1, 2, 3, 2, 4];
     const cars: Car[] = [
       {
         id: "p", name: "You", color: "#22d3ee", isPlayer: true,
@@ -226,6 +232,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           x: startP.x + (-startP.hy) * off,
           y: startP.y + (startP.hx) * off,
           angle: startAngle,
+          // topT scales the SAME way as player baseSpeed scales with upgrades.
+          topT: 0, // filled in below once AI_TOP_T is known
         } as Car;
       }),
     ];
@@ -264,6 +272,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
+    // Now assign each bot a top speed driven purely by its own speed upgrade level,
+    // using the exact same formula as the player (baseSpeed = 0.20 + lvl*0.035).
+    const PLAYER_SPEED_LVL = up.speed;
+    for (let i = 1; i < cars.length; i++) {
+      const lvl = AI_SPEED_UPGRADES[i - 1] ?? 1;
+      const ratio = (0.20 + lvl * 0.035) / (0.20 + PLAYER_SPEED_LVL * 0.035);
+      cars[i].topT = AI_TOP_T * ratio;
+    }
 
     // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
     type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag" | "billboard" | "pole"; size: number; angle?: number };
@@ -338,27 +354,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
     }
 
-    // ===== Track features: boost pads + ramps =====
-    type Feature = { t: number; lane: number; kind: "boost" | "ramp" };
+    // ===== Track features: 2 speed boost pads =====
+    // One sits on the straight just before the 0.30 hairpin — risk/reward:
+    // grab the boost and you must brake hard or spin out at the corner.
+    type Feature = { t: number; lane: number; kind: "boost" };
     const features: Feature[] = [
-      { t: 0.08, lane:  0.5, kind: "boost" },
-      { t: 0.22, lane: -0.4, kind: "ramp"  },
-      { t: 0.38, lane:  0.0, kind: "boost" },
-      { t: 0.55, lane:  0.6, kind: "ramp"  },
-      { t: 0.68, lane: -0.5, kind: "boost" },
-      { t: 0.84, lane:  0.3, kind: "boost" },
+      { t: 0.24, lane: 0.0, kind: "boost" }, // before sharp corner at 0.30
+      { t: 0.65, lane: 0.0, kind: "boost" }, // mid-straight
     ];
     const featurePos = features.map((f) => {
       const p = pathPoint(f.t);
       const off = f.lane * (ROAD_W / 2 - 14);
       return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
     });
-    let boostUntil = 0;     // ms timestamp until extra boost from pad
+    let boostUntil = 0;     // player boost-pad active until (ms)
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
-    // ===== DANGER CORNERS — hairpins with tighter radius. Spinout if entered >60% max speed =====
+    // ===== DANGER CORNERS — spinout if entered above 85% of max speed =====
     const DANGER_CORNERS = [0.30, 0.55, 0.80];
-    const SPIN_THRESHOLD = 0.60;
+    const SPIN_THRESHOLD = 0.85;
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
     const dangerPos = DANGER_CORNERS.map((t) => {
@@ -382,7 +396,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const COUNTDOWN_MS = 3500; // 3, 2, 1, GO
     let countdownDone = false;
 
-    let nitro = nitroCap;
+    // ===== NITRO — +20% top speed for 3s, 8s cooldown =====
+    const NITRO_DURATION = 3000;
+    const NITRO_COOLDOWN = 8000;
+    let nitroActiveUntil = 0;
+    let nitroReadyAt = 0;
+    let nitro = 1; // HUD readiness (0..1)
     let last = performance.now();
     const startedAt = performance.now();
     let raf = 0;
@@ -460,14 +479,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const brakeKey = k["s"] || k["arrowdown"];
       const left = k["a"] || k["arrowleft"];
       const right = k["d"] || k["arrowright"];
-      const boosting = (k[" "] || k["shift"]) && nitro > 0.02;
+      // Trigger nitro on press if ready (not currently boosting, cooldown elapsed)
+      const nitroKeyDown = !!(k[" "] || k["shift"]);
+      if (nitroKeyDown && now >= nitroReadyAt && nitroActiveUntil < now) {
+        nitroActiveUntil = now + NITRO_DURATION;
+        nitroReadyAt = nitroActiveUntil + NITRO_COOLDOWN;
+        playNitroSwoosh();
+        shake = Math.max(shake, 6);
+      }
+      const boosting = nitroActiveUntil > now;
 
       // ===== SPINOUT — overrides controls =====
       const isSpinning = spinUntil > now;
 
-      // Free-driving physics — nitro adds exactly +15 km/h on top of max
-      const NITRO_KMH = 15 / 800; // HUD km/h = speed * 800
-      const maxSpeed = baseSpeed * 1.4 + (boosting ? NITRO_KMH : 0);
+      // Free-driving physics — nitro and boost pads each give +20% max
+      const baseMax = baseSpeed * 1.4;
+      const padActive = boostUntil > now;
+      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1);
+      const maxSpeed = baseMax * boostMul;
       if (!isSpinning) {
         if (accelKey) player.speed += accel * 0.8 * dt;
         if (brakeKey) player.speed -= accel * 1.6 * dt;
@@ -478,8 +507,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       if (player.speed > maxSpeed) player.speed = maxSpeed;
       if (player.speed < -baseSpeed * 0.4) player.speed = -baseSpeed * 0.4;
 
-      if (boosting && accelKey) nitro = Math.max(0, nitro - dt * 0.5);
-      else nitro = Math.min(nitroCap, nitro + dt * 0.15);
+      // HUD readiness: 1 = ready, fills back during cooldown after a burst
+      if (boosting) {
+        nitro = Math.max(0, (nitroActiveUntil - now) / NITRO_DURATION);
+      } else if (now < nitroReadyAt) {
+        nitro = 1 - (nitroReadyAt - now) / NITRO_COOLDOWN;
+      } else {
+        nitro = 1;
+      }
 
       if (isSpinning) {
         player.angle += spinAngVel * dt;
@@ -495,7 +530,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
 
       // ===== DANGER CORNER detection + spin trigger =====
-      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseSpeed * 1.4);
+      // Compare against the car's own un-boosted max — boosts don't raise the safe ceiling.
+      const speedFracNow = Math.abs(player.speed) / Math.max(0.001, baseMax);
       for (let i = 0; i < dangerPos.length; i++) {
         const cT = dangerPos[i].t;
         const dT = Math.abs(((player.t - cT + 0.5 + 1) % 1) - 0.5);
@@ -581,17 +617,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const dx = player.x - f.x, dy = player.y - f.y;
         if (dx * dx + dy * dy < 38 * 38) {
           if (f.kind === "boost" && boostUntil < now) {
-            boostUntil = now + 900;
+            boostUntil = now + 2000;
             playNitroSwoosh();
             shake = Math.max(shake, 4);
-          } else if (f.kind === "ramp" && airUntil < now) {
-            airUntil = now + 750;
-            shake = Math.max(shake, 6);
           }
         }
       }
       if (boostUntil > now) {
-        player.speed = Math.min(maxSpeed * 1.35, player.speed + accel * 1.6 * dt);
+        // ramp speed up toward the +20% ceiling quickly
+        player.speed = Math.min(maxSpeed, player.speed + accel * 1.8 * dt);
       }
 
       // ===== Spawn nitro / speed particles =====
@@ -670,8 +704,27 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        // Equal AI baseline — no per-index advantage. Player upgrades give the edge.
-        const desired = AI_TOP_T * 0.94;
+        // Per-car top speed comes from this car's own upgrade level — no rubber-banding.
+        const ownTop = c.topT ?? AI_TOP_T;
+        // Bots automatically slow to 84% before sharp corners so they never spin out.
+        let speedCap = ownTop;
+        for (const dc of DANGER_CORNERS) {
+          const ahead = ((dc - c.t + 1) % 1);
+          if (ahead < CORNER_WARN_AHEAD || ahead > 1 - CORNER_HIT_RADIUS) {
+            speedCap = Math.min(speedCap, ownTop * 0.84);
+          }
+        }
+        // Boost pads — same +20% for 2s as the player.
+        for (const f of featurePos) {
+          const dx = c.x - f.x, dy = c.y - f.y;
+          if (dx * dx + dy * dy < 38 * 38) {
+            if (f.kind === "boost" && (c.boostUntil ?? 0) < now) {
+              c.boostUntil = now + 2000;
+            }
+          }
+        }
+        if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.20;
+        const desired = speedCap;
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
         // Lane is fixed at spawn — no wandering, no overlap with other cars.
         c.t += c.speed * dt;
@@ -1228,7 +1281,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
           {(() => {
             const frac = Math.min(1, hud.speed / 90);
-            const color = frac < 0.5 ? "#22c55e" : frac < 0.7 ? "#facc15" : "#ef4444";
+            // Green safe / Yellow caution / Red = above 85% (corner-spinout danger)
+            const color = frac < 0.7 ? "#22c55e" : frac < 0.85 ? "#facc15" : "#ef4444";
             return (
               <div className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
                    style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}>
