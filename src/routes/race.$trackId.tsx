@@ -572,57 +572,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         lastTrailY = player.y;
       }
 
-      // ===== Bot collisions: elastic separation =====
-      for (let i = 1; i < cars.length; i++) {
-        const b = cars[i];
-        const dx = b.x - player.x;
-        const dy = b.y - player.y;
-        const d2 = dx * dx + dy * dy;
-        const R = 34;
-        if (d2 < R * R && d2 > 0.001) {
-          const d = Math.sqrt(d2);
-          const nx = dx / d, ny = dy / d;
-          const push = (R - d) * 0.75;
-          player.x -= nx * push;
-          player.y -= ny * push;
-          b.x += nx * push * 0.55;
-          b.y += ny * push * 0.55;
-          // Bouncy, not punishing
-          player.speed *= 0.88;
-          b.speed   *= 0.95;
-          // Spark particles
-          for (let s = 0; s < 6; s++) {
-            spawnParticle(
-              (player.x + b.x) / 2,
-              (player.y + b.y) / 2,
-              (Math.random() - 0.5) * 220,
-              (Math.random() - 0.5) * 220,
-              "#fde68a", 0.35, 3
-            );
-          }
-          if (Math.abs(player.speed) > 0.05) {
-            shake = Math.max(shake, 8);
-            playCrash();
-          }
-        }
-      }
-      // AI ↔ AI collisions (lighter)
-      for (let i = 1; i < cars.length; i++) {
-        for (let j = i + 1; j < cars.length; j++) {
-          const a = cars[i], c = cars[j];
-          const dx = c.x - a.x, dy = c.y - a.y;
-          const d2 = dx * dx + dy * dy;
-          const R = 32;
-          if (d2 < R * R && d2 > 0.001) {
-            const d = Math.sqrt(d2);
-            const nx = dx / d, ny = dy / d;
-            const push = (R - d) * 0.5;
-            a.x -= nx * push; a.y -= ny * push;
-            c.x += nx * push; c.y += ny * push;
-            a.speed *= 0.94; c.speed *= 0.94;
-          }
-        }
-      }
+      // ===== Car-vs-car collisions disabled =====
+      // Each car runs in its own fixed lane; faster cars cleanly pass through
+      // slower ones without any rigid-body push.
 
       // ===== Track feature interactions =====
       for (const f of featurePos) {
@@ -721,8 +673,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         // Equal AI baseline — no per-index advantage. Player upgrades give the edge.
         const desired = AI_TOP_T * 0.94;
         c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
-        c.lane += Math.sin(now / 600 + i) * dt * 0.2;
-        c.lane = Math.max(-0.8, Math.min(0.8, c.lane));
+        // Lane is fixed at spawn — no wandering, no overlap with other cars.
         c.t += c.speed * dt;
         if (c.t >= 1) {
           c.t -= 1;

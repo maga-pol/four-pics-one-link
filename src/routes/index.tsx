@@ -187,6 +187,27 @@ function HomeHUD() {
           </div>
         </section>
 
+        {/* BIG QUIZ CTA */}
+        <section className="-mx-3 sm:-mx-5" style={{ background: "#111", padding: "20px 0" }}>
+          <div className="mx-auto flex max-w-[1280px] justify-center px-3 sm:px-5">
+            <Link
+              to="/quiz"
+              className="inline-flex items-center justify-center gap-3 bg-[#da291c] text-white transition hover:bg-[#b01e0a]"
+              style={{
+                fontFamily: "'Anton', sans-serif",
+                fontSize: 22,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                padding: "18px 64px",
+                borderRadius: 0,
+              }}
+            >
+              <Coins className="h-6 w-6" />
+              Play Quiz · Earn Coins
+            </Link>
+          </div>
+        </section>
+
         {/* GARAGE */}
         <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <div className="arcade-card p-6">
@@ -289,7 +310,12 @@ function HomeHUD() {
                       )}
                     </div>
                     {unlocked && (
-                      <p className="mt-3 text-[12px] leading-relaxed text-[#969696]">{t.description}</p>
+                      <p
+                        className="mt-3 text-[12px] leading-relaxed text-[#969696]"
+                        style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif", letterSpacing: "0.01em", textTransform: "none" }}
+                      >
+                        {t.description}
+                      </p>
                     )}
                   </Link>
                 );
