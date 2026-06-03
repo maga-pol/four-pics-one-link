@@ -153,9 +153,23 @@ function HomeHUD() {
               <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", letterSpacing: "0.01em", lineHeight: 1 }}>
                 WORLD QUIZ RACE
               </h1>
-              <Link to={`/race/${firstTrack.id}`} className="play-btn font-display z-20" style={{ fontSize: 18, letterSpacing: "0.12em" }}>
-                <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
-              </Link>
+              <div className="relative inline-block">
+                {hydrated && state.wins === 0 && (
+                  <div className="pointer-events-none absolute -top-14 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap">
+                    <div className="animate-hint-bounce relative bg-[#ffcc00] px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_0_#000]">
+                      👆 Start here — tap to race!
+                      <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[#ffcc00]" />
+                    </div>
+                  </div>
+                )}
+                <Link
+                  to={`/race/${firstTrack.id}`}
+                  className={`play-btn font-display z-20 ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
+                  style={{ fontSize: 18, letterSpacing: "0.12em" }}
+                >
+                  <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
+                </Link>
+              </div>
               <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
                 <Brain className="h-3.5 w-3.5" /> Play Quiz · earn coins
               </Link>
