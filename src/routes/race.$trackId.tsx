@@ -499,7 +499,7 @@ function RaceScreen() {
     let raceStartMs = 0;
     let raceState: "countdown" | "racing" | "finished" = "countdown";
     const tick = () => {
-      playCountdownBeep(countdownN === 0 ? 880 : 440);
+      playCountdownBeep(countdownN === 0);
       if (countdownN > 0) {
         countdownN -= 1;
         setCountdown(countdownN);
@@ -643,7 +643,7 @@ function RaceScreen() {
         camera.lookAt(camTarget.x, camTarget.y + 1, camTarget.z);
 
         // Audio engine
-        setEngine(player.speed / player.topT);
+        setEngine(player.speed / player.topT, now < player.nitroActiveUntil);
 
         // HUD updates
         const ranks = [...cars].sort((a, b) => {
