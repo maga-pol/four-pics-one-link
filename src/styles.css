@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -62,32 +63,34 @@
 }
 
 :root {
-  --radius: 1rem;
-  --background: oklch(0.16 0.03 270);
-  --foreground: oklch(0.98 0.01 270);
-  --card: oklch(0.21 0.04 270);
-  --card-foreground: oklch(0.98 0.01 270);
-  --popover: oklch(0.21 0.04 270);
-  --popover-foreground: oklch(0.98 0.01 270);
-  --primary: oklch(0.68 0.22 285);
-  --primary-foreground: oklch(0.98 0.01 270);
-  --primary-glow: oklch(0.75 0.25 295);
-  --secondary: oklch(0.65 0.22 240);
-  --secondary-foreground: oklch(0.98 0.01 270);
-  --neon: oklch(0.82 0.22 200);
-  --muted: oklch(0.25 0.03 270);
-  --muted-foreground: oklch(0.72 0.04 270);
-  --accent: oklch(0.68 0.22 285);
-  --accent-foreground: oklch(0.98 0.01 270);
-  --destructive: oklch(0.65 0.25 25);
-  --destructive-foreground: oklch(0.98 0.01 270);
-  --border: oklch(0.3 0.04 270);
-  --input: oklch(0.25 0.03 270);
-  --ring: oklch(0.68 0.22 285);
-  --gradient-title: linear-gradient(135deg, oklch(0.75 0.25 295), oklch(0.7 0.22 240), oklch(0.82 0.22 200));
-  --gradient-primary: linear-gradient(135deg, oklch(0.68 0.22 285), oklch(0.65 0.22 240));
-  --shadow-glow: 0 0 60px oklch(0.68 0.22 285 / 0.45);
-  --shadow-button: 0 10px 40px -10px oklch(0.68 0.22 285 / 0.6);
+  /* Ferrari design system — cinematic editorial, near-black canvas, Rosso Corsa voltage */
+  --radius: 0px;
+  --font-sans: "Inter", "FerrariSans", -apple-system, system-ui, sans-serif;
+  --background: #181818;
+  --foreground: #ffffff;
+  --card: #303030;
+  --card-foreground: #ffffff;
+  --popover: #303030;
+  --popover-foreground: #ffffff;
+  --primary: #da291c;
+  --primary-foreground: #ffffff;
+  --primary-glow: #da291c;
+  --secondary: #303030;
+  --secondary-foreground: #ffffff;
+  --neon: #fff200;
+  --muted: #303030;
+  --muted-foreground: #969696;
+  --accent: #da291c;
+  --accent-foreground: #ffffff;
+  --destructive: #f13a2c;
+  --destructive-foreground: #ffffff;
+  --border: #303030;
+  --input: #303030;
+  --ring: #da291c;
+  --gradient-title: linear-gradient(135deg, #ffffff, #ffffff);
+  --gradient-primary: linear-gradient(135deg, #da291c, #b01e0a);
+  --shadow-glow: 0 0 60px rgb(218 41 28 / 0.35);
+  --shadow-button: 0 10px 40px -10px rgb(218 41 28 / 0.5);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -146,6 +149,15 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: 0;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: -0.02em;
   }
 }
 
