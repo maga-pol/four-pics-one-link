@@ -154,7 +154,7 @@ function HomeHUD() {
                 WORLD QUIZ RACE
               </h1>
               <Link to={`/race/${firstTrack.id}`} className="play-btn font-display z-20" style={{ fontSize: 18, letterSpacing: "0.12em" }}>
-                <Play className="h-3.5 w-3.5 fill-current" /> Play Now
+                <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
               </Link>
               <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
                 <Brain className="h-3.5 w-3.5" /> Play Quiz · earn coins
@@ -366,7 +366,7 @@ function FlowChain() {
     { label: "Race" },
   ];
   return (
-    <div className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2">
+    <div className="items-center border border-[#303030] bg-[#1e1e1e] px-3 py-2 flex flex-row gap-[10px]">
       {steps.map((s, i) => (
         <div key={s.label} className="flex items-center gap-2">
           <span className="font-display text-[14px] uppercase tracking-[0.12em] text-[#969696]">{s.label}</span>
