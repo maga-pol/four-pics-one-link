@@ -370,9 +370,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let boostUntil = 0;     // player boost-pad active until (ms)
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
-    // ===== DANGER CORNERS — spinout if entered above 85% of max speed =====
-    const DANGER_CORNERS = [0.30, 0.55, 0.80];
-    const SPIN_THRESHOLD = 0.85;
+    // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
+    const DANGER_CORNERS: number[] = [];
+    const SPIN_THRESHOLD = 999; // effectively disabled
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
     const dangerPos = DANGER_CORNERS.map((t) => {
