@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as QuizRouteImport } from './routes/quiz'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RaceTrackIdRouteImport } from './routes/race.$trackId'
@@ -19,6 +20,11 @@ import { Route as GameLevelRouteImport } from './routes/game.$level'
 const QuizRoute = QuizRouteImport.update({
   id: '/quiz',
   path: '/quiz',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -50,6 +56,7 @@ const GameLevelRoute = GameLevelRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/profile'
     | '/quiz'
     | '/game/$level'
     | '/game/complete'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/profile'
     | '/quiz'
     | '/game/$level'
     | '/game/complete'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/profile'
     | '/quiz'
     | '/game/$level'
     | '/game/complete'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  ProfileRoute: typeof ProfileRoute
   QuizRoute: typeof QuizRoute
   GameLevelRoute: typeof GameLevelRoute
   GameCompleteRoute: typeof GameCompleteRoute
@@ -115,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/quiz'
       fullPath: '/quiz'
       preLoaderRoute: typeof QuizRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  ProfileRoute: ProfileRoute,
   QuizRoute: QuizRoute,
   GameLevelRoute: GameLevelRoute,
   GameCompleteRoute: GameCompleteRoute,

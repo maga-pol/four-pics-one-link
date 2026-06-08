@@ -1,33 +1,40 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Sign in — World Quiz Race" }] }),
+  head: () => ({ meta: [{ title: "Sign in - World Quiz Race" }] }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"signin" | "signup">("signup");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/", replace: true });
+      if (data.user) navigate({ to: "/profile", replace: true });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) navigate({ to: "/", replace: true });
+      if (session?.user) navigate({ to: "/profile", replace: true });
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
-  const signIn = async () => {
+  const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
+    setMessage(null);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/profile`,
     });
     if (result.error) {
       setError(result.error.message ?? "Sign-in failed");
@@ -35,27 +42,124 @@ function AuthPage() {
     }
   };
 
+  const submitEmail = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    const cleanEmail = email.trim();
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            full_name: name.trim() || cleanEmail.split("@")[0],
+          },
+          emailRedirectTo: `${window.location.origin}/profile`,
+        },
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage("Account created. Check your email if Supabase asks for confirmation.");
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      if (error) setError(error.message);
+    }
+    setLoading(false);
+  };
+
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-background p-6 text-foreground">
       <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-60" />
       <div className="pointer-events-none absolute -left-40 top-0 h-[28rem] w-[28rem] rounded-full bg-primary/30 blur-[140px]" />
       <div className="pointer-events-none absolute -right-40 bottom-0 h-[32rem] w-[32rem] rounded-full bg-primary-glow/20 blur-[160px]" />
-      <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card/60 p-6 backdrop-blur-md">
+      <div className="relative z-10 w-full max-w-sm border border-border bg-card/80 p-6 backdrop-blur-md">
         <div className="mb-5 text-center">
-          <div className="text-3xl">🌍</div>
+          <div className="text-3xl">🏁</div>
           <h1 className="mt-2 text-xl font-black tracking-tight text-gradient-title">World Quiz Race</h1>
-          <p className="mt-1 text-xs text-muted-foreground">Sign in to save your progress across devices</p>
+          <p className="mt-1 text-xs text-muted-foreground">Create a profile and keep your racing identity.</p>
         </div>
+
+        <div className="mb-4 grid grid-cols-2 border border-[#303030] bg-[#111] text-xs font-bold uppercase tracking-[0.11em]">
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={`px-3 py-2 ${mode === "signup" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
+          >
+            Register
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("signin")}
+            className={`px-3 py-2 ${mode === "signin" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
+          >
+            Sign in
+          </button>
+        </div>
+
+        <form onSubmit={submitEmail} className="space-y-3">
+          {mode === "signup" && (
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Racer name"
+              className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+            />
+          )}
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            required
+            placeholder="Email"
+            className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+          />
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            required
+            minLength={6}
+            placeholder="Password"
+            className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="arcade-btn h-12 w-full disabled:opacity-60"
+          >
+            {loading ? "Working..." : mode === "signup" ? "Create profile" : "Sign in"}
+          </button>
+        </form>
+
+        <div className="my-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="h-px flex-1 bg-[#303030]" />
+          or
+          <div className="h-px flex-1 bg-[#303030]" />
+        </div>
+
         <button
           type="button"
-          onClick={signIn}
+          onClick={signInWithGoogle}
           disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-black shadow-button transition hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 border border-[#303030] bg-white px-4 py-2.5 text-sm font-bold text-black shadow-button transition hover:bg-[#f5f5f5] disabled:opacity-60"
         >
           <GoogleIcon />
-          {loading ? "Connecting…" : "Continue with Google"}
+          Continue with Google
         </button>
+
+        {message && <p className="mt-3 text-center text-xs text-[#f5c518]">{message}</p>}
         {error && <p className="mt-3 text-center text-xs text-red-400">{error}</p>}
+        <Link to="/" className="mt-5 block text-center text-xs font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
+          Back to hub
+        </Link>
       </div>
     </main>
   );

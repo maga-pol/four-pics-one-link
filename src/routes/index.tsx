@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Gauge, Zap, Rocket, Move, Coins, Trophy, Flag, ChevronRight,
-  Brain, Wrench, Sparkles, Play, LogOut,
+  Brain, Wrench, Sparkles, Play, LogOut, UserCircle,
 } from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,23 +116,32 @@ function HomeHUD() {
             <StatPill icon={<Coins className="h-4 w-4" />} value={state.coins} tone="gold" />
             <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins} tone="primary" />
             {user ? (
-              <button
-                type="button"
-                onClick={() => supabase.auth.signOut()}
-                className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:bg-[#252525]"
-                title={user.user_metadata?.full_name ?? user.email ?? "Account"}
-              >
-                {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
-                ) : (
-                  <span className="grid h-6 w-6 place-items-center bg-[#da291c] text-[11px]">
-                    {(user.email?.[0] ?? "U").toUpperCase()}
-                  </span>
-                )}
-                <LogOut className="h-3.5 w-3.5 opacity-80" />
-              </button>
+              <>
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:bg-[#252525]"
+                  title={user.user_metadata?.full_name ?? user.email ?? "Profile"}
+                >
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
+                  ) : (
+                    <span className="grid h-6 w-6 place-items-center bg-[#da291c] text-[11px]">
+                      <UserCircle className="h-4 w-4" />
+                    </span>
+                  )}
+                  Profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="grid h-10 w-10 place-items-center border border-[#303030] bg-[#1e1e1e] text-white transition hover:bg-[#252525]"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4 opacity-80" />
+                </button>
+              </>
             ) : (
-              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Sign in</Link>
+              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Register / Sign in</Link>
             )}
           </div>
         </header>
@@ -153,26 +162,39 @@ function HomeHUD() {
               <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", letterSpacing: "0.01em", lineHeight: 1 }}>
                 WORLD QUIZ RACE
               </h1>
-              <div className="relative inline-block">
-                {hydrated && state.wins === 0 && (
-                  <div className="pointer-events-none absolute -top-14 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap">
-                    <div className="animate-hint-bounce relative bg-[#ffcc00] px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_0_#000]">
-                      👆 Start here — tap to race!
-                      <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[#ffcc00]" />
+              <div className="grid w-full max-w-[520px] grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="relative">
+                  {hydrated && state.wins === 0 && (
+                    <div className="pointer-events-none absolute -top-14 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap">
+                      <div className="animate-hint-bounce relative bg-[#ffcc00] px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_0_#000]">
+                        👆 Start here — tap to race!
+                        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[#ffcc00]" />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                  <Link
+                    to={`/race/${firstTrack.id}`}
+                    className={`play-btn font-display z-20 h-[68px] w-full ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
+                    style={{ fontSize: 18, letterSpacing: "0.12em" }}
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
+                  </Link>
+                </div>
                 <Link
-                  to={`/race/${firstTrack.id}`}
-                  className={`play-btn font-display z-20 ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
-                  style={{ fontSize: 18, letterSpacing: "0.12em" }}
+                  to="/quiz"
+                  className="font-display inline-flex h-[68px] w-full items-center justify-center gap-3 border-2 border-[#ffd633] bg-[#f5c518] px-5 text-center text-[18px] font-black uppercase tracking-[0.12em] text-[#1a1100] shadow-[0_0_34px_-8px_rgba(245,197,24,0.9)] transition hover:bg-[#ffd633]"
                 >
-                  <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
+                  <Coins className="h-6 w-6" /> Play Quiz Earn Money
                 </Link>
               </div>
-              <Link to="/quiz" className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
-                <Brain className="h-3.5 w-3.5" /> Play Quiz · earn coins
-              </Link>
+              <div className="grid w-full max-w-[520px] grid-cols-2 border border-[#303030] bg-[#111] text-center text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
+                <div className="flex items-center justify-center gap-2 border-r border-[#303030] px-3 py-2">
+                  <Flag className="h-3.5 w-3.5 text-[#da291c]" /> Race
+                </div>
+                <div className="flex items-center justify-center gap-2 px-3 py-2 text-[#f5c518]">
+                  <Brain className="h-3.5 w-3.5" /> Quiz
+                </div>
+              </div>
               <div className="mt-1">
                 <FlowChain />
               </div>

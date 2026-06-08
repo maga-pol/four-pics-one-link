@@ -212,9 +212,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const aiLanes = gridLanes.filter((_, i) => i !== 2);
     const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
     const playerOff = startLatOff(playerLane);
-    // Bots roll their own upgrade levels (same system as the player).
-    // The only thing that separates them is upgrades — no rubber-banding.
-    const AI_SPEED_UPGRADES = [1, 2, 3, 2, 4];
+    // Bots have different pace profiles. Most are slower than a focused player,
+    // and nitro/boost pads make clean overtakes possible.
+    const AI_PACE = [0.78, 0.86, 0.93, 0.82, 0.98];
     const cars: Car[] = [
       {
         id: "p", name: "You", color: "#22d3ee", isPlayer: true,
@@ -232,7 +232,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           x: startP.x + (-startP.hy) * off,
           y: startP.y + (startP.hx) * off,
           angle: startAngle,
-          // topT scales the SAME way as player baseSpeed scales with upgrades.
+          // Filled below from this bot's pace profile.
           topT: 0, // filled in below once AI_TOP_T is known
         } as Car;
       }),
@@ -272,9 +272,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
-    // All cars share the exact same top speed — no per-car advantage.
     for (let i = 1; i < cars.length; i++) {
-      cars[i].topT = AI_TOP_T;
+      cars[i].topT = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
     }
 
     // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
@@ -434,6 +433,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let lastTrailX = cars[0].x;
     let lastTrailY = cars[0].y;
     let drifting = false;
+    let lateralVelocity = 0;
 
     // Camera shake
     let shake = 0;
@@ -512,18 +512,32 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         nitro = 1;
       }
 
+      const moveScale = 1200;
+      const steeringInput = (right ? 1 : 0) - (left ? 1 : 0);
       if (isSpinning) {
         player.angle += spinAngVel * dt;
         spinAngVel *= Math.pow(0.35, dt);
+        lateralVelocity *= Math.pow(0.2, dt);
       } else {
-        const steer = (right ? 1 : 0) - (left ? 1 : 0);
-        const steerStrength = (1.6 + grip * 0.3) * Math.min(1, Math.abs(player.speed) * 6);
-        player.angle += steer * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
+        const speedAbs = Math.abs(player.speed);
+        const speedRatio = Math.min(1, speedAbs / Math.max(0.001, baseMax));
+        const steerGrip = 1 - Math.min(0.32, speedRatio * 0.22);
+        const steerStrength = (1.25 + grip * 0.42) * Math.min(1, speedAbs * 7.5) * steerGrip;
+        player.angle += steeringInput * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
+        lateralVelocity += steeringInput * player.speed * moveScale * (0.72 - Math.min(0.28, grip * 0.08)) * dt;
+        lateralVelocity *= Math.pow(0.08 + grip * 0.16, dt);
+        if (Math.abs(steeringInput) > 0 && speedRatio > 0.58) {
+          player.speed *= Math.pow(0.72 + grip * 0.05, dt);
+          shake = Math.max(shake, 1.6 + speedRatio * 2.8);
+        }
       }
 
-      const moveScale = 1200;
-      player.x += Math.cos(player.angle) * player.speed * moveScale * dt;
-      player.y += Math.sin(player.angle) * player.speed * moveScale * dt;
+      const forwardX = Math.cos(player.angle);
+      const forwardY = Math.sin(player.angle);
+      const sideX = -forwardY;
+      const sideY = forwardX;
+      player.x += (forwardX * player.speed * moveScale + sideX * lateralVelocity) * dt;
+      player.y += (forwardY * player.speed * moveScale + sideY * lateralVelocity) * dt;
 
       // ===== DANGER CORNER detection + spin trigger =====
       // Compare against the car's own un-boosted max — boosts don't raise the safe ceiling.
@@ -587,8 +601,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
-      const steeringInput = (right ? 1 : 0) - (left ? 1 : 0);
-      drifting = !!steeringInput && speedFrac > 0.55;
+      drifting = (!!steeringInput && speedFrac > 0.5) || Math.abs(lateralVelocity) > 90;
       if (drifting || boosting) {
         // record trail segment
         const dxT = player.x - lastTrailX;
@@ -700,7 +713,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        // Per-car top speed comes from this car's own upgrade level — no rubber-banding.
+        // Per-car top speed comes from this bot's pace profile; no rubber-banding.
         const ownTop = c.topT ?? AI_TOP_T;
         // Bots automatically slow to 84% before sharp corners so they never spin out.
         let speedCap = ownTop;
