@@ -5,13 +5,13 @@ import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Sign in - World Quiz Race" }] }),
+  head: () => ({ meta: [{ title: "Log in - World Quiz Race" }] }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signup");
+  const [mode, setMode] = useState<"login" | "signup">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,7 +37,7 @@ function AuthPage() {
       redirect_uri: `${window.location.origin}/profile`,
     });
     if (result.error) {
-      setError(result.error.message ?? "Sign-in failed");
+      setError(result.error.message ?? "Login failed");
       setLoading(false);
     }
   };
@@ -97,10 +97,10 @@ function AuthPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("signin")}
-            className={`px-3 py-2 ${mode === "signin" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
+            onClick={() => setMode("login")}
+            className={`px-3 py-2 ${mode === "login" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
           >
-            Sign in
+            Log in
           </button>
         </div>
 
@@ -135,7 +135,7 @@ function AuthPage() {
             disabled={loading}
             className="arcade-btn h-12 w-full disabled:opacity-60"
           >
-            {loading ? "Working..." : mode === "signup" ? "Create profile" : "Sign in"}
+            {loading ? "Working..." : mode === "signup" ? "Create profile" : "Log in"}
           </button>
         </form>
 

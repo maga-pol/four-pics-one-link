@@ -141,7 +141,7 @@ function HomeHUD() {
                 </button>
               </>
             ) : (
-              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Register / Sign in</Link>
+              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Register / Log in</Link>
             )}
           </div>
         </header>
