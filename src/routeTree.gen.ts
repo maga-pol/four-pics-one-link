@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RaceTrackIdRouteImport } from './routes/race.$trackId'
 import { Route as GameCompleteRouteImport } from './routes/game.complete'
 import { Route as GameLevelRouteImport } from './routes/game.$level'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 
 const QuizRoute = QuizRouteImport.update({
   id: '/quiz',
@@ -52,21 +53,28 @@ const GameLevelRoute = GameLevelRouteImport.update({
   path: '/game/$level',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
   '/race/$trackId': typeof RaceTrackIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
   '/race/$trackId': typeof RaceTrackIdRoute
@@ -74,9 +82,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
   '/race/$trackId': typeof RaceTrackIdRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/profile'
     | '/quiz'
+    | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
     | '/race/$trackId'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/profile'
     | '/quiz'
+    | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
     | '/race/$trackId'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/profile'
     | '/quiz'
+    | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
     | '/race/$trackId'
@@ -113,7 +125,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   QuizRoute: typeof QuizRoute
   GameLevelRoute: typeof GameLevelRoute
@@ -172,12 +184,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameLevelRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   ProfileRoute: ProfileRoute,
   QuizRoute: QuizRoute,
   GameLevelRoute: GameLevelRoute,
