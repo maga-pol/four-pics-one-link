@@ -6,6 +6,7 @@ import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
   playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
 } from "@/lib/audio";
+import { getUnlockedDriverIds, normalizeState, writeGameState } from "@/lib/garage";
 
 export const Route = createFileRoute("/race/$trackId")({
   head: () => ({ meta: [{ title: "Race · World Quiz Race" }] }),
@@ -25,11 +26,11 @@ function addCoins(delta: number) {
     localStorage.setItem(STORAGE, JSON.stringify(obj));
   } catch {}
 }
-function recordRaceFinish(rank: number) {
+function recordRaceFinish(rank: number, trackId: string) {
   if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(STORAGE);
-    const obj = raw ? JSON.parse(raw) : {};
+    const obj = normalizeState(raw ? JSON.parse(raw) : {});
     if (rank === 1) {
       const nextStreak = (obj.winStreak ?? 0) + 1;
       obj.wins = (obj.wins ?? 0) + 1;
@@ -39,7 +40,11 @@ function recordRaceFinish(rank: number) {
       obj.winStreak = 0;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, 0);
     }
-    localStorage.setItem(STORAGE, JSON.stringify(obj));
+    if (rank <= 3) {
+      obj.podiumTrackIds = Array.from(new Set([...(obj.podiumTrackIds ?? []), trackId]));
+      obj.unlockedDriverIds = getUnlockedDriverIds(obj.podiumTrackIds);
+    }
+    writeGameState(obj);
   } catch {}
 }
 function readUpgrades() {
@@ -786,7 +791,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const rewards = [300, 220, 160, 110, 70, 40];
         const reward = rewards[pos - 1] ?? 30;
         addCoins(reward);
-        recordRaceFinish(pos);
+        recordRaceFinish(pos, trackId);
         const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
         const prevBest = readBestTime(trackId);
         const isNewBest = prevBest === null || t < prevBest;

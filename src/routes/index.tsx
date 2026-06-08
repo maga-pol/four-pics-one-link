@@ -7,6 +7,18 @@ import {
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import {
+  CarFigure,
+  DriverFigure,
+  defaultState as defaultGarageState,
+  getSelectedCar,
+  getSelectedDriver,
+  normalizeState,
+  readGameState,
+  writeGameState,
+  type GameState,
+  type UpgradeKey,
+} from "@/lib/garage";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,15 +32,6 @@ export const Route = createFileRoute("/")({
   component: HomeHUD,
 });
 
-type UpgradeKey = "speed" | "acceleration" | "nitro" | "control";
-type GameState = {
-  coins: number;
-  upgrades: Record<UpgradeKey, number>;
-  unlockedTracks: number;
-  wins: number;
-};
-
-const STORAGE = "wqr-state";
 const MAX_LEVEL = 5;
 const COSTS = [100, 200, 350, 550, 800];
 
@@ -43,23 +46,10 @@ const UPGRADES: {
 ];
 
 function defaultState(): GameState {
-  return { coins: 250, upgrades: { speed: 1, acceleration: 1, nitro: 0, control: 0 }, unlockedTracks: 1, wins: 0 };
+  return defaultGarageState();
 }
 function loadState(): GameState {
-  if (typeof window === "undefined") return defaultState();
-  try {
-    const raw = localStorage.getItem(STORAGE);
-    if (raw) {
-      const p = JSON.parse(raw);
-      return {
-        coins: p.coins ?? 250,
-        upgrades: p.upgrades ?? defaultState().upgrades,
-        unlockedTracks: p.unlockedTracks ?? 1,
-        wins: p.wins ?? 0,
-      };
-    }
-  } catch {}
-  return defaultState();
+  return readGameState();
 }
 
 function HomeHUD() {
@@ -75,7 +65,7 @@ function HomeHUD() {
   }, []);
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
-    localStorage.setItem(STORAGE, JSON.stringify(state));
+    writeGameState(state);
   }, [state, hydrated]);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -85,16 +75,21 @@ function HomeHUD() {
 
   function buyUpgrade(key: UpgradeKey) {
     setState((s) => {
-      const lvl = s.upgrades[key];
+      const current = normalizeState(s);
+      const upgrades = current.upgrades ?? defaultState().upgrades!;
+      const lvl = upgrades[key] ?? 0;
       if (lvl >= MAX_LEVEL) return s;
       const cost = COSTS[lvl];
-      if (s.coins < cost) return s;
-      return { ...s, coins: s.coins - cost, upgrades: { ...s.upgrades, [key]: lvl + 1 } };
+      if ((current.coins ?? 0) < cost) return s;
+      return { ...current, coins: (current.coins ?? 0) - cost, upgrades: { ...upgrades, [key]: lvl + 1 } };
     });
   }
 
   const tracks = TRACKS;
   const firstTrack = tracks[0];
+  const selectedDriver = getSelectedDriver(state);
+  const selectedCar = getSelectedCar(state);
+  const upgrades = state.upgrades ?? defaultState().upgrades!;
 
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
@@ -113,8 +108,8 @@ function HomeHUD() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <StatPill icon={<Coins className="h-4 w-4" />} value={state.coins} tone="gold" />
-            <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins} tone="primary" />
+            <StatPill icon={<Coins className="h-4 w-4" />} value={state.coins ?? 0} tone="gold" />
+            <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins ?? 0} tone="primary" />
             {user ? (
               <>
                 <Link
@@ -200,8 +195,8 @@ function HomeHUD() {
               </div>
             </div>
 
-            {/* CENTER — car */}
-            <div className="relative mx-auto w-full max-w-[420px]">
+            {/* CENTER — selected driver + car */}
+            <div className="relative mx-auto w-full max-w-[460px]">
               {/* speed lines */}
               <div className="pointer-events-none absolute inset-y-0 left-0 w-24 opacity-30">
                 <div className="absolute top-[20%] h-px w-16 -rotate-[8deg] bg-white" />
@@ -210,15 +205,29 @@ function HomeHUD() {
                 <div className="absolute top-[65%] h-px w-20 -rotate-[6deg] bg-white" />
                 <div className="absolute top-[80%] h-px w-16 -rotate-[8deg] bg-white" />
               </div>
-              <Car />
+              <div className="grid items-end gap-3 sm:grid-cols-[0.34fr_1fr]">
+                <div className="border border-[#303030] bg-[#111] p-2">
+                  <DriverFigure driver={selectedDriver} size="tiny" />
+                  <div className="mt-1 truncate text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[#f5c518]">
+                    {selectedDriver.code}
+                  </div>
+                </div>
+                <div>
+                  <CarFigure car={selectedCar} className="relative z-10 w-full animate-car-idle drop-shadow-[0_24px_36px_rgba(218,41,28,0.38)]" />
+                  <div className="mt-1 flex items-center justify-between border border-[#303030] bg-[#111] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#969696]">
+                    <span className="truncate">{selectedCar.name}</span>
+                    <span className="text-[#f5c518]">{selectedDriver.code}</span>
+                  </div>
+                </div>
+              </div>
               <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
             </div>
 
             {/* RIGHT — stat boxes stacked vertically */}
             <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-2">
-              <HeroStat icon={<Coins  className="h-4 w-4" />} label="Coins"  value={state.coins} bg="#2a1f08" border="#5a4218" accent="#c8a050" />
-              <HeroStat icon={<Trophy className="h-4 w-4" />} label="Wins"   value={state.wins}  bg="#1f0a0a" border="#5a1a1a" accent="#da291c" />
-              <HeroStat icon={<Flag   className="h-4 w-4" />} label="Tracks" value={`${state.unlockedTracks}/${tracks.length}`} bg="#080f1f" border="#18305a" accent="#4a7ac8" />
+              <HeroStat icon={<Coins  className="h-4 w-4" />} label="Coins"  value={state.coins ?? 0} bg="#2a1f08" border="#5a4218" accent="#c8a050" />
+              <HeroStat icon={<Trophy className="h-4 w-4" />} label="Wins"   value={state.wins ?? 0}  bg="#1f0a0a" border="#5a1a1a" accent="#da291c" />
+              <HeroStat icon={<Flag   className="h-4 w-4" />} label="Tracks" value={`${state.unlockedTracks ?? 1}/${tracks.length}`} bg="#080f1f" border="#18305a" accent="#4a7ac8" />
             </div>
           </div>
         </section>
@@ -252,15 +261,15 @@ function HomeHUD() {
                 <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Upgrade your racer</h2>
               </div>
               <div className="inline-flex items-center gap-1.5 border border-[#5a4218] bg-[#2a1f08] px-3 py-1.5 text-sm font-bold text-[#c8a050]">
-                <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins}</span>
+                <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins ?? 0}</span>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {UPGRADES.map((u) => {
-                const lvl = state.upgrades[u.key];
+                const lvl = upgrades[u.key] ?? 0;
                 const max = lvl >= MAX_LEVEL;
                 const cost = max ? 0 : COSTS[lvl];
-                const afford = state.coins >= cost;
+                const afford = (state.coins ?? 0) >= cost;
                 return (
                   <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#404040]">
                     <div className="flex items-center justify-between">
@@ -314,7 +323,7 @@ function HomeHUD() {
             </div>
             <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto pr-1">
               {tracks.map((t, i) => {
-                const unlocked = i < state.unlockedTracks;
+                const unlocked = i < (state.unlockedTracks ?? 1);
                 return (
                   <Link
                     key={t.id}
