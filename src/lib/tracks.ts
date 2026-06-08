@@ -18,15 +18,17 @@ export type Track = {
 export const TRACKS: Track[] = [
   {
     id: "circuit",
-    name: "Sunny Circuit",
-    flag: "🏁",
-    description: "A friendly oval circuit. Drive 3 laps and earn coins!",
+    name: "Sakura Neon Circuit",
+    flag: "JP",
+    description: "Race through a Japanese festival route with sakura, neon, bridges, boosts, and a tight hairpin.",
     laps: 3,
-    region: "Starter Route",
+    region: "Japan Showcase",
     stages: [
       { id: "start-finish", name: "Start / Finish", active: true },
-      { id: "north-bend", name: "North Bend" },
-      { id: "south-bend", name: "South Bend" },
+      { id: "sakura-s", name: "Sakura S-Curves" },
+      { id: "hairpin", name: "Temple Hairpin" },
+      { id: "bridge", name: "Lantern Bridge" },
+      { id: "neon-sector", name: "Neon Chicane" },
     ],
   },
 ];

@@ -177,9 +177,34 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 200;     // 4 lanes (50 each)
+const ROAD_W = 190;     // 4 lanes, narrow enough to make bridge/chicane matter
 const LANE_COUNT = 4;
 const LANE_W = ROAD_W / LANE_COUNT;
+const TRACK_POINTS = [
+  { x: 1720, y: 4200 },
+  { x: 3520, y: 4200 },
+  { x: 5600, y: 4100 },
+  { x: 7040, y: 3650 },
+  { x: 6900, y: 2920 },
+  { x: 5550, y: 2750 },
+  { x: 6650, y: 2240 },
+  { x: 5400, y: 1820 },
+  { x: 3720, y: 1700 },
+  { x: 2460, y: 1740 },
+  { x: 1900, y: 2380 },
+  { x: 2500, y: 3010 },
+  { x: 3970, y: 3180 },
+  { x: 4900, y: 3560 },
+  { x: 5600, y: 3120 },
+  { x: 6430, y: 3480 },
+  { x: 7060, y: 2920 },
+  { x: 6640, y: 2240 },
+  { x: 5700, y: 2100 },
+  { x: 4920, y: 2620 },
+  { x: 4320, y: 3370 },
+  { x: 3160, y: 3820 },
+  { x: 1720, y: 4200 },
+];
 
 function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
   const preferredDriverIds = ["leclerc", "norris", "piastri", "hamilton", "russell", "alonso", "sainz"];
@@ -199,12 +224,34 @@ function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
   }));
 }
 
-function rawPoint(t: number) {
+function legacyOvalPoint(t: number) {
   // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
   const a = ((t % 1) + 1) % 1 * Math.PI * 2;
   const rx = TRACK_RX + Math.sin(a * 2) * 160 + Math.cos(a * 3) * 60;
   const ry = TRACK_RY + Math.cos(a * 2) * 120 + Math.sin(a * 3) * 50;
   return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
+}
+
+function catmull(a: number, b: number, c: number, d: number, t: number) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+}
+
+function rawPoint(t: number) {
+  const wrapped = ((t % 1) + 1) % 1;
+  const count = TRACK_POINTS.length - 1;
+  const scaled = wrapped * count;
+  const i = Math.floor(scaled);
+  const local = scaled - i;
+  const p0 = TRACK_POINTS[(i - 1 + count) % count];
+  const p1 = TRACK_POINTS[i % count];
+  const p2 = TRACK_POINTS[(i + 1) % count];
+  const p3 = TRACK_POINTS[(i + 2) % count];
+  return {
+    x: catmull(p0.x, p1.x, p2.x, p3.x, local),
+    y: catmull(p0.y, p1.y, p2.y, p3.y, local),
+  };
 }
 
 function pathPoint(t: number) {
@@ -375,8 +422,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       cars[i].topT = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
     }
 
-    // Decorations (trees, rocks, billboards, light poles) placed off-road, deterministic
-    type Decor = { x: number; y: number; kind: "tree" | "rock" | "flag" | "billboard" | "pole"; size: number; angle?: number };
+    // Japanese festival scenery placed off-road, deterministic and lightweight.
+    type Decor = {
+      x: number;
+      y: number;
+      kind: "tree" | "pole" | "sakura" | "pine" | "rock" | "flag" | "banner" | "billboard" | "lantern" | "torii" | "temple" | "house" | "spectator" | "drone" | "balloon" | "train" | "car";
+      size: number;
+      angle?: number;
+      phase?: number;
+    };
     const decor: Decor[] = [];
     {
       let seed = 1337;
@@ -446,15 +500,64 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const off = (ROAD_W / 2 + 22) * side;
         decor.push({ x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, kind: "flag", size: 18 });
       }
+      const placeTrackside = (t: number, side: number, offset: number, kind: Decor["kind"], size: number) => {
+        const p = pathPoint(t);
+        const off = (ROAD_W / 2 + offset) * side;
+        decor.push({
+          x: p.x + (-p.hy) * off,
+          y: p.y + (p.hx) * off,
+          kind,
+          size,
+          angle: Math.atan2(p.hy, p.hx),
+          phase: rnd() * Math.PI * 2,
+        });
+      };
+      for (let i = 0; i < 92; i++) {
+        const t = (i / 92 + rnd() * 0.006) % 1;
+        placeTrackside(t, i % 2 === 0 ? 1 : -1, 42 + rnd() * 34, i % 4 === 0 ? "pine" : "sakura", 24 + rnd() * 22);
+      }
+      for (let i = 0; i < 46; i++) {
+        placeTrackside((i + 0.35) / 46, i % 2 === 0 ? 1 : -1, 20, i % 3 === 0 ? "banner" : "lantern", 20 + rnd() * 8);
+      }
+      for (const t of [0.035, 0.245, 0.515, 0.825]) {
+        const p = pathPoint(t);
+        decor.push({ x: p.x, y: p.y, kind: "torii", size: 92, angle: Math.atan2(p.hy, p.hx), phase: rnd() * Math.PI * 2 });
+      }
+      for (const item of [
+        { x: 1220, y: 1420, kind: "temple" as const, size: 150 },
+        { x: 7340, y: 1540, kind: "temple" as const, size: 130 },
+        { x: 7700, y: 4300, kind: "house" as const, size: 120 },
+        { x: 1140, y: 3450, kind: "house" as const, size: 110 },
+        { x: 4550, y: 690, kind: "train" as const, size: 170 },
+        { x: 6200, y: 690, kind: "train" as const, size: 170 },
+        { x: 7300, y: 760, kind: "billboard" as const, size: 110 },
+        { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
+        { x: 1640, y: 4720, kind: "billboard" as const, size: 105 },
+        { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
+        { x: 6810, y: 980, kind: "drone" as const, size: 46 },
+        { x: 2800, y: 860, kind: "drone" as const, size: 42 },
+        { x: 8100, y: 2520, kind: "car" as const, size: 70 },
+        { x: 7900, y: 2700, kind: "car" as const, size: 60 },
+      ]) {
+        decor.push({ ...item, angle: 0, phase: rnd() * Math.PI * 2 });
+      }
+      for (let i = 0; i < 48; i++) {
+        placeTrackside((i / 48 + 0.01) % 1, i % 2 === 0 ? 1 : -1, 76 + rnd() * 44, "spectator", 16 + rnd() * 8);
+      }
     }
 
     // ===== Track features: 2 speed boost pads =====
     // One sits on the straight just before the 0.30 hairpin — risk/reward:
     // grab the boost and you must brake hard or spin out at the corner.
-    type Feature = { t: number; lane: number; kind: "boost" };
+    type Feature = { t: number; lane: number; kind: "boost" | "ramp" };
     const features: Feature[] = [
-      { t: 0.24, lane: 0.0, kind: "boost" }, // before sharp corner at 0.30
-      { t: 0.65, lane: 0.0, kind: "boost" }, // mid-straight
+      { t: 0.085, lane: -0.35, kind: "boost" },
+      { t: 0.095, lane: 0.35, kind: "boost" },
+      { t: 0.375, lane: -0.22, kind: "boost" },
+      { t: 0.395, lane: 0.25, kind: "boost" },
+      { t: 0.535, lane: 0.72, kind: "ramp" },
+      { t: 0.705, lane: -0.62, kind: "boost" },
+      { t: 0.885, lane: 0.0, kind: "ramp" },
     ];
     const featurePos = features.map((f) => {
       const p = pathPoint(f.t);
@@ -747,6 +850,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             boostUntil = now + 2000;
             playNitroSwoosh();
             shake = Math.max(shake, 4);
+          } else if (f.kind === "ramp" && airUntil < now) {
+            airUntil = now + 760;
+            boostUntil = Math.max(boostUntil, now + 900);
+            player.speed = Math.min(maxSpeed * 1.18, player.speed + accel * 0.8);
+            shake = Math.max(shake, 5);
+            playNitroSwoosh();
           }
         }
       }
@@ -816,6 +925,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const proj = projectToTrack(player.x, player.y, player.t);
       const offRoad = proj.dist > ROAD_W / 2;
       if (offRoad) player.speed *= Math.pow(0.15, dt); // grass slows
+      const edgeGrip = proj.dist > ROAD_W * 0.39 && proj.dist <= ROAD_W / 2;
+      if (edgeGrip) {
+        player.speed *= Math.pow(0.82, dt);
+        lateralVelocity *= Math.pow(0.52, dt);
+        if (Math.abs(player.speed) > 0.08 && Math.random() < 0.45) {
+          spawnParticle(
+            player.x - Math.cos(player.angle) * 20,
+            player.y - Math.sin(player.angle) * 20,
+            (Math.random() - 0.5) * 70,
+            (Math.random() - 0.5) * 70,
+            "rgba(244,114,182,0.55)", 0.45, 3
+          );
+        }
+      }
 
       const prevT = player.t;
       player.t = proj.t;
@@ -928,9 +1051,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.rotate(-heading - Math.PI / 2);
       ctx.translate(-pcx, -pcy);
 
-      // Grass background
-      ctx.fillStyle = "#14532d";
-      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+      drawWorldBackdrop(now);
 
       // Build path once
       const PN = 720;
@@ -952,6 +1073,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.strokeStyle = "#2a2a35";
       ctx.lineWidth = ROAD_W;
       ctx.stroke();
+      drawRoadTexture(now);
+      drawFestivalSections(now);
 
       // Bright guardrails (outer glow + inner kerb)
       drawGuardrail(ROAD_W / 2 + 14);
@@ -1055,6 +1178,162 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // ===== Mini-map (screen-space, bottom-left) =====
       drawMiniMap(cssW, cssH);
       void now;
+    }
+
+    function drawWorldBackdrop(now: number) {
+      const sky = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+      sky.addColorStop(0, "#2b1b3d");
+      sky.addColorStop(0.35, "#5d2747");
+      sky.addColorStop(0.62, "#a5443d");
+      sky.addColorStop(1, "#18301f");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+      // Mount Fuji inspired backdrop.
+      ctx.fillStyle = "rgba(36, 52, 78, 0.92)";
+      ctx.beginPath();
+      ctx.moveTo(2850, 1190);
+      ctx.lineTo(4380, 250);
+      ctx.lineTo(6000, 1190);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(245,245,245,0.92)";
+      ctx.beginPath();
+      ctx.moveTo(4020, 470);
+      ctx.lineTo(4380, 250);
+      ctx.lineTo(4790, 500);
+      ctx.lineTo(4580, 560);
+      ctx.lineTo(4380, 500);
+      ctx.lineTo(4210, 575);
+      ctx.closePath();
+      ctx.fill();
+
+      // Distant city glow and roads.
+      ctx.fillStyle = "rgba(20,20,30,0.72)";
+      for (let i = 0; i < 34; i++) {
+        const x = 240 + i * 250;
+        const h = 120 + ((i * 37) % 190);
+        ctx.fillRect(x, 890 - h, 110, h);
+        ctx.fillStyle = i % 3 === 0 ? "rgba(245,197,24,0.85)" : "rgba(255,120,180,0.7)";
+        ctx.fillRect(x + 22, 890 - h + 24, 16, 12);
+        ctx.fillRect(x + 64, 890 - h + 62, 16, 12);
+        ctx.fillStyle = "rgba(20,20,30,0.72)";
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(560, 1040);
+      ctx.lineTo(8300, 920);
+      ctx.stroke();
+
+      // Moving distant traffic lights.
+      for (let i = 0; i < 18; i++) {
+        const x = 650 + ((now * 0.03 + i * 430) % 7600);
+        const y = 1040 - (x - 560) * 0.015;
+        ctx.fillStyle = i % 2 ? "#f5c518" : "#da291c";
+        ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Birds and petals, screen-space-ish in world coordinates.
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 4;
+      for (let i = 0; i < 9; i++) {
+        const x = 800 + ((now * 0.018 + i * 880) % 7200);
+        const y = 520 + Math.sin(now / 900 + i) * 55 + i * 22;
+        ctx.beginPath();
+        ctx.moveTo(x - 18, y);
+        ctx.quadraticCurveTo(x, y - 16, x + 18, y);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 80; i++) {
+        const x = ((i * 197 + now * (0.018 + (i % 5) * 0.006)) % WORLD_W);
+        const y = ((i * 113 + now * (0.012 + (i % 3) * 0.004)) % WORLD_H);
+        ctx.fillStyle = i % 2 ? "rgba(255,183,213,0.65)" : "rgba(255,220,232,0.55)";
+        ctx.beginPath(); ctx.ellipse(x, y, 9, 4, Math.sin(now / 500 + i), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function drawRoadTexture(now: number) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.045)";
+      ctx.lineWidth = 1.5;
+      for (let lane = -0.42; lane <= 0.42; lane += 0.14) {
+        ctx.beginPath();
+        for (let i = 0; i <= 360; i++) {
+          const p = pathPoint(i / 360);
+          const off = lane * ROAD_W;
+          const x = p.x + (-p.hy) * off;
+          const y = p.y + (p.hx) * off;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      // Painted racing line.
+      ctx.strokeStyle = "rgba(245,197,24,0.55)";
+      ctx.lineWidth = 5;
+      ctx.setLineDash([44, 32]);
+      ctx.beginPath();
+      for (let i = 0; i <= 480; i++) {
+        const p = pathPoint(i / 480);
+        const racingOffset = Math.sin(i / 18) * 22;
+        const x = p.x + (-p.hy) * racingOffset;
+        const y = p.y + (p.hx) * racingOffset;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Old tire marks near technical zones.
+      ctx.strokeStyle = "rgba(0,0,0,0.22)";
+      ctx.lineWidth = 8;
+      for (const base of [0.22, 0.47, 0.69, 0.86]) {
+        ctx.beginPath();
+        for (let i = 0; i < 50; i++) {
+          const p = pathPoint(base + i * 0.0008);
+          const off = Math.sin(i * 0.5 + now * 0.0001) * 34;
+          const x = p.x + (-p.hy) * off;
+          const y = p.y + (p.hx) * off;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawFestivalSections(now: number) {
+      drawTrackBand(0.50, 0.57, "#5b3421", "rgba(245,197,24,0.25)");
+      drawTrackBand(0.84, 0.91, "rgba(14,14,20,0.72)", "rgba(218,41,28,0.28)");
+      for (const t of [0.50, 0.57]) {
+        const p = pathPoint(t);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(Math.atan2(p.hy, p.hx));
+        ctx.fillStyle = "#2f1d14";
+        ctx.fillRect(-14, -ROAD_W / 2 - 28, 28, ROAD_W + 56);
+        ctx.restore();
+      }
+      for (let i = 0; i < 9; i++) {
+        const p = pathPoint(0.84 + i * 0.008);
+        const pulse = 0.5 + Math.sin(now / 220 + i) * 0.18;
+        ctx.fillStyle = `rgba(218,41,28,${pulse})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function drawTrackBand(t0: number, t1: number, fill: string, glow: string) {
+      ctx.save();
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = ROAD_W + 58;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = 0; i <= 80; i++) {
+        const p = pathPoint(t0 + (t1 - t0) * (i / 80));
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = ROAD_W + 18;
+      ctx.stroke();
+      ctx.restore();
     }
 
     function drawMiniMap(cssW: number, cssH: number) {
@@ -1241,6 +1520,35 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath(); ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#22c55e";
         ctx.beginPath(); ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "sakura" || d.kind === "pine") {
+        const sway = Math.sin((d.phase ?? 0) + performance.now() / 900) * 3;
+        ctx.rotate(sway * 0.01);
+        ctx.fillStyle = "rgba(0,0,0,0.32)";
+        ctx.beginPath(); ctx.ellipse(3, 5, d.size * 0.8, d.size * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#5b3a1e";
+        ctx.fillRect(-d.size * 0.08, -d.size * 0.05, d.size * 0.16, d.size * 0.65);
+        if (d.kind === "sakura") {
+          ctx.fillStyle = "#ffb7d5";
+          for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2;
+            ctx.beginPath(); ctx.arc(Math.cos(a) * d.size * 0.24, -d.size * 0.25 + Math.sin(a) * d.size * 0.16, d.size * 0.35, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.fillStyle = "#ffe3ee";
+          ctx.beginPath(); ctx.arc(0, -d.size * 0.3, d.size * 0.36, 0, Math.PI * 2); ctx.fill();
+        } else {
+          ctx.fillStyle = "#0f5132";
+          ctx.beginPath();
+          ctx.moveTo(0, -d.size * 0.85);
+          ctx.lineTo(d.size * 0.58, d.size * 0.24);
+          ctx.lineTo(-d.size * 0.58, d.size * 0.24);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#1f7a45";
+          ctx.beginPath();
+          ctx.moveTo(0, -d.size * 0.6);
+          ctx.lineTo(d.size * 0.46, d.size * 0.14);
+          ctx.lineTo(-d.size * 0.46, d.size * 0.14);
+          ctx.closePath(); ctx.fill();
+        }
       } else if (d.kind === "rock") {
         ctx.fillStyle = "rgba(0,0,0,0.3)";
         ctx.beginPath(); ctx.ellipse(2, 3, d.size * 0.7, d.size * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -1259,6 +1567,43 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.lineTo(1, -d.size * 0.5);
         ctx.closePath();
         ctx.fill();
+      } else if (d.kind === "banner" || d.kind === "lantern" || d.kind === "spectator") {
+        const wave = Math.sin((d.phase ?? 0) + performance.now() / 260) * 3;
+        if (d.kind === "spectator") {
+          ctx.fillStyle = "rgba(0,0,0,0.28)";
+          ctx.beginPath(); ctx.ellipse(0, 8, d.size * 0.8, d.size * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = ["#da291c", "#f5c518", "#ffffff", "#1e41ff"][Math.floor((d.phase ?? 0) * 10) % 4];
+          ctx.beginPath(); ctx.arc(0, -d.size * 0.4 + wave * 0.15, d.size * 0.28, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#f1c27d";
+          ctx.beginPath(); ctx.arc(0, -d.size * 0.78 + wave * 0.15, d.size * 0.18, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(-d.size * 0.3, -d.size * 0.35); ctx.lineTo(-d.size * 0.58, -d.size * 0.75 + wave); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(d.size * 0.3, -d.size * 0.35); ctx.lineTo(d.size * 0.58, -d.size * 0.75 - wave); ctx.stroke();
+        } else {
+          ctx.fillStyle = "#2b1b1b";
+          ctx.fillRect(-2, -d.size * 1.1, 4, d.size * 1.4);
+          if (d.kind === "lantern") {
+            ctx.fillStyle = "rgba(245,197,24,0.25)";
+            ctx.beginPath(); ctx.arc(0, -d.size * 0.68, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#da291c";
+            ctx.beginPath(); ctx.ellipse(0, -d.size * 0.65, d.size * 0.34, d.size * 0.48, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#f5c518";
+            ctx.fillRect(-d.size * 0.26, -d.size * 0.68, d.size * 0.52, d.size * 0.08);
+          } else {
+            ctx.fillStyle = "#da291c";
+            ctx.beginPath();
+            ctx.moveTo(0, -d.size);
+            ctx.lineTo(d.size * 0.85, -d.size * 0.86 + wave);
+            ctx.lineTo(d.size * 0.85, -d.size * 0.42 + wave);
+            ctx.lineTo(0, -d.size * 0.56);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.font = `bold ${Math.max(9, d.size * 0.28)}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.fillText("祭", d.size * 0.42, -d.size * 0.62 + wave);
+          }
+        }
       } else if (d.kind === "pole") {
         // light pole — vertical post + warm bulb
         ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -1269,6 +1614,66 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath(); ctx.arc(0, -d.size, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "rgba(253,224,71,0.35)";
         ctx.beginPath(); ctx.arc(0, -d.size, 10, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "torii") {
+        if (d.angle !== undefined) ctx.rotate(d.angle + Math.PI / 2);
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(0, d.size * 0.4, d.size * 0.9, d.size * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#b01e0a";
+        ctx.fillRect(-d.size * 0.62, -d.size * 0.75, d.size * 0.14, d.size * 1.4);
+        ctx.fillRect(d.size * 0.48, -d.size * 0.75, d.size * 0.14, d.size * 1.4);
+        ctx.fillRect(-d.size * 0.9, -d.size * 0.88, d.size * 1.8, d.size * 0.16);
+        ctx.fillRect(-d.size * 0.72, -d.size * 0.64, d.size * 1.44, d.size * 0.12);
+        ctx.fillStyle = "#111111";
+        ctx.fillRect(-d.size, -d.size, d.size * 2, d.size * 0.12);
+      } else if (d.kind === "temple" || d.kind === "house") {
+        const w = d.size * (d.kind === "temple" ? 1.4 : 1.15);
+        const h = d.size * 0.78;
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath(); ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = d.kind === "temple" ? "#4b2a1d" : "#2b2b34";
+        ctx.fillRect(-w * 0.42, -h * 0.15, w * 0.84, h * 0.62);
+        ctx.fillStyle = d.kind === "temple" ? "#da291c" : "#f5c518";
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.58, -h * 0.18);
+        ctx.lineTo(0, -h * 0.72);
+        ctx.lineTo(w * 0.58, -h * 0.18);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#111111";
+        ctx.fillRect(-w * 0.62, -h * 0.2, w * 1.24, h * 0.08);
+        ctx.fillStyle = "rgba(245,197,24,0.85)";
+        ctx.fillRect(-w * 0.12, h * 0.05, w * 0.24, h * 0.42);
+      } else if (d.kind === "train" || d.kind === "car") {
+        const shift = d.kind === "train" ? ((performance.now() * 0.045 + (d.phase ?? 0) * 80) % 900) - 450 : Math.sin(performance.now() / 600 + (d.phase ?? 0)) * 70;
+        ctx.translate(shift, 0);
+        const w = d.size * (d.kind === "train" ? 1.8 : 1.1);
+        const h = d.size * 0.34;
+        ctx.fillStyle = d.kind === "train" ? "#e5e7eb" : "#1e41ff";
+        roundRect(-w / 2, -h / 2, w, h, 8); ctx.fill();
+        ctx.fillStyle = d.kind === "train" ? "#da291c" : "#f5c518";
+        ctx.fillRect(-w * 0.34, -h * 0.1, w * 0.68, h * 0.18);
+        ctx.fillStyle = "#111";
+        ctx.beginPath(); ctx.arc(-w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "drone" || d.kind === "balloon") {
+        const bob = Math.sin(performance.now() / 700 + (d.phase ?? 0)) * 16;
+        ctx.translate(0, bob);
+        if (d.kind === "balloon") {
+          ctx.fillStyle = "rgba(245,197,24,0.8)";
+          ctx.beginPath(); ctx.ellipse(0, -d.size * 0.55, d.size * 0.42, d.size * 0.58, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#da291c";
+          ctx.fillRect(-d.size * 0.12, d.size * 0.02, d.size * 0.24, d.size * 0.18);
+        } else {
+          ctx.strokeStyle = "#e5e7eb";
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(-d.size * 0.55, 0); ctx.lineTo(d.size * 0.55, 0); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -d.size * 0.35); ctx.lineTo(0, d.size * 0.35); ctx.stroke();
+          ctx.fillStyle = "#111827";
+          roundRect(-d.size * 0.22, -d.size * 0.14, d.size * 0.44, d.size * 0.28, 4); ctx.fill();
+          ctx.fillStyle = "#22d3ee";
+          for (const [x, y] of [[-0.55, 0], [0.55, 0], [0, -0.35], [0, 0.35]]) {
+            ctx.beginPath(); ctx.arc(d.size * x, d.size * y, d.size * 0.12, 0, Math.PI * 2); ctx.fill();
+          }
+        }
       } else if (d.kind === "billboard") {
         ctx.save();
         if (d.angle !== undefined) ctx.rotate(d.angle);
@@ -1284,16 +1689,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.fillStyle = "#0f172a";
         ctx.fillRect(-w / 2 - 2, -h - 4, w + 4, h + 6);
         const grad = ctx.createLinearGradient(-w / 2, -h, w / 2, 0);
-        grad.addColorStop(0, "#22d3ee");
-        grad.addColorStop(0.5, "#a855f7");
-        grad.addColorStop(1, "#ec4899");
+        grad.addColorStop(0, "#da291c");
+        grad.addColorStop(0.5, "#f5c518");
+        grad.addColorStop(1, "#ff4fa3");
         ctx.fillStyle = grad;
         ctx.fillRect(-w / 2, -h, w, h);
-        ctx.fillStyle = "rgba(255,255,255,0.9)";
-        ctx.font = "bold 14px sans-serif";
+        ctx.fillStyle = performance.now() % 700 < 350 ? "rgba(255,255,255,0.95)" : "rgba(245,197,24,0.95)";
+        ctx.font = "bold 13px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("RACE!", 0, -h / 2);
+        ctx.fillText("SAKURA GP", 0, -h / 2);
         ctx.restore();
       }
       ctx.restore();
