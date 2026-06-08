@@ -25,6 +25,23 @@ function addCoins(delta: number) {
     localStorage.setItem(STORAGE, JSON.stringify(obj));
   } catch {}
 }
+function recordRaceFinish(rank: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(STORAGE);
+    const obj = raw ? JSON.parse(raw) : {};
+    if (rank === 1) {
+      const nextStreak = (obj.winStreak ?? 0) + 1;
+      obj.wins = (obj.wins ?? 0) + 1;
+      obj.winStreak = nextStreak;
+      obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, nextStreak);
+    } else {
+      obj.winStreak = 0;
+      obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, 0);
+    }
+    localStorage.setItem(STORAGE, JSON.stringify(obj));
+  } catch {}
+}
 function readUpgrades() {
   if (typeof window === "undefined") return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
   try {
@@ -769,6 +786,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const rewards = [300, 220, 160, 110, 70, 40];
         const reward = rewards[pos - 1] ?? 30;
         addCoins(reward);
+        recordRaceFinish(pos);
         const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
         const prevBest = readBestTime(trackId);
         const isNewBest = prevBest === null || t < prevBest;
