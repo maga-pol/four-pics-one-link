@@ -15,6 +15,40 @@ function AuthCallbackPage() {
     let active = true;
 
     async function finishSignIn() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const authError =
+        urlParams.get("error_description") ??
+        hashParams.get("error_description") ??
+        urlParams.get("error") ??
+        hashParams.get("error");
+
+      if (authError) {
+        setError(authError);
+        return;
+      }
+
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+
+      if (accessToken && refreshToken) {
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (!active) return;
+
+        if (setSessionError) {
+          setError(setSessionError.message);
+          return;
+        }
+
+        window.history.replaceState(null, document.title, "/auth/callback");
+        navigate({ to: "/profile", replace: true });
+        return;
+      }
+
       const { data, error: sessionError } = await supabase.auth.getSession();
 
       if (!active) return;
