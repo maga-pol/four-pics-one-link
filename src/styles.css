@@ -371,10 +371,28 @@
     0%, 100% { transform: translateY(0) rotate(-1deg); }
     50%      { transform: translateY(-10px) rotate(1deg); }
   }
+  @keyframes car-hero-rock {
+    0%, 100% { transform: translateY(0) rotate(-0.7deg) scale(1); }
+    50%      { transform: translateY(-12px) rotate(0.8deg) scale(1.015); }
+  }
   @keyframes wheel-spin { to { transform: rotate(360deg); } }
   @keyframes road-scroll {
     from { background-position-x: 0; }
     to   { background-position-x: -80px; }
+  }
+  @keyframes premium-glow {
+    0%, 100% { box-shadow: 0 0 34px -20px rgba(218,41,28,0.8); }
+    50% { box-shadow: 0 0 52px -18px rgba(245,197,24,0.45); }
+  }
+  @keyframes feedback-pop {
+    0% { opacity: 0; transform: translate(-50%, 18px) scale(0.96); }
+    14% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    86% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -10px) scale(0.98); }
+  }
+  @keyframes counter-bump {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-2px) scale(1.05); }
   }
   @keyframes shimmer {
     0%   { background-position: -200% 0; }
@@ -387,8 +405,12 @@
   .animate-float-up   { animation: float-up-fade 1.2s ease-out forwards; }
   .animate-fade-up    { opacity: 0; animation: fade-up 0.6s ease-out forwards; }
   .animate-car-idle   { animation: car-idle 3.5s ease-in-out infinite; transform-origin: center; }
+  .animate-car-hero   { animation: car-hero-rock 4s ease-in-out infinite; transform-origin: center; }
   .animate-wheel-spin { animation: wheel-spin 1.2s linear infinite; transform-origin: center; transform-box: fill-box; }
   .animate-road       { animation: road-scroll 0.8s linear infinite; }
+  .animate-premium-glow { animation: premium-glow 3.8s ease-in-out infinite; }
+  .animate-feedback-pop { animation: feedback-pop 2.2s ease-out forwards; }
+  .animate-counter-bump { animation: counter-bump 0.45s ease-out; }
   .animate-shimmer {
     background-image: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.25), transparent);
     background-size: 200% 100%;

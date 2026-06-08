@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { ArrowLeft, Check, X, Lightbulb, ChevronRight, Coins, Trophy, Sparkles, Zap } from "lucide-react";
 import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
+import { normalizeState, writeGameState } from "@/lib/garage";
 
 export const Route = createFileRoute("/quiz")({
   head: () => ({
@@ -27,9 +28,19 @@ function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(STORAGE);
-    const obj = raw ? JSON.parse(raw) : {};
+    const obj = normalizeState(raw ? JSON.parse(raw) : {});
     obj.coins = (obj.coins ?? 0) + delta;
-    localStorage.setItem(STORAGE, JSON.stringify(obj));
+    obj.totalQuizzesCompleted = (obj.totalQuizzesCompleted ?? 0) + 1;
+    writeGameState(obj);
+  } catch {}
+}
+function recordQuizAttempt() {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(STORAGE);
+    const obj = normalizeState(raw ? JSON.parse(raw) : {});
+    obj.totalQuizzesCompleted = (obj.totalQuizzesCompleted ?? 0) + 1;
+    writeGameState(obj);
   } catch {}
 }
 
@@ -60,6 +71,7 @@ function QuizScreen() {
       setStreak((s) => s + 1);
       setResult("correct");
     } else {
+      recordQuizAttempt();
       setStreak(0);
       setResult("wrong");
     }
@@ -217,11 +229,11 @@ function QuizScreen() {
                   </div>
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-gradient-coin px-5 py-3 text-2xl font-extrabold text-amber-950 shadow-button animate-pop-in">
                     <Coins className="h-6 w-6" />
-                    <span className="tabular-nums">+{reward}</span>
+                    <span className="tabular-nums">+{reward} Coins</span>
                   </div>
                   {streak >= 3 && (
                     <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-primary px-3 py-1.5 text-xs font-extrabold text-white shadow-button">
-                      <Sparkles className="h-3.5 w-3.5" /> {streak} in a row!
+                      <Sparkles className="h-3.5 w-3.5" /> Combo x{streak}
                     </div>
                   )}
                 </>

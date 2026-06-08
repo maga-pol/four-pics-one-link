@@ -1,8 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  Gauge, Zap, Rocket, Move, Coins, Trophy, Flag, ChevronRight,
-  Brain, Wrench, Sparkles, Play, LogOut, UserCircle,
+  Brain,
+  CarFront,
+  Coins,
+  Gauge,
+  LogOut,
+  Move,
+  Play,
+  Rocket,
+  Trophy,
+  UserCircle,
+  Wrench,
+  Zap,
 } from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,14 +29,13 @@ import {
   type GameState,
   type UpgradeKey,
 } from "@/lib/garage";
+import { FeedbackToast, PremiumStat, ProgressionPanel, RacingShell } from "@/lib/racing-ui";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "World Quiz Race — Arcade racing & geo quiz" },
-      { name: "description", content: "Play quizzes, earn coins, upgrade your car and race the world." },
-      { property: "og:title", content: "World Quiz Race" },
-      { property: "og:description", content: "Play quizzes, earn coins, upgrade your car and race the world." },
+      { title: "World Quiz Race - Arcade racing & geo quiz" },
+      { name: "description", content: "Answer quizzes, earn coins, upgrade your car and race." },
     ],
   }),
   component: HomeHUD,
@@ -36,30 +45,32 @@ const MAX_LEVEL = 5;
 const COSTS = [100, 200, 350, 550, 800];
 
 const UPGRADES: {
-  key: UpgradeKey; label: string; emoji: string; icon: React.ReactNode;
-  gradient: string; tint: string;
+  key: UpgradeKey;
+  label: string;
+  icon: React.ReactNode;
 }[] = [
-  { key: "speed",        label: "Speed",        emoji: "⚡", icon: <Gauge className="h-5 w-5" />,  gradient: "bg-gradient-cyan",  tint: "from-cyan-300 to-sky-500" },
-  { key: "acceleration", label: "Acceleration", emoji: "🚀", icon: <Rocket className="h-5 w-5" />, gradient: "bg-gradient-primary", tint: "from-fuchsia-400 to-pink-600" },
-  { key: "nitro",        label: "Nitro",        emoji: "🔥", icon: <Zap className="h-5 w-5" />,    gradient: "bg-gradient-coin",  tint: "from-amber-300 to-orange-500" },
-  { key: "control",      label: "Control",      emoji: "🎯", icon: <Move className="h-5 w-5" />,   gradient: "bg-gradient-mint",  tint: "from-emerald-300 to-teal-500" },
+  { key: "speed", label: "Speed", icon: <Gauge className="h-5 w-5" /> },
+  { key: "acceleration", label: "Acceleration", icon: <Rocket className="h-5 w-5" /> },
+  { key: "nitro", label: "Nitro", icon: <Zap className="h-5 w-5" /> },
+  { key: "control", label: "Control", icon: <Move className="h-5 w-5" /> },
 ];
 
 function defaultState(): GameState {
   return defaultGarageState();
-}
-function loadState(): GameState {
-  return readGameState();
 }
 
 function HomeHUD() {
   const [state, setState] = useState<GameState>(defaultState);
   const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  useEffect(() => { setState(loadState()); setHydrated(true); }, []);
   useEffect(() => {
-    function onFocus() { setState(loadState()); }
+    setState(readGameState());
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    function onFocus() { setState(readGameState()); }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
@@ -73,6 +84,11 @@ function HomeHUD() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  function showFeedback(message: string) {
+    setFeedback(message);
+    window.setTimeout(() => setFeedback(null), 2200);
+  }
+
   function buyUpgrade(key: UpgradeKey) {
     setState((s) => {
       const current = normalizeState(s);
@@ -80,7 +96,11 @@ function HomeHUD() {
       const lvl = upgrades[key] ?? 0;
       if (lvl >= MAX_LEVEL) return s;
       const cost = COSTS[lvl];
-      if ((current.coins ?? 0) < cost) return s;
+      if ((current.coins ?? 0) < cost) {
+        showFeedback("Need more coins");
+        return s;
+      }
+      showFeedback("Upgrade successful");
       return { ...current, coins: (current.coins ?? 0) - cost, upgrades: { ...upgrades, [key]: lvl + 1 } };
     });
   }
@@ -92,131 +112,85 @@ function HomeHUD() {
   const upgrades = state.upgrades ?? defaultState().upgrades!;
 
   return (
-    <main className="relative min-h-screen overflow-hidden text-foreground">
-      {/* Backdrop */}
-      <div className="pointer-events-none absolute inset-0" style={{ background: "#181818" }} />
+    <RacingShell>
+      <FeedbackToast message={feedback} />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1280px] flex-col gap-4 p-3 sm:p-5">
+      <div className="flex justify-end gap-2">
+        {user ? (
+          <>
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:border-[#da291c]"
+              title={user.user_metadata?.full_name ?? user.email ?? "Profile"}
+            >
+              {user.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
+              ) : (
+                <UserCircle className="h-4 w-4" />
+              )}
+              Profile
+            </Link>
+            <button
+              type="button"
+              onClick={() => supabase.auth.signOut()}
+              className="grid h-10 w-10 place-items-center border border-[#303030] bg-[#1e1e1e] text-white transition hover:border-[#da291c]"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4 opacity-80" />
+            </button>
+          </>
+        ) : (
+          <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Register / Log in</Link>
+        )}
+      </div>
 
-        {/* HEADER */}
-        <header className="flex items-center justify-between gap-3 border-b border-[#303030] pb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center bg-[#da291c] text-lg">🏁</span>
-            <div className="leading-tight">
-              <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Scuderia</div>
-              <div className="text-sm font-semibold uppercase tracking-[0.05em] text-white sm:text-base">World Quiz Race</div>
+      <section className="relative overflow-hidden border border-[#303030] bg-[#181818]">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] w-[70%] -translate-x-1/2 -translate-y-1/2 bg-[#da291c]/10 blur-[120px]" />
+        <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[0.95fr_1.25fr_0.55fr] lg:items-center">
+          <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
+            <span className="font-display inline-flex items-center bg-[#da291c] px-3 py-1 text-[13px] uppercase tracking-[0.14em] text-white">
+              Quiz - Coins - Upgrade - Race
+            </span>
+            <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", lineHeight: 1 }}>
+              WORLD QUIZ RACE
+            </h1>
+            <p className="max-w-[520px] text-sm font-bold uppercase tracking-[0.1em] text-[#969696]">
+              Answer quizzes, earn coins, tune your car, then win races.
+            </p>
+            <div className="grid w-full max-w-[520px] grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                to={`/race/${firstTrack.id}`}
+                className={`play-btn font-display z-20 h-[68px] w-full ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
+                style={{ fontSize: 18, letterSpacing: "0.12em" }}
+              >
+                <Play className="h-3.5 w-3.5 fill-current" /> Race Now
+              </Link>
+              <Link
+                to="/quiz"
+                className="font-display inline-flex h-[68px] w-full items-center justify-center gap-3 border-2 border-[#ffd633] bg-[#f5c518] px-5 text-center text-[18px] font-black uppercase tracking-[0.12em] text-[#1a1100] shadow-[0_0_34px_-8px_rgba(245,197,24,0.9)] transition hover:bg-[#ffd633]"
+              >
+                <Coins className="h-6 w-6" /> Play Quiz
+              </Link>
+            </div>
+            <div className="grid w-full max-w-[520px] grid-cols-4 border border-[#303030] bg-[#111] text-center text-[10px] font-bold uppercase tracking-[0.08em] text-[#969696]">
+              <LoopStep icon={<Brain className="h-3.5 w-3.5" />} label="Quiz" />
+              <LoopStep icon={<Coins className="h-3.5 w-3.5" />} label="Coins" />
+              <LoopStep icon={<Wrench className="h-3.5 w-3.5" />} label="Tune" />
+              <LoopStep icon={<Trophy className="h-3.5 w-3.5" />} label="Win" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <StatPill icon={<Coins className="h-4 w-4" />} value={state.coins ?? 0} tone="gold" />
-            <StatPill icon={<Trophy className="h-4 w-4" />} value={state.wins ?? 0} tone="primary" />
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-2 border border-[#303030] bg-[#1e1e1e] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.11em] text-white transition hover:bg-[#252525]"
-                  title={user.user_metadata?.full_name ?? user.email ?? "Profile"}
-                >
-                  {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="" className="h-6 w-6" />
-                  ) : (
-                    <span className="grid h-6 w-6 place-items-center bg-[#da291c] text-[11px]">
-                      <UserCircle className="h-4 w-4" />
-                    </span>
-                  )}
-                  Profile
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => supabase.auth.signOut()}
-                  className="grid h-10 w-10 place-items-center border border-[#303030] bg-[#1e1e1e] text-white transition hover:bg-[#252525]"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-4 w-4 opacity-80" />
-                </button>
-              </>
-            ) : (
-              <Link to="/auth" className="arcade-btn arcade-btn-cyan h-10 px-4">Register / Log in</Link>
-            )}
-          </div>
-        </header>
 
-        {/* HERO */}
-        <section className="relative overflow-hidden border border-[#303030]"
-                 style={{ background: "#181818" }}>
-          {/* subtle red radial glow behind car */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[60%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]"
-               style={{ background: "rgba(218,41,28,0.06)" }} />
-
-          <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.1fr_1fr_0.55fr] lg:items-center">
-            {/* LEFT — title + CTA + flow */}
-            <div className="flex flex-col items-center gap-5 text-center lg:items-start lg:text-left">
-              <span className="font-display inline-flex items-center bg-[#da291c] px-3 py-1 text-[14px] uppercase tracking-[0.14em] text-white">
-                Season 1
-              </span>
-              <h1 className="font-display text-white" style={{ fontSize: "clamp(2.4rem, 6vw, 64px)", letterSpacing: "0.01em", lineHeight: 1 }}>
-                WORLD QUIZ RACE
-              </h1>
-              <div className="grid w-full max-w-[520px] grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="relative">
-                  {hydrated && state.wins === 0 && (
-                    <div className="pointer-events-none absolute -top-14 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap">
-                      <div className="animate-hint-bounce relative bg-[#ffcc00] px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_0_#000]">
-                        👆 Start here — tap to race!
-                        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[#ffcc00]" />
-                      </div>
-                    </div>
-                  )}
-                  <Link
-                    to={`/race/${firstTrack.id}`}
-                    className={`play-btn font-display z-20 h-[68px] w-full ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
-                    style={{ fontSize: 18, letterSpacing: "0.12em" }}
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" /> RACE NOW
-                  </Link>
-                </div>
-                <Link
-                  to="/quiz"
-                  className="font-display inline-flex h-[68px] w-full items-center justify-center gap-3 border-2 border-[#ffd633] bg-[#f5c518] px-5 text-center text-[18px] font-black uppercase tracking-[0.12em] text-[#1a1100] shadow-[0_0_34px_-8px_rgba(245,197,24,0.9)] transition hover:bg-[#ffd633]"
-                >
-                  <Coins className="h-6 w-6" /> Play Quiz Earn Money
-                </Link>
-              </div>
-              <div className="grid w-full max-w-[520px] grid-cols-2 border border-[#303030] bg-[#111] text-center text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
-                <div className="flex items-center justify-center gap-2 border-r border-[#303030] px-3 py-2">
-                  <Flag className="h-3.5 w-3.5 text-[#da291c]" /> Race
-                </div>
-                <div className="flex items-center justify-center gap-2 px-3 py-2 text-[#f5c518]">
-                  <Brain className="h-3.5 w-3.5" /> Quiz
-                </div>
-              </div>
-              <div className="mt-1">
-                <FlowChain />
-              </div>
-            </div>
-
-            {/* CENTER — selected driver + car */}
-            <div className="relative mx-auto w-full max-w-[460px]">
-              {/* speed lines */}
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 opacity-30">
-                <div className="absolute top-[20%] h-px w-16 -rotate-[8deg] bg-white" />
-                <div className="absolute top-[35%] h-px w-20 -rotate-[6deg] bg-white" />
-                <div className="absolute top-[50%] h-px w-14 -rotate-[10deg] bg-[#da291c]" />
-                <div className="absolute top-[65%] h-px w-20 -rotate-[6deg] bg-white" />
-                <div className="absolute top-[80%] h-px w-16 -rotate-[8deg] bg-white" />
-              </div>
-              <div className="grid items-end gap-3 sm:grid-cols-[0.34fr_1fr]">
-                <div className="border border-[#303030] bg-[#111] p-2">
+          <div className="relative mx-auto w-full max-w-[620px]">
+            <div className="animate-premium-glow relative border border-[#303030] bg-[#111] p-4 shadow-[0_0_44px_-24px_rgba(218,41,28,0.9)]">
+              <div className="pointer-events-none absolute inset-x-8 bottom-12 h-16 bg-[#da291c]/20 blur-[42px]" />
+              <div className="grid items-end gap-3 sm:grid-cols-[0.28fr_1fr]">
+                <div className="relative z-10 border border-[#303030] bg-[#181818] p-2">
                   <DriverFigure driver={selectedDriver} size="tiny" />
-                  <div className="mt-1 truncate text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[#f5c518]">
-                    {selectedDriver.code}
-                  </div>
-                  <div className="mt-0.5 truncate text-center text-[9px] font-bold uppercase tracking-[0.08em] text-white">
-                    {selectedDriver.name}
-                  </div>
+                  <div className="mt-1 truncate text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[#f5c518]">{selectedDriver.code}</div>
+                  <div className="mt-0.5 truncate text-center text-[9px] font-bold uppercase tracking-[0.08em] text-white">{selectedDriver.name}</div>
                 </div>
-                <div>
-                  <CarFigure car={selectedCar} className="relative z-10 w-full animate-car-idle drop-shadow-[0_24px_36px_rgba(218,41,28,0.38)]" />
+                <div className="relative z-10">
+                  <CarFigure car={selectedCar} className="relative z-10 w-full animate-car-hero drop-shadow-[0_28px_42px_rgba(218,41,28,0.42)]" />
                   <div className="mt-1 grid gap-1 border border-[#303030] bg-[#111] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em]">
                     <div className="flex items-center justify-between gap-2 text-[#969696]">
                       <span className="truncate text-white">{selectedCar.name}</span>
@@ -224,298 +198,105 @@ function HomeHUD() {
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[#969696]">
                       <span className="truncate">{selectedDriver.name}</span>
-                      <span className="shrink-0 text-[#f5c518]">{selectedDriver.code}</span>
+                      <span className="shrink-0 text-[#f5c518]">{selectedDriver.bonus}</span>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
             </div>
-
-            {/* RIGHT — stat boxes stacked vertically */}
-            <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-2">
-              <HeroStat icon={<Coins  className="h-4 w-4" />} label="Coins"  value={state.coins ?? 0} bg="#2a1f08" border="#5a4218" accent="#c8a050" />
-              <HeroStat icon={<Trophy className="h-4 w-4" />} label="Wins"   value={state.wins ?? 0}  bg="#1f0a0a" border="#5a1a1a" accent="#da291c" />
-              <HeroStat icon={<Flag   className="h-4 w-4" />} label="Tracks" value={`${state.unlockedTracks ?? 1}/${tracks.length}`} bg="#080f1f" border="#18305a" accent="#4a7ac8" />
-            </div>
+            <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
           </div>
-        </section>
 
-        {/* BIG QUIZ CTA */}
-        <section className="-mx-3 sm:-mx-5" style={{ background: "#111", padding: "20px 0" }}>
-          <div className="mx-auto flex max-w-[1280px] justify-center px-3 sm:px-5">
-            <Link
-              to="/quiz"
-              className="inline-flex items-center justify-center gap-3 bg-[#da291c] text-white transition hover:bg-[#b01e0a]"
-              style={{
-                fontSize: 22,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                padding: "18px 64px",
-                borderRadius: 0,
-              }}
-            >
-              <Coins className="h-6 w-6" />
-              Play Quiz · Earn Coins
-            </Link>
+          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            <PremiumStat icon={<Coins className="h-4 w-4" />} label="Coins" value={<span className="animate-counter-bump tabular-nums">{state.coins ?? 0}</span>} />
+            <PremiumStat icon={<Trophy className="h-4 w-4" />} label="Wins" value={state.wins ?? 0} />
+            <PremiumStat icon={<CarFront className="h-4 w-4" />} label="Cars" value={(state.ownedCarIds ?? []).length} />
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* GARAGE */}
-        <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="arcade-card p-6">
-            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Garage</div>
-                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Upgrade your racer</h2>
-              </div>
-              <div className="inline-flex items-center gap-1.5 border border-[#5a4218] bg-[#2a1f08] px-3 py-1.5 text-sm font-bold text-[#c8a050]">
-                <Coins className="h-4 w-4" /> <span className="tabular-nums">{state.coins ?? 0}</span>
-              </div>
+      <section className="grid gap-4 lg:grid-cols-[1fr_0.85fr]">
+        <ProgressionPanel state={state} />
+        <div className="border border-[#303030] bg-[#111] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">Current Loadout</div>
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <div>
+              <div className="font-display text-2xl uppercase text-white">{selectedCar.name}</div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#969696]">{selectedDriver.name}</div>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {UPGRADES.map((u) => {
-                const lvl = upgrades[u.key] ?? 0;
-                const max = lvl >= MAX_LEVEL;
-                const cost = max ? 0 : COSTS[lvl];
-                const afford = (state.coins ?? 0) >= cost;
-                return (
-                  <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#404040]">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-11 w-11 place-items-center bg-[#252525] border border-[#303030] text-xl">
-                          {u.emoji}
-                        </span>
-                        <div>
-                          <div className="font-display text-lg uppercase tracking-[0.06em] text-white leading-tight">{u.label}</div>
-                          <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.11em] text-[#969696]">
-                            Lv {lvl} {!max && <span className="text-[#da291c]">→ Lv {lvl + 1}</span>}
-                          </div>
-                        </div>
+            <Link to="/garage" className="arcade-btn arcade-btn-ghost h-10 px-4">Tune</Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="arcade-card p-6">
+          <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Quick Upgrades</div>
+              <h2 className="font-display mt-1 text-2xl text-white">Upgrade your racer</h2>
+            </div>
+            <Link to="/garage" className="arcade-btn arcade-btn-cyan h-10 px-4">Garage</Link>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {UPGRADES.map((u) => {
+              const lvl = upgrades[u.key] ?? 0;
+              const max = lvl >= MAX_LEVEL;
+              const cost = max ? 0 : COSTS[lvl];
+              const afford = (state.coins ?? 0) >= cost;
+              return (
+                <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#da291c]/70">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-11 w-11 place-items-center border border-[#303030] bg-[#252525] text-[#f5c518]">{u.icon}</span>
+                      <div>
+                        <div className="text-sm font-bold uppercase tracking-[0.1em] text-white">{u.label}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#969696]">Level {lvl}/{MAX_LEVEL}</div>
                       </div>
-                      {max && <span className="bg-[#da291c] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.11em] text-white">Max</span>}
                     </div>
-                    <div className="mt-4 h-[3px] bg-[#2a2a2a]">
-                      <div className="h-full bg-[#da291c] transition-all" style={{ width: `${(lvl / MAX_LEVEL) * 100}%` }} />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => buyUpgrade(u.key)}
-                      disabled={max || !afford}
-                      className={`mt-4 flex w-full items-center justify-center gap-1.5 px-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.11em] transition ${
-                        max ? "bg-[#252525] text-[#696969] cursor-not-allowed" :
-                        afford ? "bg-[#f5c518] text-[#1a1100] hover:bg-[#ffd633]" :
-                        "bg-[#1e1e1e] text-[#696969] border border-[#303030] cursor-not-allowed"
-                      } font-display`}
-                      style={{ fontSize: 14, letterSpacing: "0.12em" }}
-                    >
-                      {max ? "Maxed out" : (
-                        <>
-                          <Wrench className="h-3.5 w-3.5" /> Upgrade · {cost}
-                        </>
-                      )}
-                    </button>
+                    {!max && <div className="text-xs font-bold text-[#f5c518]">{cost}</div>}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* TRACKS */}
-          <div className="arcade-card p-6">
-            <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Race</div>
-                <h2 className="font-display mt-1 text-2xl text-white" style={{ letterSpacing: "0.02em" }}>Tracks</h2>
-              </div>
-              <Flag className="h-5 w-5 text-[#969696]" />
-            </div>
-            <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto pr-1">
-              {tracks.map((t, i) => {
-                const unlocked = i < (state.unlockedTracks ?? 1);
-                return (
-                  <Link
-                    key={t.id}
-                    to="/race/$trackId"
-                    params={{ trackId: t.id }}
-                    className={`group relative overflow-hidden border p-4 transition ${
-                      unlocked
-                        ? "border-[#303030] bg-[#1e1e1e] hover:border-[#da291c]"
-                        : "border-[#252525] bg-[#181818] opacity-50"
+                  <div className="mt-4 h-3 overflow-hidden border border-[#303030] bg-[#111]">
+                    <div className="h-full bg-[#da291c] shadow-[0_0_18px_rgba(218,41,28,0.8)] transition-[width] duration-300" style={{ width: `${(lvl / MAX_LEVEL) * 100}%` }} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => buyUpgrade(u.key)}
+                    disabled={max || !afford}
+                    className={`mt-4 flex h-11 w-full items-center justify-center gap-2 px-3 text-[12px] font-bold uppercase tracking-[0.1em] transition hover:shadow-[0_0_28px_-14px_rgba(245,197,24,0.9)] ${
+                      max
+                        ? "bg-[#252525] text-[#696969]"
+                        : afford
+                          ? "bg-[#da291c] text-white hover:bg-[#b01e0a]"
+                          : "cursor-not-allowed border border-[#303030] bg-[#111] text-[#696969]"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="grid h-12 w-12 place-items-center border border-[#303030] bg-[#252525] text-2xl">{t.flag}</span>
-                      <div className="flex-1">
-                        <div className="font-display text-lg uppercase tracking-[0.04em] text-white">{t.name}</div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.11em]">
-                          <span className={unlocked ? "text-[#03904a]" : "text-[#696969]"}>
-                            {unlocked ? "● Ready" : "🔒 Locked"}
-                          </span>
-                          <span className="text-[#303030]">·</span>
-                          <span className="text-[#969696]">Laps {t.laps}</span>
-                        </div>
-                      </div>
-                      {unlocked && (
-                        <span className="font-display inline-flex items-center gap-1 bg-[#da291c] px-4 py-2.5 text-[14px] uppercase tracking-[0.12em] text-white transition group-hover:bg-[#b01e0a]">
-                          Drive <ChevronRight className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </div>
-                    {unlocked && (
-                      <p className="mt-3 text-[12px] leading-relaxed text-[#969696]">
-                        {t.description}
-                      </p>
-                    )}
-                  </Link>
-                );
-              })}
-              <div className="border border-dashed border-[#303030] p-4 text-center text-[11px] font-bold uppercase tracking-[0.11em] text-[#696969]">
-                <Sparkles className="mx-auto mb-1 h-4 w-4" /> More tracks coming soon
-              </div>
-            </div>
+                    {max ? "Maxed" : "Upgrade"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-/* ============== components ============== */
-
-function StatPill({ icon, value, tone }: { icon: React.ReactNode; value: number | string; tone: "gold" | "primary" }) {
-  const cls = tone === "gold"
-    ? "border-[#5a4218] bg-[#2a1f08] text-[#c8a050]"
-    : "border-[#5a1a1a] bg-[#1f0a0a] text-[#da291c]";
-  return (
-    <div className={`flex items-center gap-1.5 border ${cls} px-3 py-2 text-[13px] font-bold tabular-nums`}>
-      {icon}
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function HeroStat({ icon, label, value, bg, border, accent }: {
-  icon: React.ReactNode; label: string; value: number | string; bg: string; border: string; accent: string;
-}) {
-  return (
-    <div className="relative overflow-hidden border p-3.5"
-         style={{ background: bg, borderColor: border }}>
-      {/* thin red left border accent */}
-      <div className="absolute inset-y-0 left-0 w-px" style={{ background: "#da291c" }} />
-      <div className="flex items-center gap-2" style={{ color: accent }}>
-        {icon}
-        <span className="text-[11px] font-bold uppercase tracking-[0.11em]">{label}</span>
-      </div>
-      <div className="font-display mt-1.5 text-[32px] tabular-nums leading-none text-white" style={{ letterSpacing: "0.02em" }}>{value}</div>
-    </div>
-  );
-}
-
-function FlowChain() {
-  const steps = [
-    { label: "Quiz" },
-    { label: "Coins" },
-    { label: "Upgrade" },
-    { label: "Race" },
-  ];
-  return (
-    <div className="items-center border border-[#303030] bg-[#1e1e1e] px-3 py-2 flex flex-row gap-[10px]">
-      {steps.map((s, i) => (
-        <div key={s.label} className="flex items-center gap-2">
-          <span className="font-display text-[14px] uppercase tracking-[0.12em] text-[#969696]">{s.label}</span>
-          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-[#404040]" />}
         </div>
-      ))}
-    </div>
+
+        <div className="arcade-card p-6">
+          <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Next Actions</div>
+          <div className="mt-4 grid gap-3">
+            <Link to="/quiz" className="arcade-btn arcade-btn-coin h-14 w-full">Earn Coins</Link>
+            <Link to="/drivers" className="arcade-btn arcade-btn-ghost h-14 w-full">Choose Driver</Link>
+            <Link to={`/race/${firstTrack.id}`} className="arcade-btn h-14 w-full">Start Race</Link>
+          </div>
+        </div>
+      </section>
+    </RacingShell>
   );
 }
 
-function Car() {
+function LoopStep({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <svg
-      viewBox="0 0 360 170"
-      className="relative z-10 w-full animate-car-idle drop-shadow-[0_30px_40px_oklch(0.72_0.28_350/0.55)]"
-      aria-label="Player racing car"
-    >
-      <defs>
-        <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stopColor="oklch(0.92 0.18 340)" />
-          <stop offset="45%" stopColor="oklch(0.72 0.28 350)" />
-          <stop offset="100%" stopColor="oklch(0.42 0.22 350)" />
-        </linearGradient>
-        <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"  stopColor="oklch(0.92 0.20 95)" />
-          <stop offset="100%" stopColor="oklch(0.80 0.18 200)" />
-        </linearGradient>
-        <linearGradient id="windowGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stopColor="oklch(0.95 0.05 200)" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="oklch(0.35 0.12 260)" stopOpacity="0.85" />
-        </linearGradient>
-        <radialGradient id="headlight" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%"   stopColor="oklch(1 0.05 90)" />
-          <stop offset="100%" stopColor="oklch(0.95 0.15 90)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      <g opacity="0.55" stroke="oklch(0.92 0.20 95)" strokeLinecap="round">
-        <line x1="2"  y1="60"  x2="40" y2="60"  strokeWidth="2.5" />
-        <line x1="6"  y1="78"  x2="34" y2="78"  strokeWidth="2" opacity="0.7" />
-        <line x1="0"  y1="98"  x2="48" y2="98"  strokeWidth="3" />
-        <line x1="10" y1="118" x2="32" y2="118" strokeWidth="2" opacity="0.6" />
-      </g>
-
-      <path d="M20 70 L70 60 L78 66 L24 80 Z" fill="oklch(0.22 0.10 282)" stroke="url(#accentGrad)" strokeWidth="1.4" />
-      <rect x="18" y="65" width="6" height="14" rx="2" fill="oklch(0.22 0.10 282)" />
-
-      <path d="M30 118 L55 95 Q90 70 150 62 L235 58 Q295 58 330 92 L348 108 Q352 118 342 122 L36 122 Q22 122 30 118 Z"
-            fill="url(#bodyGrad)" stroke="oklch(1 0 0)" strokeWidth="1.8" />
-
-      <path d="M120 102 L180 102 L172 116 L128 116 Z" fill="oklch(0.18 0.10 280)" />
-      <path d="M130 105 L168 105 L164 113 L134 113 Z" fill="url(#accentGrad)" opacity="0.95" />
-
-      <path d="M115 64 Q140 30 195 28 L240 30 Q280 36 300 66 L295 70 L120 70 Z"
-            fill="url(#windowGrad)" stroke="oklch(1 0 0)" strokeWidth="1.4" />
-      <path d="M205 30 L210 68" stroke="oklch(1 0 0)" strokeWidth="0.8" opacity="0.7" />
-      <path d="M132 56 Q170 42 230 40" stroke="oklch(1 0.05 200)" strokeWidth="2" opacity="0.45" fill="none" />
-
-      <path d="M58 92 Q120 80 200 80 L300 86" stroke="url(#accentGrad)" strokeWidth="3" fill="none" strokeLinecap="round" />
-
-      <path d="M308 116 L348 110 L350 120 L308 122 Z" fill="oklch(0.18 0.10 280)" />
-
-      <ellipse cx="325" cy="90" rx="9" ry="4" fill="oklch(0.95 0.15 90)" />
-      <ellipse cx="338" cy="92" rx="28" ry="3" fill="url(#headlight)" />
-
-      <circle cx="170" cy="96" r="11" fill="oklch(0.12 0.06 282)" stroke="url(#accentGrad)" strokeWidth="2" />
-      <text x="170" y="101" textAnchor="middle" fontSize="13" fontWeight="900" fill="oklch(0.95 0.05 200)" fontFamily="Baloo 2, sans-serif">7</text>
-
-      <ellipse cx="185" cy="138" rx="155" ry="7" fill="oklch(0.92 0.20 95)" opacity="0.55" />
-      <ellipse cx="185" cy="142" rx="120" ry="4" fill="oklch(0.72 0.28 350)" opacity="0.55" />
-
-      <g>
-        <ellipse cx="95" cy="124" rx="28" ry="26" fill="oklch(0.1 0.06 280)" />
-        <circle cx="95" cy="124" r="16" fill="oklch(0.25 0.10 282)" />
-        <g className="animate-wheel-spin" style={{ transformOrigin: "95px 124px" }}>
-          <circle cx="95" cy="124" r="13" fill="none" stroke="oklch(0.92 0.20 95)" strokeWidth="1.8" />
-          <line x1="82" y1="124" x2="108" y2="124" stroke="oklch(0.92 0.20 95)" strokeWidth="2" />
-          <line x1="95" y1="111" x2="95" y2="137" stroke="oklch(0.92 0.20 95)" strokeWidth="2" />
-          <line x1="86" y1="115" x2="104" y2="133" stroke="oklch(0.72 0.28 350)" strokeWidth="1.5" />
-          <line x1="104" y1="115" x2="86" y2="133" stroke="oklch(0.72 0.28 350)" strokeWidth="1.5" />
-        </g>
-        <circle cx="95" cy="124" r="3" fill="oklch(1 0 0)" />
-      </g>
-      <g>
-        <ellipse cx="278" cy="124" rx="28" ry="26" fill="oklch(0.1 0.06 280)" />
-        <circle cx="278" cy="124" r="16" fill="oklch(0.25 0.10 282)" />
-        <g className="animate-wheel-spin" style={{ transformOrigin: "278px 124px" }}>
-          <circle cx="278" cy="124" r="13" fill="none" stroke="oklch(0.92 0.20 95)" strokeWidth="1.8" />
-          <line x1="265" y1="124" x2="291" y2="124" stroke="oklch(0.92 0.20 95)" strokeWidth="2" />
-          <line x1="278" y1="111" x2="278" y2="137" stroke="oklch(0.92 0.20 95)" strokeWidth="2" />
-          <line x1="269" y1="115" x2="287" y2="133" stroke="oklch(0.72 0.28 350)" strokeWidth="1.5" />
-          <line x1="287" y1="115" x2="269" y2="133" stroke="oklch(0.72 0.28 350)" strokeWidth="1.5" />
-        </g>
-        <circle cx="278" cy="124" r="3" fill="oklch(1 0 0)" />
-      </g>
-    </svg>
+    <div className="flex items-center justify-center gap-2 border-r border-[#303030] px-2 py-3 last:border-r-0">
+      <span className="text-[#f5c518]">{icon}</span>
+      {label}
+    </div>
   );
 }

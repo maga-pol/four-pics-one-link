@@ -51,6 +51,7 @@ function recordRaceFinish(rank: number, trackId: string) {
       obj.winStreak = 0;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, 0);
     }
+    obj.totalRaces = (obj.totalRaces ?? 0) + 1;
     if (rank <= 3) {
       obj.podiumTrackIds = Array.from(new Set([...(obj.podiumTrackIds ?? []), trackId]));
       obj.unlockedDriverIds = getUnlockedDriverIds(obj.podiumTrackIds);
@@ -274,11 +275,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const botLineup = pickBotLineup(playerDriver, playerCar);
     const carSpeedBonus = (playerCar.speed - 72) * 0.003;
     const carGripBonus = (playerCar.grip - 68) * 0.01;
+    const driverSpeedBonus = playerDriver.bonusKey === "speed" ? playerDriver.bonusValue / 100 : 0;
+    const driverAccelBonus = playerDriver.bonusKey === "acceleration" ? playerDriver.bonusValue / 100 : 0;
+    const driverNitroBonus = playerDriver.bonusKey === "nitro" ? playerDriver.bonusValue / 100 : 0;
+    const driverControlBonus = playerDriver.bonusKey === "control" ? playerDriver.bonusValue / 100 : 0;
     // Upgrades give a real, noticeable boost on every stat
-    const baseSpeed = 0.20 + up.speed * 0.035 + carSpeedBonus; // upgrades + selected car
-    const accel = 0.18 + up.acceleration * 0.08;        // snappier launch
-    const grip = 0.55 + up.control * 0.15 + carGripBonus; // upgrades + selected car
-    const nitroCap = 1 + up.nitro * 0.5;                // longer nitro tank
+    const baseSpeed = (0.20 + up.speed * 0.035 + carSpeedBonus) * (1 + driverSpeedBonus);
+    const accel = (0.18 + up.acceleration * 0.08) * (1 + driverAccelBonus);
+    const grip = 0.55 + up.control * 0.15 + carGripBonus + driverControlBonus;
+    const nitroCap = (1 + up.nitro * 0.5) * (1 + driverNitroBonus);
     const nitroBoost = 1.4 + up.nitro * 0.12;           // (kept for compat — unused; +15km/h is fixed)
 
     const startP = pathPoint(0);

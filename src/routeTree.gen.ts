@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as GarageRouteImport } from './routes/garage'
+import { Route as DriversRouteImport } from './routes/drivers'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RaceTrackIdRouteImport } from './routes/race.$trackId'
@@ -26,6 +28,16 @@ const QuizRoute = QuizRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GarageRoute = GarageRouteImport.update({
+  id: '/garage',
+  path: '/garage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DriversRoute = DriversRouteImport.update({
+  id: '/drivers',
+  path: '/drivers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -62,6 +74,8 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/drivers': typeof DriversRoute
+  '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -72,6 +86,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/drivers': typeof DriversRoute
+  '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -83,6 +99,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/drivers': typeof DriversRoute
+  '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -95,6 +113,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/drivers'
+    | '/garage'
     | '/profile'
     | '/quiz'
     | '/auth/callback'
@@ -105,6 +125,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/drivers'
+    | '/garage'
     | '/profile'
     | '/quiz'
     | '/auth/callback'
@@ -115,6 +137,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/drivers'
+    | '/garage'
     | '/profile'
     | '/quiz'
     | '/auth/callback'
@@ -126,6 +150,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  DriversRoute: typeof DriversRoute
+  GarageRoute: typeof GarageRoute
   ProfileRoute: typeof ProfileRoute
   QuizRoute: typeof QuizRoute
   GameLevelRoute: typeof GameLevelRoute
@@ -147,6 +173,20 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/garage': {
+      id: '/garage'
+      path: '/garage'
+      fullPath: '/garage'
+      preLoaderRoute: typeof GarageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drivers': {
+      id: '/drivers'
+      path: '/drivers'
+      fullPath: '/drivers'
+      preLoaderRoute: typeof DriversRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -207,6 +247,8 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  DriversRoute: DriversRoute,
+  GarageRoute: GarageRoute,
   ProfileRoute: ProfileRoute,
   QuizRoute: QuizRoute,
   GameLevelRoute: GameLevelRoute,

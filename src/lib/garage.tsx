@@ -5,6 +5,8 @@ export type UpgradeKey = "speed" | "acceleration" | "nitro" | "control";
 export type GameState = {
   coins?: number;
   wins?: number;
+  totalRaces?: number;
+  totalQuizzesCompleted?: number;
   winStreak?: number;
   bestWinStreak?: number;
   unlockedTracks?: number;
@@ -23,6 +25,9 @@ export type Driver = {
   team: string;
   color: string;
   accent: string;
+  bonus: string;
+  bonusKey: "speed" | "acceleration" | "nitro" | "control";
+  bonusValue: number;
 };
 
 export type RaceCar = {
@@ -41,29 +46,29 @@ export const STARTER_DRIVER_ID = "academy-rookie";
 export const DRIVER_UNLOCK_STEP = 3;
 
 export const DRIVERS: Driver[] = [
-  { id: STARTER_DRIVER_ID, name: "Academy Rookie", code: "YOU", team: "World Quiz Race", color: "#da291c", accent: "#f5c518" },
-  { id: "verstappen", name: "Max Verstappen", code: "VER", team: "Red Bull Racing", color: "#1e41ff", accent: "#fcd116" },
-  { id: "bottas", name: "Valtteri Bottas", code: "BOT", team: "Cadillac", color: "#0b1f3a", accent: "#d4af37" },
-  { id: "bearman", name: "Oliver Bearman", code: "BEA", team: "Haas", color: "#b6babd", accent: "#111111" },
-  { id: "norris", name: "Lando Norris", code: "NOR", team: "McLaren", color: "#ff8700", accent: "#47c7fc" },
-  { id: "stroll", name: "Lance Stroll", code: "STR", team: "Aston Martin", color: "#006f62", accent: "#ffffff" },
-  { id: "leclerc", name: "Charles Leclerc", code: "LEC", team: "Ferrari", color: "#dc0000", accent: "#fff200" },
-  { id: "sainz", name: "Carlos Sainz", code: "SAI", team: "Williams", color: "#00a3e0", accent: "#ffffff" },
-  { id: "perez", name: "Sergio Perez", code: "PER", team: "Cadillac", color: "#0b1f3a", accent: "#d4af37" },
-  { id: "colapinto", name: "Franco Colapinto", code: "COL", team: "Alpine", color: "#0090ff", accent: "#ffffff" },
-  { id: "hulkenberg", name: "Nico Hulkenberg", code: "HUL", team: "Audi", color: "#111111", accent: "#00ff5f" },
-  { id: "russell", name: "George Russell", code: "RUS", team: "Mercedes", color: "#00a19c", accent: "#111111" },
-  { id: "bortoleto", name: "Gabriel Bortoleto", code: "BOR", team: "Audi", color: "#111111", accent: "#00ff5f" },
-  { id: "alonso", name: "Fernando Alonso", code: "ALO", team: "Aston Martin", color: "#006f62", accent: "#cedc00" },
-  { id: "ocon", name: "Esteban Ocon", code: "OCO", team: "Haas", color: "#b6babd", accent: "#e10600" },
-  { id: "albon", name: "Alex Albon", code: "ALB", team: "Williams", color: "#00a3e0", accent: "#0b1f3a" },
-  { id: "gasly", name: "Pierre Gasly", code: "GAS", team: "Alpine", color: "#0090ff", accent: "#ff87bc" },
-  { id: "lindblad", name: "Arvid Lindblad", code: "LIN", team: "Racing Bulls", color: "#1434cb", accent: "#e10600" },
-  { id: "lawson", name: "Liam Lawson", code: "LAW", team: "Racing Bulls", color: "#1434cb", accent: "#ffffff" },
-  { id: "piastri", name: "Oscar Piastri", code: "PIA", team: "McLaren", color: "#ff8700", accent: "#111111" },
-  { id: "hadjar", name: "Isack Hadjar", code: "HAD", team: "Red Bull Racing", color: "#1e41ff", accent: "#fcd116" },
-  { id: "hamilton", name: "Lewis Hamilton", code: "HAM", team: "Ferrari", color: "#dc0000", accent: "#111111" },
-  { id: "antonelli", name: "Kimi Antonelli", code: "ANT", team: "Mercedes", color: "#00a19c", accent: "#111111" },
+  { id: STARTER_DRIVER_ID, name: "Academy Rookie", code: "YOU", team: "World Quiz Race", color: "#da291c", accent: "#f5c518", bonus: "+2% Balance", bonusKey: "control", bonusValue: 2 },
+  { id: "verstappen", name: "Max Verstappen", code: "VER", team: "Red Bull Racing", color: "#1e41ff", accent: "#fcd116", bonus: "+5% Speed", bonusKey: "speed", bonusValue: 5 },
+  { id: "bottas", name: "Valtteri Bottas", code: "BOT", team: "Cadillac", color: "#0b1f3a", accent: "#d4af37", bonus: "+4% Control", bonusKey: "control", bonusValue: 4 },
+  { id: "bearman", name: "Oliver Bearman", code: "BEA", team: "Haas", color: "#b6babd", accent: "#111111", bonus: "+3% Acceleration", bonusKey: "acceleration", bonusValue: 3 },
+  { id: "norris", name: "Lando Norris", code: "NOR", team: "McLaren", color: "#ff8700", accent: "#47c7fc", bonus: "+5% Nitro", bonusKey: "nitro", bonusValue: 5 },
+  { id: "stroll", name: "Lance Stroll", code: "STR", team: "Aston Martin", color: "#006f62", accent: "#ffffff", bonus: "+3% Control", bonusKey: "control", bonusValue: 3 },
+  { id: "leclerc", name: "Charles Leclerc", code: "LEC", team: "Ferrari", color: "#dc0000", accent: "#fff200", bonus: "+3% Acceleration", bonusKey: "acceleration", bonusValue: 3 },
+  { id: "sainz", name: "Carlos Sainz", code: "SAI", team: "Williams", color: "#00a3e0", accent: "#ffffff", bonus: "+4% Control", bonusKey: "control", bonusValue: 4 },
+  { id: "perez", name: "Sergio Perez", code: "PER", team: "Cadillac", color: "#0b1f3a", accent: "#d4af37", bonus: "+4% Nitro", bonusKey: "nitro", bonusValue: 4 },
+  { id: "colapinto", name: "Franco Colapinto", code: "COL", team: "Alpine", color: "#0090ff", accent: "#ffffff", bonus: "+3% Speed", bonusKey: "speed", bonusValue: 3 },
+  { id: "hulkenberg", name: "Nico Hulkenberg", code: "HUL", team: "Audi", color: "#111111", accent: "#00ff5f", bonus: "+4% Control", bonusKey: "control", bonusValue: 4 },
+  { id: "russell", name: "George Russell", code: "RUS", team: "Mercedes", color: "#00a19c", accent: "#111111", bonus: "+4% Acceleration", bonusKey: "acceleration", bonusValue: 4 },
+  { id: "bortoleto", name: "Gabriel Bortoleto", code: "BOR", team: "Audi", color: "#111111", accent: "#00ff5f", bonus: "+3% Nitro", bonusKey: "nitro", bonusValue: 3 },
+  { id: "alonso", name: "Fernando Alonso", code: "ALO", team: "Aston Martin", color: "#006f62", accent: "#cedc00", bonus: "+5% Control", bonusKey: "control", bonusValue: 5 },
+  { id: "ocon", name: "Esteban Ocon", code: "OCO", team: "Haas", color: "#b6babd", accent: "#e10600", bonus: "+3% Speed", bonusKey: "speed", bonusValue: 3 },
+  { id: "albon", name: "Alex Albon", code: "ALB", team: "Williams", color: "#00a3e0", accent: "#0b1f3a", bonus: "+4% Speed", bonusKey: "speed", bonusValue: 4 },
+  { id: "gasly", name: "Pierre Gasly", code: "GAS", team: "Alpine", color: "#0090ff", accent: "#ff87bc", bonus: "+4% Nitro", bonusKey: "nitro", bonusValue: 4 },
+  { id: "lindblad", name: "Arvid Lindblad", code: "LIN", team: "Racing Bulls", color: "#1434cb", accent: "#e10600", bonus: "+3% Acceleration", bonusKey: "acceleration", bonusValue: 3 },
+  { id: "lawson", name: "Liam Lawson", code: "LAW", team: "Racing Bulls", color: "#1434cb", accent: "#ffffff", bonus: "+3% Control", bonusKey: "control", bonusValue: 3 },
+  { id: "piastri", name: "Oscar Piastri", code: "PIA", team: "McLaren", color: "#ff8700", accent: "#111111", bonus: "+4% Nitro", bonusKey: "nitro", bonusValue: 4 },
+  { id: "hadjar", name: "Isack Hadjar", code: "HAD", team: "Red Bull Racing", color: "#1e41ff", accent: "#fcd116", bonus: "+4% Speed", bonusKey: "speed", bonusValue: 4 },
+  { id: "hamilton", name: "Lewis Hamilton", code: "HAM", team: "Ferrari", color: "#dc0000", accent: "#111111", bonus: "+5% Control", bonusKey: "control", bonusValue: 5 },
+  { id: "antonelli", name: "Kimi Antonelli", code: "ANT", team: "Mercedes", color: "#00a19c", accent: "#111111", bonus: "+4% Acceleration", bonusKey: "acceleration", bonusValue: 4 },
 ];
 
 // Fixed reverse order from the 2026 Monaco GP result, so new real-world races do not reshuffle unlocks.
@@ -107,6 +112,8 @@ export function defaultState(): GameState {
   return {
     coins: 250,
     wins: 0,
+    totalRaces: 0,
+    totalQuizzesCompleted: 0,
     winStreak: 0,
     bestWinStreak: 0,
     unlockedTracks: 1,
@@ -117,6 +124,23 @@ export function defaultState(): GameState {
     selectedCarId: STARTER_CAR_ID,
     ownedCarIds: [STARTER_CAR_ID],
   };
+}
+
+export function getRankInfo(state: GameState) {
+  const score = (state.wins ?? 0) * 80 + (state.totalRaces ?? 0) * 16 + (state.totalQuizzesCompleted ?? 0) * 8;
+  const ranks = [
+    { name: "Academy Rookie", min: 0 },
+    { name: "Amateur", min: 180 },
+    { name: "Pro", min: 520 },
+    { name: "Champion", min: 1100 },
+  ];
+  const currentIndex = ranks.reduce((best, rank, index) => (score >= rank.min ? index : best), 0);
+  const current = ranks[currentIndex];
+  const next = ranks[currentIndex + 1] ?? null;
+  const previousMin = current.min;
+  const nextMin = next?.min ?? Math.max(previousMin + 1, score);
+  const progress = next ? Math.min(100, Math.round(((score - previousMin) / (nextMin - previousMin)) * 100)) : 100;
+  return { score, rank: current.name, progress, nextRank: next?.name ?? "Champion", ranks: ranks.map((rank) => rank.name) };
 }
 
 export function normalizeState(raw: GameState): GameState {
