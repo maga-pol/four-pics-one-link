@@ -6,7 +6,18 @@ import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
   playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
 } from "@/lib/audio";
-import { getUnlockedDriverIds, normalizeState, writeGameState } from "@/lib/garage";
+import {
+  CARS,
+  DRIVERS,
+  getSelectedCar,
+  getSelectedDriver,
+  getUnlockedDriverIds,
+  normalizeState,
+  readGameState,
+  writeGameState,
+  type Driver,
+  type RaceCar,
+} from "@/lib/garage";
 
 export const Route = createFileRoute("/race/$trackId")({
   head: () => ({ meta: [{ title: "Race · World Quiz Race" }] }),
@@ -121,6 +132,11 @@ type Car = {
   id: string;
   name: string;
   color: string;
+  colors: [string, string, string];
+  driverName: string;
+  driverCode: string;
+  carName: string;
+  teamName: string;
   isPlayer: boolean;
   t: number;
   lap: number;
@@ -135,6 +151,25 @@ type Car = {
   boostUntil?: number; // ms timestamp until +20% boost from pad
 };
 
+type RaceStanding = {
+  rank: number;
+  driverName: string;
+  driverCode: string;
+  carName: string;
+  teamName: string;
+  isPlayer: boolean;
+  colors: [string, string, string];
+};
+
+type RaceResult = {
+  rank: number;
+  reward: number;
+  time: number;
+  best: number | null;
+  isNewBest: boolean;
+  standings: RaceStanding[];
+};
+
 const WORLD_W = 8800;
 const WORLD_H = 5200;
 const TRACK_CX = WORLD_W / 2;
@@ -144,6 +179,24 @@ const TRACK_RY = 1840;
 const ROAD_W = 200;     // 4 lanes (50 each)
 const LANE_COUNT = 4;
 const LANE_W = ROAD_W / LANE_COUNT;
+
+function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
+  const preferredDriverIds = ["leclerc", "norris", "piastri", "hamilton", "russell", "alonso", "sainz"];
+  const drivers = preferredDriverIds
+    .map((id) => DRIVERS.find((driver) => driver.id === id))
+    .filter((driver): driver is Driver => !!driver && driver.id !== playerDriver.id)
+    .slice(0, 5);
+  const fallbackDrivers = DRIVERS
+    .filter((driver) => driver.id !== playerDriver.id && !drivers.some((bot) => bot.id === driver.id))
+    .slice(0, 5 - drivers.length);
+  const botDrivers = [...drivers, ...fallbackDrivers];
+  const botCars = CARS.filter((car) => car.id !== playerCar.id);
+
+  return botDrivers.map((driver, index) => ({
+    driver,
+    car: botCars[index % botCars.length] ?? CARS[index % CARS.length],
+  }));
+}
 
 function rawPoint(t: number) {
   // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
@@ -175,7 +228,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const keysRef = useRef<Record<string, boolean>>({});
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
   const [count, setCount] = useState<string | null>("3");
-  const [result, setResult] = useState<{ rank: number; reward: number; time: number; best: number | null; isNewBest: boolean } | null>(null);
+  const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [showHint, setShowHint] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -215,15 +268,18 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     ro.observe(wrap);
 
     const up = readUpgrades();
+    const garage = readGameState();
+    const playerDriver = getSelectedDriver(garage);
+    const playerCar = getSelectedCar(garage);
+    const botLineup = pickBotLineup(playerDriver, playerCar);
+    const carSpeedBonus = (playerCar.speed - 72) * 0.003;
+    const carGripBonus = (playerCar.grip - 68) * 0.01;
     // Upgrades give a real, noticeable boost on every stat
-    const baseSpeed = 0.20 + up.speed * 0.035;          // ~+28 km/h per level
+    const baseSpeed = 0.20 + up.speed * 0.035 + carSpeedBonus; // upgrades + selected car
     const accel = 0.18 + up.acceleration * 0.08;        // snappier launch
-    const grip = 0.55 + up.control * 0.15;              // sharper steering
+    const grip = 0.55 + up.control * 0.15 + carGripBonus; // upgrades + selected car
     const nitroCap = 1 + up.nitro * 0.5;                // longer nitro tank
     const nitroBoost = 1.4 + up.nitro * 0.12;           // (kept for compat — unused; +15km/h is fixed)
-
-    const AI_NAMES = ["Bolt", "Comet", "Hawk", "Viper", "Storm"];
-    const AI_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4"];
 
     const startP = pathPoint(0);
     const startAngle = Math.atan2(startP.hy, startP.hx);
@@ -239,17 +295,33 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const AI_PACE = [0.78, 0.86, 0.93, 0.82, 0.98];
     const cars: Car[] = [
       {
-        id: "p", name: "You", color: "#22d3ee", isPlayer: true,
+        id: "p",
+        name: playerDriver.code,
+        color: playerCar.colors[0],
+        colors: playerCar.colors,
+        driverName: playerDriver.name,
+        driverCode: playerDriver.code,
+        carName: playerCar.name,
+        teamName: playerCar.team,
+        isPlayer: true,
         t: 0, lap: 0, speed: 0, lane: playerLane,
         x: startP.x + (-startP.hy) * playerOff,
         y: startP.y + (startP.hx) * playerOff,
         angle: startAngle,
       },
-      ...AI_NAMES.map((n, i) => {
+      ...botLineup.map(({ driver, car }, i) => {
         const lane = aiLanes[i] ?? 0;
         const off = startLatOff(lane);
         return {
-          id: "ai" + i, name: n, color: AI_COLORS[i], isPlayer: false,
+          id: "ai" + i,
+          name: driver.code,
+          color: car.colors[0],
+          colors: car.colors,
+          driverName: driver.name,
+          driverCode: driver.code,
+          carName: car.name,
+          teamName: car.team,
+          isPlayer: false,
           t: 0, lap: 0, speed: 0, lane,
           x: startP.x + (-startP.hy) * off,
           y: startP.y + (startP.hx) * off,
@@ -461,6 +533,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let shake = 0;
     let prevBoosting = false;
     let lastCountdownBeep = -1;
+
+    function getStandings(): RaceStanding[] {
+      return [...cars]
+        .sort((a, b) => {
+          const aDone = a.finishedAt ?? Infinity;
+          const bDone = b.finishedAt ?? Infinity;
+          if (aDone !== bDone) return aDone - bDone;
+          return (b.lap + b.t) - (a.lap + a.t);
+        })
+        .map((car, index) => ({
+          rank: index + 1,
+          driverName: car.driverName,
+          driverCode: car.driverCode,
+          carName: car.carName,
+          teamName: car.teamName,
+          isPlayer: car.isPlayer,
+          colors: car.colors,
+        }));
+    }
 
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -773,8 +864,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       draw(now);
 
-      const ranked = [...cars].sort((a, b) => (b.lap + b.t) - (a.lap + a.t));
-      const pos = ranked.findIndex((c) => c.isPlayer) + 1;
+      const standings = getStandings();
+      const pos = standings.find((standing) => standing.isPlayer)?.rank ?? 1;
 
       setHud({
         speed: Math.round(player.speed * 800),
@@ -798,7 +889,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         if (isNewBest) writeBestTime(trackId, t);
         playFanfare();
         stopEngine();
-        setResult({ rank: pos, reward, time: t, best: prevBest, isNewBest });
+        setResult({ rank: pos, reward, time: t, best: prevBest, isNewBest, standings });
         running = false;
         return;
       }
@@ -1235,15 +1326,37 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.fillStyle = `rgba(0,0,0,${0.35 - jump * 0.2})`;
       roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6); ctx.fill();
 
-      ctx.fillStyle = c.color;
-      roundRect(-20, -12, 42, 24, 5); ctx.fill();
+      const [body, dark, accent] = c.colors;
+      ctx.fillStyle = dark;
+      roundRect(-26, -16, 9, 32, 3); ctx.fill();
+      roundRect(18, -16, 9, 32, 3); ctx.fill();
 
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      roundRect(-4, -8, 14, 16, 3); ctx.fill();
+      ctx.fillStyle = body;
+      roundRect(-21, -10, 42, 20, 7); ctx.fill();
+
+      ctx.fillStyle = accent;
+      roundRect(-12, -6, 19, 12, 5); ctx.fill();
+      ctx.fillRect(12, -11, 11, 22);
+
+      ctx.fillStyle = dark;
+      roundRect(-2, -7, 12, 14, 4); ctx.fill();
+
+      ctx.fillStyle = "#050505";
+      roundRect(-18, -18, 9, 6, 3); ctx.fill();
+      roundRect(8, -18, 9, 6, 3); ctx.fill();
+      roundRect(-18, 12, 9, 6, 3); ctx.fill();
+      roundRect(8, 12, 9, 6, 3); ctx.fill();
 
       ctx.strokeStyle = c.isPlayer ? "#fff" : "rgba(0,0,0,0.5)";
       ctx.lineWidth = c.isPlayer ? 2.5 : 1.5;
-      roundRect(-20, -12, 42, 24, 5); ctx.stroke();
+      roundRect(-21, -10, 42, 20, 7); ctx.stroke();
+
+      ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 10px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(c.driverCode, 0, -31);
 
       ctx.restore();
     }
@@ -1445,10 +1558,49 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                   Race Finished
                 </div>
 
+                <div className="mt-6 grid grid-cols-3 items-end gap-2">
+                  {[result.standings[1], result.standings[0], result.standings[2]].map((standing, index) => {
+                    if (!standing) return <div key={index} />;
+                    const podiumHeight = standing.rank === 1 ? "h-24" : standing.rank === 2 ? "h-20" : "h-16";
+                    return (
+                      <div key={standing.driverCode} className="flex flex-col items-center gap-2">
+                        <div className={`w-full rounded-xl border ${standing.isPlayer ? "border-primary/80" : "border-white/10"} bg-white/[0.06] p-2`}>
+                          <div className="mx-auto flex h-8 w-16 items-center justify-center rounded-full border border-white/20" style={{ background: standing.colors[0] }}>
+                            <span className="text-[11px] font-black text-white">{standing.driverCode}</span>
+                          </div>
+                          <div className="mt-1 truncate text-[10px] font-black uppercase text-white">{standing.driverName}</div>
+                          <div className="truncate text-[9px] font-bold uppercase text-muted-foreground">{standing.carName}</div>
+                        </div>
+                        <div className={`grid w-full place-items-center rounded-t-xl ${podiumHeight} border border-white/10 bg-gradient-to-t from-white/10 to-white/[0.22]`}>
+                          <span className="font-display text-2xl text-white">P{standing.rank}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <div className="mt-6 grid grid-cols-3 gap-2">
                   <ResultStat label="Time"   value={formatTime(result.time)} tone="bg-white/[0.06]" valueClass="text-white" />
                   <ResultStat label="Coins"  value={`+${result.reward}`}      tone="bg-gradient-coin" valueClass="text-amber-950" />
                   <ResultStat label="Best"   value={formatTime(result.isNewBest ? result.time : (result.best ?? result.time))} tone="bg-gradient-cyan" valueClass="text-cyan-950" />
+                </div>
+
+                <div className="mt-4 grid gap-1.5 text-left">
+                  {result.standings.map((standing) => (
+                    <div
+                      key={`${standing.rank}-${standing.driverCode}`}
+                      className={`grid grid-cols-[38px_1fr_auto] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${standing.isPlayer ? "border-primary/70 bg-primary/10" : "border-white/10 bg-white/[0.04]"}`}
+                    >
+                      <span className="font-black text-white">P{standing.rank}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-black text-white">{standing.driverName}</span>
+                        <span className="block truncate text-[10px] font-bold uppercase text-muted-foreground">{standing.teamName}</span>
+                      </span>
+                      <span className="rounded-full px-2 py-1 text-[10px] font-black text-white" style={{ background: standing.colors[0] }}>
+                        {standing.carName}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
                 {result.isNewBest && (

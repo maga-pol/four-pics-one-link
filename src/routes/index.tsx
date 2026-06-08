@@ -211,12 +211,21 @@ function HomeHUD() {
                   <div className="mt-1 truncate text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[#f5c518]">
                     {selectedDriver.code}
                   </div>
+                  <div className="mt-0.5 truncate text-center text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+                    {selectedDriver.name}
+                  </div>
                 </div>
                 <div>
                   <CarFigure car={selectedCar} className="relative z-10 w-full animate-car-idle drop-shadow-[0_24px_36px_rgba(218,41,28,0.38)]" />
-                  <div className="mt-1 flex items-center justify-between border border-[#303030] bg-[#111] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#969696]">
-                    <span className="truncate">{selectedCar.name}</span>
-                    <span className="text-[#f5c518]">{selectedDriver.code}</span>
+                  <div className="mt-1 grid gap-1 border border-[#303030] bg-[#111] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em]">
+                    <div className="flex items-center justify-between gap-2 text-[#969696]">
+                      <span className="truncate text-white">{selectedCar.name}</span>
+                      <span className="shrink-0 text-[#f5c518]">{selectedCar.team}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[#969696]">
+                      <span className="truncate">{selectedDriver.name}</span>
+                      <span className="shrink-0 text-[#f5c518]">{selectedDriver.code}</span>
+                    </div>
                   </div>
                 </div>
               </div>
