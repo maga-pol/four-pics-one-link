@@ -13,6 +13,10 @@ function getAuthRedirectUrl() {
   return `${siteUrl.replace(/\/$/, "")}/auth/callback`;
 }
 
+function getSupabaseUrl() {
+  return (import.meta.env.VITE_SUPABASE_URL || "https://rbuwruqvkcznwzsxlkrm.supabase.co").replace(/\/$/, "");
+}
+
 function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "signup">("signup");
@@ -33,20 +37,14 @@ function AuthPage() {
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = () => {
     setLoading(true);
     setError(null);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: getAuthRedirectUrl(),
-      },
-    });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    }
+    const authUrl = new URL(`${getSupabaseUrl()}/auth/v1/authorize`);
+    authUrl.searchParams.set("provider", "google");
+    authUrl.searchParams.set("redirect_to", getAuthRedirectUrl());
+    window.location.assign(authUrl.toString());
   };
 
   const submitEmail = async (e: FormEvent) => {
