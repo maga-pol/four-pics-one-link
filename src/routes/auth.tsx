@@ -9,7 +9,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function getAuthRedirectUrl() {
-  const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
+  const siteUrl = import.meta.env.VITE_SITE_URL || "https://four-pics-one-link.vercel.app";
   return `${siteUrl.replace(/\/$/, "")}/profile`;
 }
 
