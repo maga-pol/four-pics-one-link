@@ -5,6 +5,7 @@
   "outputDirectory": ".vercel/output",
   "framework": null,
   "env": {
-    "NITRO_PRESET": "vercel"
+    "NITRO_PRESET": "vercel",
+    "VITE_SITE_URL": "https://four-pics-one-link.vercel.app"
   }
 }
