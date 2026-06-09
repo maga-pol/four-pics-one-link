@@ -1,10 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Car, Flag, Flame, Home, Trophy, UserCircle } from "lucide-react";
+import { Car, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
 import { getRankInfo, type GameState } from "@/lib/garage";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
+  { to: "/tracks", label: "Tracks", icon: Map },
   { to: "/garage", label: "Garage", icon: Car },
   { to: "/drivers", label: "Drivers", icon: Flag },
   { to: "/profile", label: "Profile", icon: Trophy },
@@ -38,7 +39,7 @@ export function RacingTopNav() {
         </span>
       </Link>
 
-      <nav className="grid grid-cols-4 gap-1 border border-[#303030] bg-[#111] p-1">
+      <nav className="grid grid-cols-5 gap-1 border border-[#303030] bg-[#111] p-1">
         {navItems.map(({ to, label, icon: Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           return (

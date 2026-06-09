@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TracksRouteImport } from './routes/tracks'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as GarageRouteImport } from './routes/garage'
@@ -20,6 +21,11 @@ import { Route as GameCompleteRouteImport } from './routes/game.complete'
 import { Route as GameLevelRouteImport } from './routes/game.$level'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 
+const TracksRoute = TracksRouteImport.update({
+  id: '/tracks',
+  path: '/tracks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuizRoute = QuizRouteImport.update({
   id: '/quiz',
   path: '/quiz',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/tracks': typeof TracksRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/tracks': typeof TracksRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
   '/quiz': typeof QuizRoute
+  '/tracks': typeof TracksRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/game/$level': typeof GameLevelRoute
   '/game/complete': typeof GameCompleteRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/garage'
     | '/profile'
     | '/quiz'
+    | '/tracks'
     | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/garage'
     | '/profile'
     | '/quiz'
+    | '/tracks'
     | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/garage'
     | '/profile'
     | '/quiz'
+    | '/tracks'
     | '/auth/callback'
     | '/game/$level'
     | '/game/complete'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   GarageRoute: typeof GarageRoute
   ProfileRoute: typeof ProfileRoute
   QuizRoute: typeof QuizRoute
+  TracksRoute: typeof TracksRoute
   GameLevelRoute: typeof GameLevelRoute
   GameCompleteRoute: typeof GameCompleteRoute
   RaceTrackIdRoute: typeof RaceTrackIdRoute
@@ -161,6 +174,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tracks': {
+      id: '/tracks'
+      path: '/tracks'
+      fullPath: '/tracks'
+      preLoaderRoute: typeof TracksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/quiz': {
       id: '/quiz'
       path: '/quiz'
@@ -251,6 +271,7 @@ const rootRouteChildren: RootRouteChildren = {
   GarageRoute: GarageRoute,
   ProfileRoute: ProfileRoute,
   QuizRoute: QuizRoute,
+  TracksRoute: TracksRoute,
   GameLevelRoute: GameLevelRoute,
   GameCompleteRoute: GameCompleteRoute,
   RaceTrackIdRoute: RaceTrackIdRoute,
