@@ -2737,25 +2737,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
             <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
           </div>
-          {(() => {
-            const healthColor = hud.health > 60 ? "#22c55e" : hud.health > 30 ? "#facc15" : "#ef4444";
-            return (
-              <div
-                className="w-44 rounded-xl border bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur transition-all"
-                style={{ borderColor: healthColor, boxShadow: `0 0 22px -10px ${healthColor}` }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                    <HeartPulse className="h-3 w-3" style={{ color: healthColor }} /> Health
-                  </span>
-                  <span className="tabular-nums" style={{ color: healthColor }}>{hud.health}%</span>
-                </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full transition-[width] duration-150" style={{ width: `${hud.health}%`, background: healthColor }} />
-                </div>
-              </div>
-            );
-          })()}
         </div>
 
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
@@ -2786,6 +2767,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
               <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
             </div>
           </div>
+          {(() => {
+            const healthColor = hud.health > 60 ? "#22c55e" : hud.health > 30 ? "#facc15" : "#ef4444";
+            return (
+              <div
+                className="w-36 rounded-xl border bg-background/70 px-2 py-1.5 text-xs font-bold backdrop-blur transition-all"
+                style={{ borderColor: healthColor, boxShadow: `0 0 20px -8px ${healthColor}` }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <HeartPulse className="h-3 w-3" style={{ color: healthColor }} /> Health
+                  </span>
+                  <span className="tabular-nums" style={{ color: healthColor }}>{hud.health}%</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full transition-[width] duration-150" style={{ width: `${hud.health}%`, background: healthColor }} />
+                </div>
+              </div>
+            );
+          })()}
           <button
             type="button"
             onClick={toggleMute}
