@@ -2926,12 +2926,18 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const place = result.failed ? "DNF" : result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
           const tone = result.failed ? "bg-red-500/90 text-white" : result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
           return (
-            <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-fade-up">
+            <div className="absolute inset-0 z-30 overflow-y-auto bg-background/85 px-3 py-10 backdrop-blur-md animate-fade-up overscroll-contain">
               <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
               <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vmin] w-[80vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-40" />
               <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/40 blur-[120px]" />
               <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-secondary/40 blur-[120px]" />
-              <div className="relative w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
+              <Link
+                to="/"
+                className="sticky left-full top-3 z-40 ml-auto mb-3 flex h-10 w-fit items-center gap-2 rounded-lg border border-white/15 bg-background/90 px-4 text-xs font-black uppercase tracking-[0.14em] text-white shadow-button backdrop-blur transition hover:border-primary/70"
+              >
+                Exit
+              </Link>
+              <div className="relative mx-auto w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
                 {/* Medal */}
                 <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2">
                   <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-coin text-6xl shadow-button animate-pop-in">
@@ -3004,7 +3010,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                 </button>
                 <div className="mt-2 flex justify-center gap-2">
                   <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">Quiz</Link>
-                  <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">HUB</Link>
+                  <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">Exit</Link>
                 </div>
               </div>
             </div>
