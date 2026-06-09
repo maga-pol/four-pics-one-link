@@ -2,6 +2,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Flag, Gauge, HeartPulse, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
+import { getBotRacePlan } from "@/lib/api/bot-ai.functions";
 import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
   playCrash, playFanfare, playCountdownBeep, playDriftScreech, setMuted, isMuted,
@@ -163,6 +164,7 @@ type Car = {
   laneVel?: number;
   aiAggro?: number;
   aiSkill?: number;
+  aiDriftBias?: number;
   aiDecisionAt?: number;
   aiDriftUntil?: number;
   aiNitroUntil?: number;
@@ -549,6 +551,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       cars[i].lastTrailX = cars[i].x;
       cars[i].lastTrailY = cars[i].y;
     }
+    void getBotRacePlan({
+      data: {
+        trackId,
+        trackName: getTrack(trackId)?.name ?? "Arcade Circuit",
+        botIds: cars.slice(1).map((car) => car.driverCode),
+      },
+    }).then((plan) => {
+      if (!running || plan.bots.length === 0) return;
+      for (const botPlan of plan.bots) {
+        const car = cars.find((candidate) => !candidate.isPlayer && candidate.driverCode === botPlan.id);
+        if (!car || !car.baseTopT) continue;
+        car.topT = car.baseTopT * botPlan.pace;
+        car.aiAggro = botPlan.aggression;
+        car.aiSkill = botPlan.skill;
+        car.aiDriftBias = botPlan.driftBias;
+        car.speed = Math.max(car.speed, car.topT * 0.46);
+      }
+    }).catch(() => {});
 
     // Japanese festival scenery placed off-road, deterministic and lightweight.
     type Decor = {
@@ -1270,7 +1290,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const ownTop = c.baseTopT ?? c.topT ?? AI_TOP_T;
         // Bots automatically slow to 84% before sharp corners so they never spin out.
         const turn = upcomingTurn(c.t, 0.078);
-        const inSharpTurn = turn.sharp > 0.52 && turn.ahead < 0.052;
+        const driftBias = c.aiDriftBias ?? 0.45;
+        const inSharpTurn = turn.sharp > 0.52 - driftBias * 0.08 && turn.ahead < 0.052 + driftBias * 0.012;
         const driftingBot = inSharpTurn && c.speed > ownTop * 0.58;
         if (driftingBot) c.aiDriftUntil = Math.max(c.aiDriftUntil ?? 0, now + 420);
 
