@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, RotateCcw, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
 import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
@@ -218,8 +218,10 @@ const TURN_GUIDES = [
 
 const GRADE_SEPARATIONS = [
   {
+    upperRampInStart: 0.941,
     upperStart: 0.953,
     upperEnd: 0.979,
+    upperRampOutEnd: 0.991,
     lowerStart: 0.579,
     lowerEnd: 0.607,
     crossingT: 0.966,
@@ -315,10 +317,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   function dismissHint() {
     setShowHint(false);
     try { localStorage.setItem(HINT_KEY, "1"); } catch {}
-  }
-  function setVirtualKey(key: string, down: boolean) {
-    keysRef.current[key] = down;
-    if (down) startEngine();
   }
 
   useEffect(() => {
@@ -571,6 +569,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (const cluster of [0.01, 0.18, 0.30, 0.42, 0.68, 0.82]) {
         for (let i = 0; i < 22; i++) {
           placeTrackside((cluster + (i - 11) * 0.0018 + 1) % 1, i % 2 === 0 ? 1 : -1, 88 + rnd() * 34, "spectator", 18 + rnd() * 8);
+        }
+      }
+      for (const cluster of [0.946, 0.958, 0.974, 0.986]) {
+        for (let i = 0; i < 18; i++) {
+          placeTrackside((cluster + (i - 9) * 0.0015 + 1) % 1, i % 2 === 0 ? 1 : -1, 94 + rnd() * 42, "spectator", 18 + rnd() * 9);
         }
       }
     }
@@ -1540,6 +1543,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.save();
       for (const zone of GRADE_SEPARATIONS) {
         const crossing = pathPoint(zone.crossingT);
+        const bridgeStart = zone.upperStart;
+        const bridgeEnd = zone.upperEnd;
+        const rampStart = zone.upperRampInStart;
+        const rampEnd = zone.upperRampOutEnd;
 
         ctx.save();
         ctx.translate(crossing.x, crossing.y);
@@ -1550,25 +1557,51 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.fill();
         ctx.restore();
 
-        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 92, "rgba(0,0,0,0.34)");
-        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 64, "#4b5563");
-        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 34, "#c7ccd4");
-        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 8, "#17171d");
-        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W, "#30313b");
+        drawBridgeApproach(rampStart, bridgeStart, "in");
+        drawBridgeApproach(bridgeEnd, rampEnd, "out");
+
+        drawBridgeSeam(rampStart, "in");
+        drawBridgeSeam(rampEnd, "out");
+
+        strokeTrackSegment(rampStart, rampEnd, 0, ROAD_W + 92, "rgba(0,0,0,0.28)");
+        strokeTrackSegment(rampStart, rampEnd, 0, ROAD_W + 58, "#4b5563");
+        strokeTrackSegment(rampStart, rampEnd, 0, ROAD_W + 28, "#b9c0ca");
+        strokeTrackSegment(rampStart, rampEnd, 0, ROAD_W + 8, "#17171d");
+        strokeTrackSegment(rampStart, rampEnd, 0, ROAD_W, "#30313b");
 
         for (let l = 1; l < LANE_COUNT; l++) {
           const off = -ROAD_W / 2 + l * LANE_W;
           ctx.setLineDash([18, 18]);
-          strokeTrackSegment(zone.upperStart, zone.upperEnd, off, 2.5, "rgba(255,255,255,0.62)", 48);
+          strokeTrackSegment(rampStart, rampEnd, off, 2.5, "rgba(255,255,255,0.62)", 64);
           ctx.setLineDash([]);
         }
 
         for (const off of [ROAD_W / 2 + 4, -ROAD_W / 2 - 4]) {
-          strokeTrackSegment(zone.upperStart, zone.upperEnd, off, 7, "#facc15", 72);
-          strokeTrackSegment(zone.upperStart, zone.upperEnd, off + (off > 0 ? 13 : -13), 6, "#22d3ee", 72);
+          strokeTrackSegment(rampStart, rampEnd, off, 7, "#facc15", 90);
+          strokeTrackSegment(rampStart, rampEnd, off + (off > 0 ? 13 : -13), 6, "#22d3ee", 90);
         }
 
-        for (const t of [zone.upperStart + 0.005, zone.crossingT, zone.upperEnd - 0.005]) {
+        for (const t of [bridgeStart, bridgeEnd]) {
+          const p = pathPoint(t);
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.atan2(p.hy, p.hx));
+          const grad = ctx.createLinearGradient(-24, 0, 24, 0);
+          grad.addColorStop(0, "rgba(250,204,21,0.08)");
+          grad.addColorStop(0.5, "rgba(250,204,21,0.45)");
+          grad.addColorStop(1, "rgba(250,204,21,0.08)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(-26, -ROAD_W / 2 - 38, 52, ROAD_W + 76);
+          ctx.strokeStyle = "rgba(250,204,21,0.78)";
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(0, -ROAD_W / 2 - 34);
+          ctx.lineTo(0, ROAD_W / 2 + 34);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        for (const t of [bridgeStart + 0.005, zone.crossingT, bridgeEnd - 0.005]) {
           const p = pathPoint(t);
           ctx.save();
           ctx.translate(p.x, p.y);
@@ -1603,6 +1636,52 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.font = "bold 10px sans-serif";
         ctx.fillText("ROAD ABOVE", 0, 12);
         ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawBridgeSeam(t: number, direction: "in" | "out") {
+      const p = pathPoint(t);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.atan2(p.hy, p.hx));
+      const forward = direction === "in" ? 1 : -1;
+      const asphalt = ctx.createLinearGradient(-80 * forward, 0, 80 * forward, 0);
+      asphalt.addColorStop(0, "rgba(42,42,53,0)");
+      asphalt.addColorStop(0.34, "#2a2a35");
+      asphalt.addColorStop(0.7, "#4b5563");
+      asphalt.addColorStop(1, "rgba(75,85,99,0)");
+      ctx.fillStyle = asphalt;
+      ctx.beginPath();
+      ctx.moveTo(-92 * forward, -ROAD_W / 2 - 26);
+      ctx.lineTo(92 * forward, -ROAD_W / 2 - 46);
+      ctx.lineTo(92 * forward, ROAD_W / 2 + 46);
+      ctx.lineTo(-92 * forward, ROAD_W / 2 + 26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(250,204,21,0.78)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(-78 * forward, -ROAD_W / 2 - 14);
+      ctx.lineTo(86 * forward, -ROAD_W / 2 - 32);
+      ctx.moveTo(-78 * forward, ROAD_W / 2 + 14);
+      ctx.lineTo(86 * forward, ROAD_W / 2 + 32);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBridgeApproach(start: number, end: number, direction: "in" | "out") {
+      const span = end >= start ? end - start : end + 1 - start;
+      ctx.save();
+      for (let i = 0; i < 18; i++) {
+        const a = i / 18;
+        const b = (i + 1) / 18;
+        const t0 = (start + span * a) % 1;
+        const t1 = (start + span * b) % 1;
+        const rise = direction === "in" ? b : 1 - a;
+        const deckExtra = 10 + rise * 54;
+        strokeTrackSegment(t0, t1, 0, ROAD_W + deckExtra, "rgba(185,192,202,0.92)", 4);
+        strokeTrackSegment(t0, t1, 0, ROAD_W + 4, "#2f3039", 4);
       }
       ctx.restore();
     }
@@ -1704,7 +1783,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       };
       for (const zone of GRADE_SEPARATIONS) {
         drawMiniSegment(zone.lowerStart, zone.lowerEnd, "#38bdf8", 3, [2, 2]);
-        drawMiniSegment(zone.upperStart, zone.upperEnd, "#facc15", 3, [2, 2]);
+        drawMiniSegment(zone.upperRampInStart, zone.upperRampOutEnd, "#facc15", 3, [2, 2]);
       }
 
       // cars
@@ -2259,33 +2338,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           </div>
         )}
 
-        {!result && !count && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-between gap-3">
-            <div className="pointer-events-auto flex gap-2" style={{ touchAction: "none" }}>
-              <TouchButton label="LEFT" onDown={() => setVirtualKey("a", true)} onUp={() => setVirtualKey("a", false)} />
-              <TouchButton label="RIGHT" onDown={() => setVirtualKey("d", true)} onUp={() => setVirtualKey("d", false)} />
-            </div>
-            <div className="pointer-events-auto flex items-end gap-2" style={{ touchAction: "none" }}>
-              <TouchButton label="GAS" strong onDown={() => setVirtualKey("w", true)} onUp={() => setVirtualKey("w", false)} />
-              <button
-                type="button"
-                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setVirtualKey("drift", true); }}
-                onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setVirtualKey("drift", false); }}
-                onPointerCancel={() => setVirtualKey("drift", false)}
-                onPointerLeave={() => setVirtualKey("drift", false)}
-                className={`inline-flex h-12 min-w-[82px] items-center justify-center gap-1 rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.08em] backdrop-blur transition ${
-                  hud.drifting
-                    ? "border-pink-300 bg-pink-500/70 text-white shadow-[0_0_24px_-4px_rgba(244,114,182,0.9)]"
-                    : "border-pink-300/45 bg-background/60 text-pink-100"
-                }`}
-              >
-                <RotateCcw className="h-4 w-4" /> Drift
-              </button>
-              <TouchButton label="NITRO" accent onDown={() => setVirtualKey(" ", true)} onUp={() => setVirtualKey(" ", false)} />
-            </div>
-          </div>
-        )}
-
         {/* DANGER CORNER WARNING */}
         {warning && !result && !count && (
           <div className="pointer-events-none absolute inset-x-0 top-[18%] z-20 grid place-items-center animate-in fade-in zoom-in-95 duration-200">
@@ -2471,39 +2523,6 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
       </kbd>
       <span className="text-muted-foreground">{desc}</span>
     </div>
-  );
-}
-
-function TouchButton({
-  label,
-  onDown,
-  onUp,
-  strong = false,
-  accent = false,
-}: {
-  label: string;
-  onDown: () => void;
-  onUp: () => void;
-  strong?: boolean;
-  accent?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onDown(); }}
-      onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); onUp(); }}
-      onPointerCancel={onUp}
-      onPointerLeave={onUp}
-      className={`inline-flex h-12 min-w-[64px] items-center justify-center rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.08em] backdrop-blur transition active:scale-95 ${
-        strong
-          ? "border-emerald-300/60 bg-emerald-500/55 text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.9)]"
-          : accent
-            ? "border-amber-300/60 bg-amber-400/55 text-amber-950 shadow-[0_0_20px_-6px_rgba(251,191,36,0.9)]"
-            : "border-white/25 bg-background/58 text-white"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
