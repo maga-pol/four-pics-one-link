@@ -1,10 +1,10 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Flag, Gauge, RotateCcw, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
 import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
-  playCrash, playFanfare, playCountdownBeep, setMuted, isMuted,
+  playCrash, playFanfare, playCountdownBeep, playDriftScreech, setMuted, isMuted,
 } from "@/lib/audio";
 import {
   CARS,
@@ -177,33 +177,53 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 190;     // 4 lanes, narrow enough to make bridge/chicane matter
+const ROAD_W = 214;     // 4 clear lanes with consistent arcade-racer width
 const LANE_COUNT = 4;
 const LANE_W = ROAD_W / LANE_COUNT;
 const TRACK_POINTS = [
-  { x: 1720, y: 4200 },
-  { x: 3520, y: 4200 },
-  { x: 5600, y: 4100 },
-  { x: 7040, y: 3650 },
-  { x: 6900, y: 2920 },
-  { x: 5550, y: 2750 },
-  { x: 6650, y: 2240 },
-  { x: 5400, y: 1820 },
-  { x: 3720, y: 1700 },
-  { x: 2460, y: 1740 },
-  { x: 1900, y: 2380 },
-  { x: 2500, y: 3010 },
-  { x: 3970, y: 3180 },
-  { x: 4900, y: 3560 },
-  { x: 5600, y: 3120 },
-  { x: 6430, y: 3480 },
-  { x: 7060, y: 2920 },
-  { x: 6640, y: 2240 },
-  { x: 5700, y: 2100 },
-  { x: 4920, y: 2620 },
-  { x: 4320, y: 3370 },
-  { x: 3160, y: 3820 },
-  { x: 1720, y: 4200 },
+  { x: 1500, y: 4180 },
+  { x: 3300, y: 4210 },
+  { x: 5200, y: 4050 },
+  { x: 6860, y: 3580 },
+  { x: 7420, y: 2860 },
+  { x: 6940, y: 2220 },
+  { x: 5700, y: 2130 },
+  { x: 6400, y: 1480 },
+  { x: 5160, y: 1030 },
+  { x: 3650, y: 1180 },
+  { x: 2600, y: 1650 },
+  { x: 1980, y: 2380 },
+  { x: 1510, y: 3040 },
+  { x: 1920, y: 3560 },
+  { x: 2960, y: 3650 },
+  { x: 4040, y: 3380 },
+  { x: 5180, y: 3180 },
+  { x: 5740, y: 2790 },
+  { x: 5140, y: 2420 },
+  { x: 3920, y: 2460 },
+  { x: 2860, y: 2750 },
+  { x: 2180, y: 3360 },
+  { x: 1500, y: 4180 },
+];
+
+const TURN_GUIDES = [
+  { t: 0.18, dir: 1, sharp: 0.55 },
+  { t: 0.30, dir: -1, sharp: 0.82 },
+  { t: 0.42, dir: -1, sharp: 0.9 },
+  { t: 0.56, dir: 1, sharp: 0.62 },
+  { t: 0.68, dir: 1, sharp: 0.78 },
+  { t: 0.82, dir: -1, sharp: 0.72 },
+  { t: 0.92, dir: 1, sharp: 0.58 },
+];
+
+const GRADE_SEPARATIONS = [
+  {
+    upperStart: 0.953,
+    upperEnd: 0.979,
+    lowerStart: 0.579,
+    lowerEnd: 0.607,
+    crossingT: 0.966,
+  },
 ];
 
 function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
@@ -274,7 +294,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
-  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0 });
+  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0, drifting: false });
   const [count, setCount] = useState<string | null>("3");
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
@@ -295,6 +315,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   function dismissHint() {
     setShowHint(false);
     try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+  }
+  function setVirtualKey(key: string, down: boolean) {
+    keysRef.current[key] = down;
+    if (down) startEngine();
   }
 
   useEffect(() => {
@@ -467,9 +491,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const kind = rnd() > 0.4 ? "tree" : "rock";
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
-      // Light poles every ~5% along both edges
-      for (let i = 0; i < 40; i++) {
-        const t = i / 40;
+      // Light poles every ~3% along both edges
+      for (let i = 0; i < 64; i++) {
+        const t = i / 64;
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 36) * side;
@@ -479,9 +503,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           kind: "pole", size: 30, angle: Math.atan2(p.hy, p.hx),
         });
       }
-      // Billboards on the straights
-      for (let i = 0; i < 8; i++) {
-        const t = (i + 0.5) / 8;
+      // Billboards on straights and corner exits
+      for (let i = 0; i < 12; i++) {
+        const t = (i + 0.5) / 12;
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 90) * side;
@@ -492,9 +516,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         });
       }
       // Festive flags between poles
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 96; i++) {
         if (i % 2 === 0) continue;
-        const t = i / 60;
+        const t = i / 96;
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 22) * side;
@@ -512,12 +536,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           phase: rnd() * Math.PI * 2,
         });
       };
-      for (let i = 0; i < 92; i++) {
-        const t = (i / 92 + rnd() * 0.006) % 1;
+      for (let i = 0; i < 150; i++) {
+        const t = (i / 150 + rnd() * 0.004) % 1;
         placeTrackside(t, i % 2 === 0 ? 1 : -1, 42 + rnd() * 34, i % 4 === 0 ? "pine" : "sakura", 24 + rnd() * 22);
       }
-      for (let i = 0; i < 46; i++) {
-        placeTrackside((i + 0.35) / 46, i % 2 === 0 ? 1 : -1, 20, i % 3 === 0 ? "banner" : "lantern", 20 + rnd() * 8);
+      for (let i = 0; i < 72; i++) {
+        placeTrackside((i + 0.35) / 72, i % 2 === 0 ? 1 : -1, 22, i % 3 === 0 ? "banner" : "lantern", 20 + rnd() * 8);
       }
       for (const t of [0.035, 0.245, 0.515, 0.825]) {
         const p = pathPoint(t);
@@ -541,8 +565,13 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ]) {
         decor.push({ ...item, angle: 0, phase: rnd() * Math.PI * 2 });
       }
-      for (let i = 0; i < 48; i++) {
-        placeTrackside((i / 48 + 0.01) % 1, i % 2 === 0 ? 1 : -1, 76 + rnd() * 44, "spectator", 16 + rnd() * 8);
+      for (let i = 0; i < 96; i++) {
+        placeTrackside((i / 96 + 0.01) % 1, i % 2 === 0 ? 1 : -1, 76 + rnd() * 44, "spectator", 16 + rnd() * 8);
+      }
+      for (const cluster of [0.01, 0.18, 0.30, 0.42, 0.68, 0.82]) {
+        for (let i = 0; i < 22; i++) {
+          placeTrackside((cluster + (i - 11) * 0.0018 + 1) % 1, i % 2 === 0 ? 1 : -1, 88 + rnd() * 34, "spectator", 18 + rnd() * 8);
+        }
       }
     }
 
@@ -568,7 +597,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
     // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
-    const DANGER_CORNERS: number[] = [];
+    const DANGER_CORNERS: number[] = TURN_GUIDES.filter((turn) => turn.sharp > 0.75).map((turn) => turn.t);
     const SPIN_THRESHOLD = 999; // effectively disabled
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
@@ -611,10 +640,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const codeMap: Record<string, string> = {
         KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d",
         ArrowUp: "arrowup", ArrowDown: "arrowdown", ArrowLeft: "arrowleft", ArrowRight: "arrowright",
-        Space: " ", ShiftLeft: "shift", ShiftRight: "shift",
+        Space: " ", ShiftLeft: "shift", ShiftRight: "shift", KeyE: "e", ControlLeft: "control", ControlRight: "control",
       };
       const mapped = codeMap[e.code] ?? k;
-      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift"].includes(mapped)) {
+      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift","e","control"].includes(mapped)) {
         e.preventDefault();
       }
       keysRef.current[mapped] = down;
@@ -636,6 +665,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let lastTrailY = cars[0].y;
     let drifting = false;
     let lateralVelocity = 0;
+    let driftBoostUntil = 0;
+    let lastDriftSfx = 0;
 
     // Camera shake
     let shake = 0;
@@ -696,6 +727,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const brakeKey = k["s"] || k["arrowdown"];
       const left = k["a"] || k["arrowleft"];
       const right = k["d"] || k["arrowright"];
+      const driftKey = !!(k["e"] || k["control"] || k["drift"]);
       // Trigger nitro on press if ready (not currently boosting, cooldown elapsed)
       const nitroKeyDown = !!(k[" "] || k["shift"]);
       if (nitroKeyDown && now >= nitroReadyAt && nitroActiveUntil < now) {
@@ -712,7 +744,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Free-driving physics — nitro and boost pads each give +20% max
       const baseMax = baseSpeed * 1.4;
       const padActive = boostUntil > now;
-      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1);
+      const driftBoosting = driftBoostUntil > now;
+      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1) * (driftBoosting ? 1.08 : 1);
       const maxSpeed = baseMax * boostMul;
       if (!isSpinning) {
         if (accelKey) player.speed += accel * 0.8 * dt;
@@ -742,14 +775,32 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       } else {
         const speedAbs = Math.abs(player.speed);
         const speedRatio = Math.min(1, speedAbs / Math.max(0.001, baseMax));
-        const steerGrip = 1 - Math.min(0.32, speedRatio * 0.22);
-        const steerStrength = (1.25 + grip * 0.42) * Math.min(1, speedAbs * 7.5) * steerGrip;
+        const driftIntent = driftKey && steeringInput !== 0 && speedRatio > 0.32;
+        const steerGrip = 1 - Math.min(0.22, speedRatio * 0.16);
+        const steerStrength = (1.55 + grip * 0.52) * Math.min(1, speedAbs * 8.8) * steerGrip * (driftIntent ? 1.36 : 1);
         player.angle += steeringInput * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
-        lateralVelocity += steeringInput * player.speed * moveScale * (0.72 - Math.min(0.28, grip * 0.08)) * dt;
-        lateralVelocity *= Math.pow(0.08 + grip * 0.16, dt);
-        if (Math.abs(steeringInput) > 0 && speedRatio > 0.58) {
-          player.speed *= Math.pow(0.72 + grip * 0.05, dt);
-          shake = Math.max(shake, 1.6 + speedRatio * 2.8);
+        lateralVelocity += steeringInput * player.speed * moveScale * (driftIntent ? 0.82 : 0.58) * dt;
+        lateralVelocity *= Math.pow((driftIntent ? 0.2 : 0.12) + grip * 0.2, dt);
+        if (Math.abs(steeringInput) > 0 && speedRatio > 0.5) {
+          player.speed *= Math.pow(driftIntent ? 0.9 + grip * 0.03 : 0.8 + grip * 0.05, dt);
+          shake = Math.max(shake, driftIntent ? 2.8 + speedRatio * 3.4 : 1.1 + speedRatio * 2.0);
+        }
+        if (driftIntent && Math.abs(lateralVelocity) > 70) {
+          driftBoostUntil = Math.max(driftBoostUntil, now + 520);
+          if (now - lastDriftSfx > 360) {
+            lastDriftSfx = now;
+            playDriftScreech();
+          }
+          for (let s = 0; s < 2; s++) {
+            spawnParticle(
+              player.x - Math.cos(player.angle) * 18 + (Math.random() - 0.5) * 18,
+              player.y - Math.sin(player.angle) * 18 + (Math.random() - 0.5) * 18,
+              -Math.cos(player.angle) * 90 + (Math.random() - 0.5) * 120,
+              -Math.sin(player.angle) * 90 + (Math.random() - 0.5) * 120,
+              s % 2 ? "rgba(244,114,182,0.72)" : "rgba(34,211,238,0.7)",
+              0.42, 3.5
+            );
+          }
         }
       }
 
@@ -822,7 +873,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
-      drifting = (!!steeringInput && speedFrac > 0.5) || Math.abs(lateralVelocity) > 90;
+      drifting = (driftKey && !!steeringInput && speedFrac > 0.34) || Math.abs(lateralVelocity) > 105;
       if (drifting || boosting) {
         // record trail segment
         const dxT = player.x - lastTrailX;
@@ -1003,6 +1054,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         nitro: nitro / nitroCap,
         elapsed: Math.max(0, ((player.finishedAt ?? now) - startedAt - COUNTDOWN_MS) / 1000),
         lapProgress: player.lap >= laps ? 1 : player.t,
+        drifting,
       });
 
       if (player.finishedAt && !finished) {
@@ -1063,11 +1115,13 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
       ctx.closePath();
 
+      drawTerrainBlend(now);
+
       // Road shoulder
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#1a1a22";
-      ctx.lineWidth = ROAD_W + 10;
+      ctx.strokeStyle = "#17171d";
+      ctx.lineWidth = ROAD_W + 34;
       ctx.stroke();
       // Road
       ctx.strokeStyle = "#2a2a35";
@@ -1075,12 +1129,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.stroke();
       drawRoadTexture(now);
       drawFestivalSections(now);
+      drawUnderpasses(now);
 
       // Bright guardrails (outer glow + inner kerb)
       drawGuardrail(ROAD_W / 2 + 14);
       drawGuardrail(-ROAD_W / 2 - 14);
       drawKerb(ROAD_W / 2);
       drawKerb(-ROAD_W / 2);
+      drawCrowdBarriers();
 
       // Lane dividers (3 dashed lines for 4 lanes)
       ctx.strokeStyle = "rgba(255,255,255,0.45)";
@@ -1103,6 +1159,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // Start/finish checkered line
       drawStartLine();
+
+      drawTurnArrows(now);
 
       // Track features (under cars)
       for (const f of featurePos) drawFeature(f, now);
@@ -1158,9 +1216,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.stroke();
       }
 
+      for (const c of sortedLowerTunnelCars()) drawCar(c, now, 0.45);
+      drawOverpasses(now);
+
       // Cars (sorted so leader on top)
       const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
-      for (const c of sorted) drawCar(c, now);
+      for (const c of sorted) {
+        if (isInLowerUnderpass(c.t)) continue;
+        drawCar(c, now);
+      }
 
       // Particles on top
       for (const p of particles) {
@@ -1299,6 +1363,250 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.restore();
     }
 
+    function drawTerrainBlend(now: number) {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      const bands = [
+        { width: ROAD_W + 260, color: "rgba(48, 30, 19, 0.8)" },
+        { width: ROAD_W + 210, color: "rgba(63, 45, 26, 0.72)" },
+        { width: ROAD_W + 160, color: "rgba(31, 82, 49, 0.78)" },
+        { width: ROAD_W + 96, color: "rgba(45, 62, 48, 0.78)" },
+        { width: ROAD_W + 48, color: "rgba(45, 45, 48, 0.92)" },
+      ];
+      for (const band of bands) {
+        ctx.strokeStyle = band.color;
+        ctx.lineWidth = band.width;
+        ctx.beginPath();
+        for (let i = 0; i <= 520; i++) {
+          const p = pathPoint(i / 520);
+          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      ctx.lineWidth = 2;
+      for (let row = 0; row < 18; row++) {
+        ctx.beginPath();
+        for (let i = 0; i <= 140; i++) {
+          const x = 160 + i * 62;
+          const y = 1180 + row * 210 + Math.sin(i * 0.55 + row + now * 0.0004) * 28;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < 160; i++) {
+        const t = i / 160;
+        const p = pathPoint(t);
+        const side = i % 2 === 0 ? 1 : -1;
+        const off = (ROAD_W / 2 + 54 + ((i * 31) % 52)) * side;
+        const x = p.x + (-p.hy) * off;
+        const y = p.y + (p.hx) * off;
+        ctx.fillStyle = i % 3 === 0 ? "rgba(95, 66, 36, 0.55)" : "rgba(22, 101, 52, 0.55)";
+        ctx.beginPath();
+        ctx.ellipse(x, y, 18 + (i % 7) * 3, 7 + (i % 5), Math.atan2(p.hy, p.hx), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawTurnArrows(now: number) {
+      ctx.save();
+      for (const turn of TURN_GUIDES) {
+        for (let i = 0; i < 3; i++) {
+          const t = (turn.t - 0.03 + i * 0.01 + 1) % 1;
+          const p = pathPoint(t);
+          const pulse = 0.72 + Math.sin(now / 180 + i) * 0.16;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.atan2(p.hy, p.hx));
+          ctx.fillStyle = turn.sharp > 0.75 ? `rgba(250,204,21,${pulse})` : `rgba(34,211,238,${pulse})`;
+          ctx.strokeStyle = "rgba(10,10,12,0.55)";
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          const dir = turn.dir;
+          ctx.moveTo(-26, -20 * dir);
+          ctx.lineTo(12, 0);
+          ctx.lineTo(-26, 20 * dir);
+          ctx.lineTo(-16, 0);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    }
+
+    function isBetweenT(t: number, start: number, end: number) {
+      const value = ((t % 1) + 1) % 1;
+      return start <= end ? value >= start && value <= end : value >= start || value <= end;
+    }
+
+    function isInLowerUnderpass(t: number) {
+      return GRADE_SEPARATIONS.some((zone) => isBetweenT(t, zone.lowerStart, zone.lowerEnd));
+    }
+
+    function sortedLowerTunnelCars() {
+      return [...cars]
+        .filter((car) => isInLowerUnderpass(car.t))
+        .sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
+    }
+
+    function traceSegment(start: number, end: number, offset = 0, steps = 72) {
+      ctx.beginPath();
+      const span = end >= start ? end - start : end + 1 - start;
+      for (let i = 0; i <= steps; i++) {
+        const t = (start + span * (i / steps)) % 1;
+        const p = pathPoint(t);
+        const x = p.x + (-p.hy) * offset;
+        const y = p.y + (p.hx) * offset;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+    }
+
+    function strokeTrackSegment(start: number, end: number, offset: number, width: number, color: string, steps = 72) {
+      traceSegment(start, end, offset, steps);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+
+    function drawUnderpasses(now: number) {
+      ctx.save();
+      for (const zone of GRADE_SEPARATIONS) {
+        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W + 82, "rgba(4,12,22,0.72)");
+        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W + 32, "#111827");
+        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W, "#202535");
+
+        ctx.setLineDash([12, 10]);
+        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, ROAD_W / 2 + 9, 5, "rgba(56,189,248,0.95)");
+        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, -ROAD_W / 2 - 9, 5, "rgba(56,189,248,0.95)");
+        ctx.setLineDash([]);
+
+        for (let l = 1; l < LANE_COUNT; l++) {
+          const off = -ROAD_W / 2 + l * LANE_W;
+          ctx.setLineDash([18, 18]);
+          strokeTrackSegment(zone.lowerStart, zone.lowerEnd, off, 2.5, "rgba(190,225,255,0.5)", 48);
+          ctx.setLineDash([]);
+        }
+
+        for (const t of [zone.lowerStart, zone.lowerEnd]) {
+          const p = pathPoint(t);
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.atan2(p.hy, p.hx));
+          ctx.fillStyle = "rgba(0,0,0,0.48)";
+          ctx.fillRect(-16, -ROAD_W / 2 - 42, 32, ROAD_W + 84);
+          ctx.strokeStyle = "rgba(56,189,248,0.9)";
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(0, -ROAD_W / 2 - 34);
+          ctx.lineTo(0, ROAD_W / 2 + 34);
+          ctx.stroke();
+          ctx.fillStyle = "rgba(56,189,248,0.18)";
+          ctx.fillRect(-28, -ROAD_W / 2 - 34, 56, ROAD_W + 68);
+          ctx.restore();
+        }
+
+        const p = pathPoint((zone.lowerStart + zone.lowerEnd) / 2);
+        ctx.save();
+        ctx.translate(p.x + 72, p.y + 66);
+        ctx.rotate(Math.sin(now / 500) * 0.02);
+        ctx.fillStyle = "rgba(5,12,22,0.82)";
+        roundRect(-62, -22, 124, 44, 8); ctx.fill();
+        ctx.strokeStyle = "rgba(56,189,248,0.85)";
+        ctx.lineWidth = 2;
+        roundRect(-62, -22, 124, 44, 8); ctx.stroke();
+        ctx.fillStyle = "#38bdf8";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("TUNNEL", 0, -4);
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("LOWER ROAD", 0, 12);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawOverpasses(now: number) {
+      ctx.save();
+      for (const zone of GRADE_SEPARATIONS) {
+        const crossing = pathPoint(zone.crossingT);
+
+        ctx.save();
+        ctx.translate(crossing.x, crossing.y);
+        ctx.rotate(Math.atan2(crossing.hy, crossing.hx));
+        ctx.fillStyle = "rgba(0,0,0,0.48)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 240, ROAD_W * 0.78, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 92, "rgba(0,0,0,0.34)");
+        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 64, "#4b5563");
+        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 34, "#c7ccd4");
+        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W + 8, "#17171d");
+        strokeTrackSegment(zone.upperStart, zone.upperEnd, 0, ROAD_W, "#30313b");
+
+        for (let l = 1; l < LANE_COUNT; l++) {
+          const off = -ROAD_W / 2 + l * LANE_W;
+          ctx.setLineDash([18, 18]);
+          strokeTrackSegment(zone.upperStart, zone.upperEnd, off, 2.5, "rgba(255,255,255,0.62)", 48);
+          ctx.setLineDash([]);
+        }
+
+        for (const off of [ROAD_W / 2 + 4, -ROAD_W / 2 - 4]) {
+          strokeTrackSegment(zone.upperStart, zone.upperEnd, off, 7, "#facc15", 72);
+          strokeTrackSegment(zone.upperStart, zone.upperEnd, off + (off > 0 ? 13 : -13), 6, "#22d3ee", 72);
+        }
+
+        for (const t of [zone.upperStart + 0.005, zone.crossingT, zone.upperEnd - 0.005]) {
+          const p = pathPoint(t);
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.atan2(p.hy, p.hx));
+          for (const side of [-1, 1]) {
+            ctx.fillStyle = "rgba(0,0,0,0.42)";
+            ctx.beginPath();
+            ctx.ellipse(0, side * (ROAD_W / 2 + 86), 28, 12, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#6b7280";
+            const pierY = side > 0 ? ROAD_W / 2 + 42 : -ROAD_W / 2 - 114;
+            roundRect(-12, pierY, 24, 72, 5);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        const label = pathPoint(zone.crossingT - 0.006);
+        ctx.save();
+        ctx.translate(label.x - 118, label.y - 88);
+        ctx.rotate(Math.sin(now / 600) * 0.015);
+        ctx.fillStyle = "rgba(12,12,8,0.86)";
+        roundRect(-60, -22, 120, 44, 8); ctx.fill();
+        ctx.strokeStyle = "rgba(250,204,21,0.9)";
+        ctx.lineWidth = 2;
+        roundRect(-60, -22, 120, 44, 8); ctx.stroke();
+        ctx.fillStyle = "#facc15";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("BRIDGE", 0, -4);
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("ROAD ABOVE", 0, 12);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
     function drawFestivalSections(now: number) {
       drawTrackBand(0.50, 0.57, "#5b3421", "rgba(245,197,24,0.25)");
       drawTrackBand(0.84, 0.91, "rgba(14,14,20,0.72)", "rgba(218,41,28,0.28)");
@@ -1337,15 +1645,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function drawMiniMap(cssW: number, cssH: number) {
-      const mw = 150, mh = 90;
+      const mw = 190, mh = 112;
       const pad = 12;
       const x0 = pad, y0 = cssH - mh - pad;
       // bg
       ctx.save();
-      ctx.fillStyle = "rgba(8,18,32,0.78)";
-      roundRectAbs(x0, y0, mw, mh, 10); ctx.fill();
-      ctx.strokeStyle = "rgba(98,159,248,0.45)";
-      ctx.lineWidth = 1;
+      ctx.fillStyle = "rgba(5,12,22,0.86)";
+      roundRectAbs(x0, y0, mw, mh, 8); ctx.fill();
+      ctx.strokeStyle = "rgba(34,211,238,0.62)";
+      ctx.lineWidth = 1.4;
       roundRectAbs(x0, y0, mw, mh, 10); ctx.stroke();
 
       // map world bounds to mini-map
@@ -1357,10 +1665,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const oy = y0 + margin + (mh - margin * 2 - WORLD_H * s) / 2;
 
       // track outline
-      ctx.strokeStyle = "rgba(180,210,255,0.55)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(180,210,255,0.35)";
+      ctx.lineWidth = 6;
       ctx.beginPath();
-      const NM = 120;
+      const NM = 150;
       for (let i = 0; i <= NM; i++) {
         const p = rawPoint(i / NM);
         const X = ox + p.x * s, Y = oy + p.y * s;
@@ -1368,6 +1676,36 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
       ctx.closePath();
       ctx.stroke();
+      ctx.strokeStyle = "rgba(245,197,24,0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= NM; i++) {
+        const p = rawPoint(i / NM);
+        const X = ox + p.x * s, Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      const drawMiniSegment = (start: number, end: number, color: string, width: number, dash: number[] = []) => {
+        const span = end >= start ? end - start : end + 1 - start;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        for (let i = 0; i <= 24; i++) {
+          const p = rawPoint((start + span * (i / 24)) % 1);
+          const X = ox + p.x * s, Y = oy + p.y * s;
+          if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+      for (const zone of GRADE_SEPARATIONS) {
+        drawMiniSegment(zone.lowerStart, zone.lowerEnd, "#38bdf8", 3, [2, 2]);
+        drawMiniSegment(zone.upperStart, zone.upperEnd, "#facc15", 3, [2, 2]);
+      }
 
       // cars
       for (const c of cars) {
@@ -1384,16 +1722,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         }
       }
       // Danger corner markers on minimap
-      for (const dc of dangerPos) {
-        const p = rawPoint(dc.t);
+      for (const turn of TURN_GUIDES) {
+        const p = rawPoint(turn.t);
         const X = ox + p.x * s, Y = oy + p.y * s;
-        ctx.fillStyle = "#facc15";
-        ctx.strokeStyle = "#ef4444";
+        ctx.fillStyle = turn.sharp > 0.75 ? "#facc15" : "#22d3ee";
+        ctx.strokeStyle = "rgba(0,0,0,0.75)";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(X, Y - 4);
-        ctx.lineTo(X + 3.5, Y + 2.5);
-        ctx.lineTo(X - 3.5, Y + 2.5);
+        ctx.moveTo(X + turn.dir * 4, Y);
+        ctx.lineTo(X - turn.dir * 2, Y - 4);
+        ctx.lineTo(X - turn.dir * 2, Y + 4);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -1436,6 +1774,38 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.strokeStyle = "#22d3ee";
       ctx.lineWidth = 5;
       ctx.stroke();
+    }
+
+    function drawCrowdBarriers() {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const zones = [
+        [0.0, 0.055], [0.155, 0.235], [0.285, 0.335],
+        [0.405, 0.455], [0.65, 0.72], [0.8, 0.86],
+      ];
+      for (const [start, end] of zones) {
+        for (const side of [-1, 1]) {
+          ctx.strokeStyle = "rgba(250,250,250,0.72)";
+          ctx.lineWidth = 7;
+          ctx.beginPath();
+          for (let i = 0; i <= 28; i++) {
+            const t = start + (end - start) * (i / 28);
+            const p = pathPoint(t);
+            const off = (ROAD_W / 2 + 46) * side;
+            const x = p.x + (-p.hy) * off;
+            const y = p.y + (p.hx) * off;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(218,41,28,0.92)";
+          ctx.lineWidth = 3;
+          ctx.setLineDash([22, 14]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      ctx.restore();
     }
 
     function drawKerb(offset: number) {
@@ -1723,8 +2093,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.restore();
     }
 
-    function drawCar(c: Car, now: number) {
+    function drawCar(c: Car, now: number, alpha = 1) {
       ctx.save();
+      ctx.globalAlpha *= alpha;
       ctx.translate(c.x, c.y);
       // ramp jump bounce — scale up briefly while airborne
       const jump = c.isPlayer && airUntil > now ? Math.sin(((airUntil - now) / 750) * Math.PI) : 0;
@@ -1873,7 +2244,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
         {/* Next-turn predictor */}
         {nextTurn.dir !== 0 && nextTurn.sharp > 0.1 && !result && !count && (
-          <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
+          <div className="pointer-events-none absolute bottom-20 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
             <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Next</span>
             <span
               className="text-2xl leading-none"
@@ -1885,6 +2256,33 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             >
               {nextTurn.dir < 0 ? "↰" : "↱"}
             </span>
+          </div>
+        )}
+
+        {!result && !count && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-between gap-3">
+            <div className="pointer-events-auto flex gap-2" style={{ touchAction: "none" }}>
+              <TouchButton label="LEFT" onDown={() => setVirtualKey("a", true)} onUp={() => setVirtualKey("a", false)} />
+              <TouchButton label="RIGHT" onDown={() => setVirtualKey("d", true)} onUp={() => setVirtualKey("d", false)} />
+            </div>
+            <div className="pointer-events-auto flex items-end gap-2" style={{ touchAction: "none" }}>
+              <TouchButton label="GAS" strong onDown={() => setVirtualKey("w", true)} onUp={() => setVirtualKey("w", false)} />
+              <button
+                type="button"
+                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setVirtualKey("drift", true); }}
+                onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setVirtualKey("drift", false); }}
+                onPointerCancel={() => setVirtualKey("drift", false)}
+                onPointerLeave={() => setVirtualKey("drift", false)}
+                className={`inline-flex h-12 min-w-[82px] items-center justify-center gap-1 rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.08em] backdrop-blur transition ${
+                  hud.drifting
+                    ? "border-pink-300 bg-pink-500/70 text-white shadow-[0_0_24px_-4px_rgba(244,114,182,0.9)]"
+                    : "border-pink-300/45 bg-background/60 text-pink-100"
+                }`}
+              >
+                <RotateCcw className="h-4 w-4" /> Drift
+              </button>
+              <TouchButton label="NITRO" accent onDown={() => setVirtualKey(" ", true)} onUp={() => setVirtualKey(" ", false)} />
+            </div>
           </div>
         )}
 
@@ -2047,7 +2445,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                 <Kbd label="S / ↓" desc="Brake / Reverse" />
                 <Kbd label="A / ←" desc="Steer left" />
                 <Kbd label="D / →" desc="Steer right" />
-                <Kbd label="Space / Shift" desc="Nitro boost (+15 km/h)" />
+                <Kbd label="Space / Shift" desc="Nitro boost" />
+                <Kbd label="E / Ctrl" desc="Hold to drift through turns" />
                 <Kbd label="🎮 △○✕□" desc="Look for next-turn arrow" />
               </div>
               <button onClick={dismissHint} className="ps-pill mt-6">Start Racing</button>
@@ -2058,7 +2457,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       </div>
 
       <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground backdrop-blur-md">
-        <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · Space/Shift nitro
+        <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · E/Ctrl drift · Space/Shift nitro
       </div>
     </section>
   );
@@ -2072,6 +2471,39 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
       </kbd>
       <span className="text-muted-foreground">{desc}</span>
     </div>
+  );
+}
+
+function TouchButton({
+  label,
+  onDown,
+  onUp,
+  strong = false,
+  accent = false,
+}: {
+  label: string;
+  onDown: () => void;
+  onUp: () => void;
+  strong?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onDown(); }}
+      onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); onUp(); }}
+      onPointerCancel={onUp}
+      onPointerLeave={onUp}
+      className={`inline-flex h-12 min-w-[64px] items-center justify-center rounded-xl border px-3 text-[11px] font-black uppercase tracking-[0.08em] backdrop-blur transition active:scale-95 ${
+        strong
+          ? "border-emerald-300/60 bg-emerald-500/55 text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.9)]"
+          : accent
+            ? "border-amber-300/60 bg-amber-400/55 text-amber-950 shadow-[0_0_20px_-6px_rgba(251,191,36,0.9)]"
+            : "border-white/25 bg-background/58 text-white"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
