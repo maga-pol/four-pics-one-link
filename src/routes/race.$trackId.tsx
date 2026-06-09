@@ -150,6 +150,16 @@ type Car = {
   // per-car balance
   topT?: number;     // max track-progress per second for this car
   boostUntil?: number; // ms timestamp until +20% boost from pad
+  baseTopT?: number;
+  targetLane?: number;
+  laneVel?: number;
+  aiAggro?: number;
+  aiSkill?: number;
+  aiDecisionAt?: number;
+  aiDriftUntil?: number;
+  aiNitroUntil?: number;
+  lastTrailX?: number;
+  lastTrailY?: number;
 };
 
 type RaceStanding = {
@@ -441,7 +451,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
     for (let i = 1; i < cars.length; i++) {
-      cars[i].topT = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
+      const baseTop = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
+      cars[i].topT = baseTop;
+      cars[i].baseTopT = baseTop;
+      cars[i].targetLane = cars[i].lane;
+      cars[i].laneVel = 0;
+      cars[i].aiAggro = 0.72 + ((i * 37) % 19) / 100;
+      cars[i].aiSkill = 0.78 + ((i * 23) % 17) / 100;
+      cars[i].aiDecisionAt = 0;
+      cars[i].lastTrailX = cars[i].x;
+      cars[i].lastTrailY = cars[i].y;
     }
 
     // Japanese festival scenery placed off-road, deterministic and lightweight.
@@ -693,6 +712,42 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           isPlayer: car.isPlayer,
           colors: car.colors,
         }));
+    }
+
+    function forwardDelta(from: number, to: number) {
+      return ((to - from + 1) % 1);
+    }
+
+    function signedTrackDelta(from: number, to: number) {
+      let d = to - from;
+      while (d > 0.5) d -= 1;
+      while (d < -0.5) d += 1;
+      return d;
+    }
+
+    function laneOccupancyRisk(bot: Car, lane: number) {
+      let risk = 0;
+      for (const other of cars) {
+        if (other === bot || other.finishedAt) continue;
+        const sameLapBias = other.lap - bot.lap;
+        const d = signedTrackDelta(bot.t, other.t) + sameLapBias;
+        const laneGap = Math.abs((other.targetLane ?? other.lane) - lane);
+        if (laneGap > 0.25) continue;
+        if (d > -0.015 && d < 0.055) risk += 1 - Math.min(1, Math.abs(d) / 0.055);
+      }
+      return risk;
+    }
+
+    function upcomingTurn(t: number, lookAhead = 0.065) {
+      let best = { dir: 0, sharp: 0, ahead: 1 };
+      for (const turn of TURN_GUIDES) {
+        const ahead = forwardDelta(t, turn.t);
+        if (ahead > lookAhead) continue;
+        const weight = 1 - ahead / lookAhead;
+        const sharp = turn.sharp * (0.45 + weight * 0.55);
+        if (sharp > best.sharp) best = { dir: turn.dir, sharp, ahead };
+      }
+      return best;
     }
 
     function tick(now: number) {
@@ -1009,9 +1064,64 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const c = cars[i];
         if (c.finishedAt) continue;
         // Per-car top speed comes from this bot's pace profile; no rubber-banding.
-        const ownTop = c.topT ?? AI_TOP_T;
+        const ownTop = c.baseTopT ?? c.topT ?? AI_TOP_T;
         // Bots automatically slow to 84% before sharp corners so they never spin out.
+        const turn = upcomingTurn(c.t, 0.078);
+        const inSharpTurn = turn.sharp > 0.52 && turn.ahead < 0.052;
+        const driftingBot = inSharpTurn && c.speed > ownTop * 0.58;
+        if (driftingBot) c.aiDriftUntil = Math.max(c.aiDriftUntil ?? 0, now + 420);
+
+        if (now >= (c.aiDecisionAt ?? 0)) {
+          c.aiDecisionAt = now + 260 + i * 18;
+          let bestLane = c.targetLane ?? c.lane;
+          let bestScore = -Infinity;
+          const laneChoices = [-0.75, -0.45, -0.15, 0.15, 0.45, 0.75];
+          const traffic = cars
+            .filter((other) => other !== c && !other.finishedAt)
+            .map((other) => ({
+              other,
+              ahead: forwardDelta(c.t, other.t) + Math.max(0, other.lap - c.lap),
+            }))
+            .filter(({ ahead }) => ahead > 0 && ahead < 0.09)
+            .sort((a, b) => a.ahead - b.ahead)[0];
+
+          for (const lane of laneChoices) {
+            const laneChangeCost = Math.abs(lane - c.lane) * 0.42;
+            const edgeCost = Math.abs(lane) * 0.08;
+            const trafficRisk = laneOccupancyRisk(c, lane) * 1.25;
+            const racingLine = turn.dir === 0 ? 0 : -turn.dir * 0.28;
+            const cornerScore = -Math.abs(lane - racingLine) * turn.sharp * 0.36;
+            let passScore = 0;
+            if (traffic) {
+              const laneGap = Math.abs((traffic.other.targetLane ?? traffic.other.lane) - lane);
+              const blocked = laneGap < 0.2;
+              passScore = blocked ? -1.2 : (c.aiAggro ?? 0.75) * (1 - traffic.ahead / 0.09);
+            }
+            const rhythm = Math.sin(now / 850 + i * 1.7 + lane * 3) * 0.05;
+            const score = passScore + cornerScore + rhythm - laneChangeCost - edgeCost - trafficRisk;
+            if (score > bestScore) {
+              bestScore = score;
+              bestLane = lane;
+            }
+          }
+          c.targetLane = bestLane;
+        }
+
+        const targetLane = c.targetLane ?? c.lane;
+        const lanePull = Math.max(-1, Math.min(1, targetLane - c.lane));
+        c.laneVel = (c.laneVel ?? 0) + lanePull * (driftingBot ? 5.8 : 3.8) * dt;
+        c.laneVel *= Math.pow(driftingBot ? 0.08 : 0.16, dt);
+        c.lane = Math.max(-0.78, Math.min(0.78, c.lane + (c.laneVel ?? 0) * dt));
+
         let speedCap = ownTop;
+        if (turn.sharp > 0.55) {
+          const skill = c.aiSkill ?? 0.82;
+          const brakeMul = driftingBot ? 0.9 + skill * 0.08 : 0.78 + skill * 0.12;
+          speedCap = Math.min(speedCap, ownTop * brakeMul);
+        }
+        if (driftingBot && turn.ahead < 0.018) {
+          c.aiNitroUntil = Math.max(c.aiNitroUntil ?? 0, now + 520);
+        }
         for (const dc of DANGER_CORNERS) {
           const ahead = ((dc - c.t + 1) % 1);
           if (ahead < CORNER_WARN_AHEAD || ahead > 1 - CORNER_HIT_RADIUS) {
@@ -1028,9 +1138,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           }
         }
         if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.20;
+        if ((c.aiNitroUntil ?? 0) > now) speedCap = Math.max(speedCap, ownTop * 1.12);
         const desired = speedCap;
-        c.speed += Math.max(-accel * dt, Math.min(accel * dt, desired - c.speed));
-        // Lane is fixed at spawn — no wandering, no overlap with other cars.
+        c.speed += Math.max(-accel * 0.9 * dt, Math.min(accel * 1.05 * dt, desired - c.speed));
+        // Smooth lane movement keeps overtakes readable without physical car collisions.
         c.t += c.speed * dt;
         if (c.t >= 1) {
           c.t -= 1;
@@ -1041,7 +1152,32 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const aoff = c.lane * (ROAD_W / 2 - 14);
         c.x = pp.x + (-pp.hy) * aoff;
         c.y = pp.y + (pp.hx) * aoff;
-        c.angle = Math.atan2(pp.hy, pp.hx);
+        c.angle = Math.atan2(pp.hy, pp.hx) + (c.laneVel ?? 0) * 0.055 + (driftingBot ? turn.dir * 0.16 : 0);
+
+        if ((driftingBot || (c.aiNitroUntil ?? 0) > now) && c.lastTrailX !== undefined && c.lastTrailY !== undefined) {
+          const dxT = c.x - c.lastTrailX;
+          const dyT = c.y - c.lastTrailY;
+          if (dxT * dxT + dyT * dyT > 26 * 26) {
+            trails.push({ x1: c.lastTrailX, y1: c.lastTrailY, x2: c.x, y2: c.y, born: now });
+            c.lastTrailX = c.x;
+            c.lastTrailY = c.y;
+            if (trails.length > 340) trails.shift();
+          }
+          if (Math.random() < 0.18) {
+            spawnParticle(
+              c.x - Math.cos(c.angle) * 18,
+              c.y - Math.sin(c.angle) * 18,
+              -Math.cos(c.angle) * 80 + (Math.random() - 0.5) * 80,
+              -Math.sin(c.angle) * 80 + (Math.random() - 0.5) * 80,
+              driftingBot ? "rgba(244,114,182,0.5)" : "rgba(34,211,238,0.5)",
+              0.32,
+              2.5
+            );
+          }
+        } else {
+          c.lastTrailX = c.x;
+          c.lastTrailY = c.y;
+        }
       }
 
       draw(now);
@@ -2179,12 +2315,36 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // ramp jump bounce — scale up briefly while airborne
       const jump = c.isPlayer && airUntil > now ? Math.sin(((airUntil - now) / 750) * Math.PI) : 0;
       const s = 1 + jump * 0.35;
+      const botDrifting = !c.isPlayer && (c.aiDriftUntil ?? 0) > now;
+      const botBoosting = !c.isPlayer && ((c.aiNitroUntil ?? 0) > now || (c.boostUntil ?? 0) > now);
       ctx.rotate(c.angle);
       ctx.scale(s, s);
 
       // shadow (stays lower while jumping)
       ctx.fillStyle = `rgba(0,0,0,${0.35 - jump * 0.2})`;
       roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6); ctx.fill();
+
+      if (botBoosting) {
+        const glow = ctx.createLinearGradient(-46, 0, -14, 0);
+        glow.addColorStop(0, "rgba(34,211,238,0)");
+        glow.addColorStop(1, "rgba(34,211,238,0.72)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.moveTo(-48, -9);
+        ctx.lineTo(-16, -5);
+        ctx.lineTo(-16, 5);
+        ctx.lineTo(-48, 9);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (botDrifting) {
+        ctx.strokeStyle = "rgba(244,114,182,0.7)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(-18, 0, 19, -0.65, 0.65);
+        ctx.stroke();
+      }
 
       const [body, dark, accent] = c.colors;
       ctx.fillStyle = dark;
