@@ -385,8 +385,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const keysRef = useRef<Record<string, boolean>>({});
   const forceStartRef = useRef<(() => void) | null>(null);
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, health: 100, elapsed: 0, lapProgress: 0, drifting: false });
-  const [count, setCount] = useState<string | null>("3");
-  const [raceStarted, setRaceStarted] = useState(false);
+  const [count, setCount] = useState<string | null>(null);
+  const [raceStarted, setRaceStarted] = useState(true);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [showHint, setShowHint] = useState<boolean>(() => {
@@ -539,6 +539,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const baseTop = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
       cars[i].topT = baseTop;
       cars[i].baseTopT = baseTop;
+      cars[i].speed = baseTop * 0.58;
       cars[i].targetLane = cars[i].lane;
       cars[i].laneVel = 0;
       cars[i].aiAggro = 0.72 + ((i * 37) % 19) / 100;
@@ -741,9 +742,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       particles.push({ x, y, vx, vy, life, max: life, size, color });
     }
 
-    // Countdown
-    const COUNTDOWN_MS = 3500; // 3, 2, 1, GO
-    let countdownDone = false;
+    // Start immediately. A previous countdown freeze could leave cars stuck if the overlay failed.
+    const COUNTDOWN_MS = 0;
+    let countdownDone = true;
 
     // ===== NITRO — +20% top speed for 3s, 8s cooldown =====
     const NITRO_DURATION = 3000;
@@ -753,11 +754,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let nitro = 1; // HUD readiness (0..1)
     let last = performance.now();
     const countdownStartedAt = performance.now();
-    let raceStartedAt = countdownStartedAt + COUNTDOWN_MS;
+    let raceStartedAt = countdownStartedAt;
     let raf = 0;
     let running = true;
     let finished = false;
-    let raceLaunched = false;
+    let raceLaunched = true;
 
     function onKey(e: KeyboardEvent, down: boolean) {
       // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
@@ -803,7 +804,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const carHitCooldowns: Record<string, number> = {};
 
     function applyDamage(amount: number, hitX: number, hitY: number, color = "rgba(239,68,68,0.72)") {
-      if (amount <= 0 || player.finishedAt) return;
+      if (amount <= 0 || cars[0].finishedAt) return;
       const nowMs = performance.now();
       if (nowMs - lastDamageAt < 180) return;
       lastDamageAt = nowMs;
