@@ -383,8 +383,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
+  const forceStartRef = useRef<(() => void) | null>(null);
   const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, health: 100, elapsed: 0, lapProgress: 0, drifting: false });
   const [count, setCount] = useState<string | null>("3");
+  const [raceStarted, setRaceStarted] = useState(false);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [showHint, setShowHint] = useState<boolean>(() => {
@@ -404,6 +406,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   function dismissHint() {
     setShowHint(false);
     try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+    forceStartRef.current?.();
+  }
+  function setControl(control: string, down: boolean) {
+    keysRef.current[control] = down;
+    if (down) forceStartRef.current?.();
   }
 
   useEffect(() => {
@@ -745,7 +752,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let nitroReadyAt = 0;
     let nitro = 1; // HUD readiness (0..1)
     let last = performance.now();
-    const startedAt = performance.now();
+    const countdownStartedAt = performance.now();
+    let raceStartedAt = countdownStartedAt + COUNTDOWN_MS;
     let raf = 0;
     let running = true;
     let finished = false;
@@ -764,6 +772,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         e.preventDefault();
       }
       keysRef.current[mapped] = down;
+      if (down) forceStartRef.current?.();
       // first key press also kicks off audio (autoplay policy)
       if (down) startEngine();
     }
@@ -873,6 +882,22 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       try { fn(); } catch {}
     }
 
+    function launchRace(now = performance.now()) {
+      if (raceLaunched) return;
+      const launchPlayer = cars[0];
+      raceLaunched = true;
+      countdownDone = true;
+      raceStartedAt = now;
+      setRaceStarted(true);
+      setCount(null);
+      launchPlayer.speed = Math.max(launchPlayer.speed, baseSpeed * 0.24);
+      for (let i = 1; i < cars.length; i++) {
+        const launchTop = cars[i].baseTopT ?? cars[i].topT ?? AI_TOP_T;
+        cars[i].speed = Math.max(cars[i].speed, launchTop * 0.42);
+      }
+    }
+    forceStartRef.current = launchRace;
+
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
@@ -880,10 +905,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const k = keysRef.current;
       const player = cars[0];
 
-      const sinceStart = now - startedAt;
-      const racing = sinceStart >= COUNTDOWN_MS;
+      const sinceCountdownStart = now - countdownStartedAt;
+      const racing = raceLaunched || sinceCountdownStart >= COUNTDOWN_MS;
       if (!racing) {
-        const remain = COUNTDOWN_MS - sinceStart;
+        const remain = COUNTDOWN_MS - sinceCountdownStart;
         let idx = 3;
         if (remain > 2500) { setCount("3"); idx = 3; }
         else if (remain > 1500) { setCount("2"); idx = 2; }
@@ -900,16 +925,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         raf = requestAnimationFrame(tick);
         return;
       } else if (!countdownDone) {
-        countdownDone = true;
-        setCount(null);
-      }
-      if (!raceLaunched) {
-        raceLaunched = true;
-        player.speed = Math.max(player.speed, baseSpeed * 0.24);
-        for (let i = 1; i < cars.length; i++) {
-          const launchTop = cars[i].baseTopT ?? cars[i].topT ?? AI_TOP_T;
-          cars[i].speed = Math.max(cars[i].speed, launchTop * 0.42);
-        }
+        launchRace(now);
       }
 
       const accelKey = k["w"] || k["arrowup"];
@@ -1377,7 +1393,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         total: cars.length,
         nitro: nitro / nitroCap,
         health: Math.round(playerHealth),
-        elapsed: Math.max(0, ((player.finishedAt ?? now) - startedAt - COUNTDOWN_MS) / 1000),
+        elapsed: Math.max(0, ((player.finishedAt ?? now) - raceStartedAt) / 1000),
         lapProgress: player.lap >= laps ? 1 : player.t,
         drifting,
       });
@@ -1388,7 +1404,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const reward = rewards[pos - 1] ?? 30;
         addCoins(reward);
         recordRaceFinish(pos, trackId);
-        const t = ((player.finishedAt - startedAt) - COUNTDOWN_MS) / 1000;
+        const t = (player.finishedAt - raceStartedAt) / 1000;
         const prevBest = readBestTime(trackId);
         const isNewBest = prevBest === null || t < prevBest;
         if (isNewBest) writeBestTime(trackId, t);
@@ -2709,6 +2725,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     return () => {
       running = false;
+      forceStartRef.current = null;
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener("keydown", kd);
@@ -2972,6 +2989,30 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           );
         })()}
 
+        {!result && (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-end justify-between gap-3">
+            <div className="pointer-events-auto grid grid-cols-2 gap-2">
+              <RaceControlButton label="LEFT" onDown={() => setControl("a", true)} onUp={() => setControl("a", false)} />
+              <RaceControlButton label="RIGHT" onDown={() => setControl("d", true)} onUp={() => setControl("d", false)} />
+            </div>
+            <div className="pointer-events-auto flex gap-2">
+              <RaceControlButton label="GAS" tone="green" onDown={() => setControl("w", true)} onUp={() => setControl("w", false)} />
+              <RaceControlButton label="DRIFT" tone="dark" onDown={() => setControl("e", true)} onUp={() => setControl("e", false)} />
+              <RaceControlButton label="NITRO" tone="gold" onDown={() => setControl("shift", true)} onUp={() => setControl("shift", false)} />
+            </div>
+          </div>
+        )}
+
+        {!raceStarted && !result && !showHint && !count && (
+          <button
+            type="button"
+            onClick={() => forceStartRef.current?.()}
+            className="pointer-events-auto absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-primary/60 bg-background/85 px-6 py-4 font-display text-2xl text-primary-glow shadow-glow backdrop-blur"
+          >
+            START RACE
+          </button>
+        )}
+
         {/* First-run controls overlay */}
         {showHint && !result && (
           <div
@@ -3011,6 +3052,38 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
       </kbd>
       <span className="text-muted-foreground">{desc}</span>
     </div>
+  );
+}
+
+function RaceControlButton({ label, tone = "blue", onDown, onUp }: { label: string; tone?: "blue" | "green" | "gold" | "dark"; onDown: () => void; onUp: () => void }) {
+  const toneClass =
+    tone === "green"
+      ? "border-emerald-300/70 bg-emerald-500/80 text-white"
+      : tone === "gold"
+        ? "border-amber-300/70 bg-amber-500/85 text-amber-950"
+        : tone === "dark"
+          ? "border-white/30 bg-background/80 text-white"
+          : "border-primary/60 bg-background/85 text-white";
+  return (
+    <button
+      type="button"
+      className={`h-14 min-w-20 select-none rounded-none border px-4 text-xs font-black uppercase tracking-[0.12em] shadow-[0_12px_28px_-18px_rgba(0,0,0,0.9)] backdrop-blur transition active:scale-95 ${toneClass}`}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onDown();
+      }}
+      onPointerUp={(event) => {
+        event.preventDefault();
+        try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+        onUp();
+      }}
+      onPointerCancel={onUp}
+      onPointerLeave={onUp}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      {label}
+    </button>
   );
 }
 
