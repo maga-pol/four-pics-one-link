@@ -258,10 +258,23 @@ function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
   const botDrivers = [...drivers, ...fallbackDrivers];
   const botCars = CARS.filter((car) => car.id !== playerCar.id);
 
-  return botDrivers.map((driver, index) => ({
-    driver,
-    car: botCars[index % botCars.length] ?? CARS[index % CARS.length],
-  }));
+  return botDrivers.map((driver, index) => {
+    const teamCar = CARS.find((car) => car.team === driver.team);
+    const fallbackCar = botCars[index % botCars.length] ?? CARS[index % CARS.length];
+    const car = teamCar ?? {
+      ...fallbackCar,
+      id: `${driver.id}-team-car`,
+      name: `${driver.team} GP`,
+      team: driver.team,
+      colors: [
+        driver.color,
+        driver.accent === "#111111" ? "#f3f4f6" : "#111111",
+        driver.accent,
+      ] as [string, string, string],
+    };
+
+    return { driver, car };
+  });
 }
 
 function legacyOvalPoint(t: number) {
@@ -384,7 +397,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const playerOff = startLatOff(playerLane);
     // Bots have different pace profiles. Most are slower than a focused player,
     // and nitro/boost pads make clean overtakes possible.
-    const AI_PACE = [0.78, 0.86, 0.93, 0.82, 0.98];
+    const AI_PACE = [0.92, 0.99, 1.06, 0.96, 1.1];
     const cars: Car[] = [
       {
         id: "p",
