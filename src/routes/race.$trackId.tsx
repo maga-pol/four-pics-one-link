@@ -187,6 +187,7 @@ type RaceResult = {
   best: number | null;
   isNewBest: boolean;
   standings: RaceStanding[];
+  failed?: boolean;
 };
 
 const WORLD_W = 8800;
@@ -1398,6 +1399,26 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         lapProgress: player.lap >= laps ? 1 : player.t,
         drifting,
       });
+
+      if (playerHealth <= 0 && !finished) {
+        finished = true;
+        player.finishedAt = now;
+        player.speed = 0;
+        lateralVelocity = 0;
+        recordRaceFinish(cars.length, trackId);
+        stopEngine();
+        setResult({
+          rank: cars.length,
+          reward: 0,
+          time: Math.max(0, (now - raceStartedAt) / 1000),
+          best: readBestTime(trackId),
+          isNewBest: false,
+          standings,
+          failed: true,
+        });
+        running = false;
+        return;
+      }
 
       if (player.finishedAt && !finished) {
         finished = true;
@@ -2901,9 +2922,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         )}
 
         {result && (() => {
-          const medal = result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : "🏁";
-          const place = result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
-          const tone = result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
+          const medal = result.failed ? "💥" : result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : "🏁";
+          const place = result.failed ? "DNF" : result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
+          const tone = result.failed ? "bg-red-500/90 text-white" : result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
           return (
             <div className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-background/85 backdrop-blur-md animate-fade-up">
               <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
@@ -2921,7 +2942,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                   <span className="text-gradient-title">{place}</span>
                 </div>
                 <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full ${tone} px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-button`}>
-                  Race Finished
+                  {result.failed ? "Car Destroyed" : "Race Finished"}
                 </div>
 
                 <div className="mt-6 grid grid-cols-3 items-end gap-2">
@@ -2947,7 +2968,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
                 <div className="mt-6 grid grid-cols-3 gap-2">
                   <ResultStat label="Time"   value={formatTime(result.time)} tone="bg-white/[0.06]" valueClass="text-white" />
-                  <ResultStat label="Coins"  value={`+${result.reward}`}      tone="bg-gradient-coin" valueClass="text-amber-950" />
+                  <ResultStat label="Coins"  value={`+${result.reward}`}      tone={result.failed ? "bg-red-500/15" : "bg-gradient-coin"} valueClass={result.failed ? "text-red-200" : "text-amber-950"} />
                   <ResultStat label="Best"   value={formatTime(result.isNewBest ? result.time : (result.best ?? result.time))} tone="bg-gradient-cyan" valueClass="text-cyan-950" />
                 </div>
 
@@ -2979,7 +3000,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                   onClick={() => window.location.reload()}
                   className="arcade-btn mt-6 h-14 w-full text-base"
                 >
-                  CONTINUE <Trophy className="h-5 w-5" />
+                  {result.failed ? "TRY AGAIN" : "CONTINUE"} <Trophy className="h-5 w-5" />
                 </button>
                 <div className="mt-2 flex justify-center gap-2">
                   <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">Quiz</Link>
