@@ -749,6 +749,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let raf = 0;
     let running = true;
     let finished = false;
+    let raceLaunched = false;
 
     function onKey(e: KeyboardEvent, down: boolean) {
       // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
@@ -799,7 +800,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       lastDamageAt = nowMs;
       playerHealth = Math.max(0, playerHealth - amount);
       shake = Math.max(shake, 5 + amount * 0.25);
-      playCrash();
+      safeSound(playCrash);
       for (let i = 0; i < 8; i++) {
         spawnParticle(
           hitX,
@@ -868,6 +869,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       return best;
     }
 
+    function safeSound(fn: () => void) {
+      try { fn(); } catch {}
+    }
+
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
@@ -886,7 +891,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         else { setCount("GO"); idx = 0; }
         if (idx !== lastCountdownBeep) {
           lastCountdownBeep = idx;
-          playCountdownBeep(idx === 0);
+          safeSound(() => playCountdownBeep(idx === 0));
         }
         // freeze cars
         player.speed = 0;
@@ -897,6 +902,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       } else if (!countdownDone) {
         countdownDone = true;
         setCount(null);
+      }
+      if (!raceLaunched) {
+        raceLaunched = true;
+        player.speed = Math.max(player.speed, baseSpeed * 0.24);
+        for (let i = 1; i < cars.length; i++) {
+          const launchTop = cars[i].baseTopT ?? cars[i].topT ?? AI_TOP_T;
+          cars[i].speed = Math.max(cars[i].speed, launchTop * 0.42);
+        }
       }
 
       const accelKey = k["w"] || k["arrowup"];
@@ -909,7 +922,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       if (nitroKeyDown && now >= nitroReadyAt && nitroActiveUntil < now) {
         nitroActiveUntil = now + NITRO_DURATION;
         nitroReadyAt = nitroActiveUntil + NITRO_COOLDOWN;
-        playNitroSwoosh();
+        safeSound(playNitroSwoosh);
         shake = Math.max(shake, 6);
       }
       const boosting = nitroActiveUntil > now;
@@ -966,7 +979,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           driftBoostUntil = Math.max(driftBoostUntil, now + 520);
           if (now - lastDriftSfx > 360) {
             lastDriftSfx = now;
-            playDriftScreech();
+            safeSound(playDriftScreech);
           }
           for (let s = 0; s < 2; s++) {
             spawnParticle(
@@ -1002,7 +1015,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
               spinAngVel = (Math.random() < 0.5 ? -1 : 1) * Math.PI * 1.6;
               player.speed *= 0.35;
               shake = Math.max(shake, 18);
-              playCrash();
+              safeSound(playCrash);
               // Skid marks — burst of dark tire smudges
               for (let s = 0; s < 24; s++) {
                 spawnParticle(
@@ -1102,14 +1115,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         if (dx * dx + dy * dy < 38 * 38) {
           if (f.kind === "boost" && boostUntil < now) {
             boostUntil = now + 2000;
-            playNitroSwoosh();
+            safeSound(playNitroSwoosh);
             shake = Math.max(shake, 4);
           } else if (f.kind === "ramp" && airUntil < now) {
             airUntil = now + 760;
             boostUntil = Math.max(boostUntil, now + 900);
             player.speed = Math.min(maxSpeed * 1.18, player.speed + accel * 0.8);
             shake = Math.max(shake, 5);
-            playNitroSwoosh();
+            safeSound(playNitroSwoosh);
           }
         }
       }
@@ -1153,12 +1166,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       }
 
       // ===== Camera shake triggers =====
-      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); playNitroSwoosh(); }
+      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); safeSound(playNitroSwoosh); }
       prevBoosting = boosting;
       shake *= Math.pow(0.001, dt); // decay fast
 
       // ===== Engine audio =====
-      setEngine(speedFrac, boosting);
+      safeSound(() => setEngine(speedFrac, boosting));
 
       // ===== Next-turn predictor =====
       {
