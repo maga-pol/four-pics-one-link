@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Car, Flag, Home, Trophy, UserCircle } from "lucide-react";
+import { Car, Flag, Flame, Home, Trophy, UserCircle } from "lucide-react";
 import { getRankInfo, type GameState } from "@/lib/garage";
 
 const navItems = [
@@ -61,6 +61,9 @@ export function RacingTopNav() {
 
 export function ProgressionPanel({ state, compact = false }: { state: GameState; compact?: boolean }) {
   const rank = getRankInfo(state);
+  const week = getCurrentWeek();
+  const winDates = new Set(state.raceWinDates ?? []);
+  const weekWins = week.filter((day) => winDates.has(day.key)).length;
 
   return (
     <div className={`border border-[#303030] bg-[#111] ${compact ? "p-4" : "p-5"}`}>
@@ -81,8 +84,70 @@ export function ProgressionPanel({ state, compact = false }: { state: GameState;
           </div>
         ))}
       </div>
+      {!compact && (
+        <div className="mt-5 border-t border-[#303030] pt-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#f5c518]">
+              <Flame className="h-4 w-4 text-[#da291c]" />
+              Win Streak
+            </div>
+            <div className="text-[11px] font-black uppercase tracking-[0.1em] text-white">
+              {weekWins}/7 this week
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {week.map((day) => {
+              const active = winDates.has(day.key);
+              return (
+                <div
+                  key={day.key}
+                  className={`relative flex h-14 flex-col items-center justify-center border text-[10px] font-black uppercase tracking-[0.06em] transition ${
+                    active
+                      ? "border-[#f5c518] bg-[#3a2505] text-[#f5c518] shadow-[0_0_24px_-12px_rgba(245,197,24,0.95)]"
+                      : day.today
+                        ? "border-[#da291c] bg-[#1e1e1e] text-white"
+                        : "border-[#303030] bg-[#181818] text-[#696969]"
+                  }`}
+                  title={active ? `Race won on ${day.key}` : `No race win on ${day.key}`}
+                >
+                  <span>{day.label}</span>
+                  <span className="mt-1 text-[9px]">{active ? "WIN" : day.today ? "NOW" : "--"}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.1em] text-[#696969]">
+            <span>Win one race each day</span>
+            <span className="text-[#da291c]">Best {state.bestWinStreak ?? 0}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentWeek() {
+  const labels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+  const today = new Date();
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const start = new Date(today);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(today.getDate() - mondayOffset);
+  const todayKey = dateKey(today);
+
+  return labels.map((label, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const key = dateKey(date);
+    return { label, key, today: key === todayKey };
+  });
 }
 
 export function PremiumStat({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {

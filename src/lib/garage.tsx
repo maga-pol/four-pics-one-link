@@ -9,6 +9,7 @@ export type GameState = {
   totalQuizzesCompleted?: number;
   winStreak?: number;
   bestWinStreak?: number;
+  raceWinDates?: string[];
   unlockedTracks?: number;
   podiumTrackIds?: string[];
   upgrades?: Partial<Record<UpgradeKey, number>>;
@@ -116,6 +117,7 @@ export function defaultState(): GameState {
     totalQuizzesCompleted: 0,
     winStreak: 0,
     bestWinStreak: 0,
+    raceWinDates: [],
     unlockedTracks: 1,
     podiumTrackIds: [],
     upgrades: { speed: 1, acceleration: 1, nitro: 0, control: 0 },
@@ -155,6 +157,7 @@ export function normalizeState(raw: GameState): GameState {
     ...raw,
     upgrades: { ...base.upgrades, ...raw.upgrades },
     podiumTrackIds: Array.from(new Set(raw.podiumTrackIds ?? [])),
+    raceWinDates: Array.from(new Set(raw.raceWinDates ?? [])).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)).slice(-28),
     selectedDriverId,
     unlockedDriverIds: Array.from(unlockedDrivers),
     selectedCarId,

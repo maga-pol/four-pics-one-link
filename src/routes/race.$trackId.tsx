@@ -28,6 +28,13 @@ const STORAGE = "wqr-state";
 const BEST_KEY = "wqr-best-times";
 const HINT_KEY = "wqr-controls-hint-seen";
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
@@ -47,6 +54,7 @@ function recordRaceFinish(rank: number, trackId: string) {
       obj.wins = (obj.wins ?? 0) + 1;
       obj.winStreak = nextStreak;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, nextStreak);
+      obj.raceWinDates = Array.from(new Set([...(obj.raceWinDates ?? []), localDateKey()])).slice(-28);
     } else {
       obj.winStreak = 0;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, 0);
