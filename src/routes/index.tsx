@@ -4,15 +4,11 @@ import {
   Brain,
   CarFront,
   Coins,
-  Gauge,
   LogOut,
-  Move,
   Play,
-  Rocket,
   Trophy,
   UserCircle,
   Wrench,
-  Zap,
 } from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,13 +19,12 @@ import {
   defaultState as defaultGarageState,
   getSelectedCar,
   getSelectedDriver,
-  normalizeState,
   readGameState,
   writeGameState,
   type GameState,
   type UpgradeKey,
 } from "@/lib/garage";
-import { FeedbackToast, PremiumStat, ProgressionPanel, RacingShell } from "@/lib/racing-ui";
+import { PremiumStat, ProgressionPanel, RacingShell } from "@/lib/racing-ui";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,17 +37,15 @@ export const Route = createFileRoute("/")({
 });
 
 const MAX_LEVEL = 5;
-const COSTS = [100, 200, 350, 550, 800];
 
 const UPGRADES: {
   key: UpgradeKey;
   label: string;
-  icon: React.ReactNode;
 }[] = [
-  { key: "speed", label: "Speed", icon: <Gauge className="h-5 w-5" /> },
-  { key: "acceleration", label: "Acceleration", icon: <Rocket className="h-5 w-5" /> },
-  { key: "nitro", label: "Nitro", icon: <Zap className="h-5 w-5" /> },
-  { key: "control", label: "Control", icon: <Move className="h-5 w-5" /> },
+  { key: "speed", label: "Speed" },
+  { key: "acceleration", label: "Acceleration" },
+  { key: "nitro", label: "Nitro" },
+  { key: "control", label: "Control" },
 ];
 
 function defaultState(): GameState {
@@ -63,7 +56,6 @@ function HomeHUD() {
   const [state, setState] = useState<GameState>(defaultState);
   const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     setState(readGameState());
@@ -84,27 +76,6 @@ function HomeHUD() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  function showFeedback(message: string) {
-    setFeedback(message);
-    window.setTimeout(() => setFeedback(null), 2200);
-  }
-
-  function buyUpgrade(key: UpgradeKey) {
-    setState((s) => {
-      const current = normalizeState(s);
-      const upgrades = current.upgrades ?? defaultState().upgrades!;
-      const lvl = upgrades[key] ?? 0;
-      if (lvl >= MAX_LEVEL) return s;
-      const cost = COSTS[lvl];
-      if ((current.coins ?? 0) < cost) {
-        showFeedback("Need more coins");
-        return s;
-      }
-      showFeedback("Upgrade successful");
-      return { ...current, coins: (current.coins ?? 0) - cost, upgrades: { ...upgrades, [key]: lvl + 1 } };
-    });
-  }
-
   const tracks = TRACKS;
   const firstTrack = tracks[0];
   const selectedDriver = getSelectedDriver(state);
@@ -113,8 +84,6 @@ function HomeHUD() {
 
   return (
     <RacingShell>
-      <FeedbackToast message={feedback} />
-
       <div className="flex justify-end gap-2">
         {user ? (
           <>
@@ -215,76 +184,35 @@ function HomeHUD() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_0.85fr]">
+      <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <ProgressionPanel state={state} />
         <div className="border border-[#303030] bg-[#111] p-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">Current Loadout</div>
-          <div className="mt-3 flex items-center justify-between gap-4">
+          <div className="flex items-start justify-between gap-4 border-b border-[#303030] pb-4">
             <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">Current Loadout</div>
               <div className="font-display text-2xl uppercase text-white">{selectedCar.name}</div>
               <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#969696]">{selectedDriver.name}</div>
             </div>
-            <Link to="/garage" className="arcade-btn arcade-btn-ghost h-10 px-4">Tune</Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="arcade-card p-6">
-          <div className="mb-5 flex items-end justify-between border-b border-[#303030] pb-4">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Quick Upgrades</div>
-              <h2 className="font-display mt-1 text-2xl text-white">Upgrade your racer</h2>
+            <div className="border border-[#303030] bg-[#181818] px-3 py-2 text-right">
+              <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#969696]">Team</div>
+              <div className="text-sm font-black uppercase text-[#f5c518]">{selectedCar.team}</div>
             </div>
-            <Link to="/garage" className="arcade-btn arcade-btn-cyan h-10 px-4">Garage</Link>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3">
             {UPGRADES.map((u) => {
               const lvl = upgrades[u.key] ?? 0;
-              const max = lvl >= MAX_LEVEL;
-              const cost = max ? 0 : COSTS[lvl];
-              const afford = (state.coins ?? 0) >= cost;
               return (
-                <div key={u.key} className="relative overflow-hidden border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#da291c]/70">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="grid h-11 w-11 place-items-center border border-[#303030] bg-[#252525] text-[#f5c518]">{u.icon}</span>
-                      <div>
-                        <div className="text-sm font-bold uppercase tracking-[0.1em] text-white">{u.label}</div>
-                        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#969696]">Level {lvl}/{MAX_LEVEL}</div>
-                      </div>
-                    </div>
-                    {!max && <div className="text-xs font-bold text-[#f5c518]">{cost}</div>}
+                <div key={u.key}>
+                  <div className="mb-1 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.1em]">
+                    <span className="text-[#969696]">{u.label}</span>
+                    <span className="text-white">{lvl}/{MAX_LEVEL}</span>
                   </div>
-                  <div className="mt-4 h-3 overflow-hidden border border-[#303030] bg-[#111]">
+                  <div className="h-2 overflow-hidden border border-[#303030] bg-[#181818]">
                     <div className="h-full bg-[#da291c] shadow-[0_0_18px_rgba(218,41,28,0.8)] transition-[width] duration-300" style={{ width: `${(lvl / MAX_LEVEL) * 100}%` }} />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => buyUpgrade(u.key)}
-                    disabled={max || !afford}
-                    className={`mt-4 flex h-11 w-full items-center justify-center gap-2 px-3 text-[12px] font-bold uppercase tracking-[0.1em] transition hover:shadow-[0_0_28px_-14px_rgba(245,197,24,0.9)] ${
-                      max
-                        ? "bg-[#252525] text-[#696969]"
-                        : afford
-                          ? "bg-[#da291c] text-white hover:bg-[#b01e0a]"
-                          : "cursor-not-allowed border border-[#303030] bg-[#111] text-[#696969]"
-                    }`}
-                  >
-                    {max ? "Maxed" : "Upgrade"}
-                  </button>
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        <div className="arcade-card p-6">
-          <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">Next Actions</div>
-          <div className="mt-4 grid gap-3">
-            <Link to="/quiz" className="arcade-btn arcade-btn-coin h-14 w-full">Earn Coins</Link>
-            <Link to="/drivers" className="arcade-btn arcade-btn-ghost h-14 w-full">Choose Driver</Link>
-            <Link to={`/race/${firstTrack.id}`} className="arcade-btn h-14 w-full">Start Race</Link>
           </div>
         </div>
       </section>
