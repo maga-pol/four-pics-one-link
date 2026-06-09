@@ -128,7 +128,7 @@ function HomeHUD() {
               ) : (
                 <UserCircle className="h-4 w-4" />
               )}
-              Profile
+              <span className="max-w-[180px] truncate normal-case tracking-normal">{user.email}</span>
             </Link>
             <button
               type="button"

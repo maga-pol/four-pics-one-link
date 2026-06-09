@@ -28,6 +28,22 @@ function AuthCallbackPage() {
         return;
       }
 
+      const code = urlParams.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (!active) return;
+
+        if (exchangeError) {
+          setError(exchangeError.message);
+          return;
+        }
+
+        window.history.replaceState(null, document.title, "/auth/callback");
+        navigate({ to: "/profile", replace: true });
+        return;
+      }
+
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
 

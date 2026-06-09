@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { CarFront, Coins, Flag, Flame, Gauge, Save, Trophy, UserCircle } from "lucide-react";
+import { CarFront, Coins, Flag, Flame, Gauge, LogOut, Save, Trophy, UserCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -71,6 +71,11 @@ function ProfilePage() {
     setSaving(false);
   }
 
+  async function signOut() {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
   if (!user) {
     return (
       <RacingShell>
@@ -128,6 +133,9 @@ function ProfilePage() {
             <Link to="/garage" className="arcade-btn arcade-btn-ghost h-10 flex-1 px-4">Garage</Link>
             <Link to="/drivers" className="arcade-btn arcade-btn-ghost h-10 flex-1 px-4">Drivers</Link>
           </div>
+          <button type="button" onClick={signOut} className="arcade-btn arcade-btn-ghost mt-3 h-10 w-full">
+            <LogOut className="h-4 w-4" /> Log out
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">

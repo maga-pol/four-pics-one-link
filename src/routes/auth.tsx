@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Log in - World Quiz Race" }] }),
@@ -9,12 +10,10 @@ export const Route = createFileRoute("/auth")({
 });
 
 function getAuthRedirectUrl() {
-  const siteUrl = import.meta.env.VITE_SITE_URL || "https://four-pics-one-link.vercel.app";
+  const siteUrl =
+    import.meta.env.VITE_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "https://four-pics-one-link.vercel.app");
   return `${siteUrl.replace(/\/$/, "")}/auth/callback`;
-}
-
-function getSupabaseUrl() {
-  return (import.meta.env.VITE_SUPABASE_URL || "https://rbuwruqvkcznwzsxlkrm.supabase.co").replace(/\/$/, "");
 }
 
 function AuthPage() {
@@ -26,25 +25,30 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/profile", replace: true });
+      setUser(data.user ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) navigate({ to: "/profile", replace: true });
+      setUser(session?.user ?? null);
     });
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
-  const signInWithGoogle = () => {
+  const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
     setMessage(null);
-    const authUrl = new URL(`${getSupabaseUrl()}/auth/v1/authorize`);
-    authUrl.searchParams.set("provider", "google");
-    authUrl.searchParams.set("redirect_to", getAuthRedirectUrl());
-    window.location.assign(authUrl.toString());
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: getAuthRedirectUrl() },
+    });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    }
   };
 
   const submitEmail = async (e: FormEvent) => {
@@ -55,7 +59,7 @@ function AuthPage() {
 
     const cleanEmail = email.trim();
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
@@ -67,16 +71,32 @@ function AuthPage() {
       });
       if (error) {
         setError(error.message);
+      } else if (data.session?.user) {
+        setUser(data.session.user);
+        navigate({ to: "/profile", replace: true });
       } else {
         setMessage("Account created. Check your email if Supabase asks for confirmation.");
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
       });
-      if (error) setError(error.message);
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
+        setUser(data.user);
+        navigate({ to: "/profile", replace: true });
+      }
     }
+    setLoading(false);
+  };
+
+  const signOut = async () => {
+    setLoading(true);
+    setError(null);
+    await supabase.auth.signOut();
+    setUser(null);
     setLoading(false);
   };
 
@@ -92,76 +112,91 @@ function AuthPage() {
           <p className="mt-1 text-xs text-muted-foreground">Create a profile and keep your racing identity.</p>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 border border-[#303030] bg-[#111] text-xs font-bold uppercase tracking-[0.11em]">
-          <button
-            type="button"
-            onClick={() => setMode("signup")}
-            className={`px-3 py-2 ${mode === "signup" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
-          >
-            Register
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className={`px-3 py-2 ${mode === "login" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
-          >
-            Log in
-          </button>
-        </div>
+        {user ? (
+          <div className="space-y-4">
+            <div className="border border-[#303030] bg-[#111] p-4 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#969696]">Signed in as</div>
+              <div className="mt-1 truncate text-sm font-bold text-white">{user.email}</div>
+            </div>
+            <Link to="/profile" className="arcade-btn h-12 w-full">Open profile</Link>
+            <button type="button" onClick={signOut} disabled={loading} className="arcade-btn arcade-btn-ghost h-12 w-full disabled:opacity-60">
+              Log out
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 grid grid-cols-2 border border-[#303030] bg-[#111] text-xs font-bold uppercase tracking-[0.11em]">
+              <button
+                type="button"
+                onClick={() => setMode("signup")}
+                className={`px-3 py-2 ${mode === "signup" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
+              >
+                Register
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className={`px-3 py-2 ${mode === "login" ? "bg-[#da291c] text-white" : "text-[#969696]"}`}
+              >
+                Log in
+              </button>
+            </div>
 
-        <form onSubmit={submitEmail} className="space-y-3">
-          {mode === "signup" && (
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Racer name"
-              className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
-            />
-          )}
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            required
-            placeholder="Email"
-            className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
-          />
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            required
-            minLength={6}
-            placeholder="Password"
-            className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="arcade-btn h-12 w-full disabled:opacity-60"
-          >
-            {loading ? "Working..." : mode === "signup" ? "Create profile" : "Log in"}
-          </button>
-        </form>
+            <form onSubmit={submitEmail} className="space-y-3">
+              {mode === "signup" && (
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Racer name"
+                  className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+                />
+              )}
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                required
+                placeholder="Email"
+                className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+              />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                required
+                minLength={6}
+                placeholder="Password"
+                className="w-full border border-[#303030] bg-[#111] px-3 py-3 text-sm font-bold text-white outline-none transition focus:border-[#da291c]"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="arcade-btn h-12 w-full disabled:opacity-60"
+              >
+                {loading ? "Working..." : mode === "signup" ? "Create profile" : "Log in"}
+              </button>
+            </form>
 
-        <div className="my-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          <div className="h-px flex-1 bg-[#303030]" />
-          or
-          <div className="h-px flex-1 bg-[#303030]" />
-        </div>
+            <div className="my-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="h-px flex-1 bg-[#303030]" />
+              or
+              <div className="h-px flex-1 bg-[#303030]" />
+            </div>
 
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 border border-[#303030] bg-white px-4 py-2.5 text-sm font-bold text-black shadow-button transition hover:bg-[#f5f5f5] disabled:opacity-60"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center gap-2 border border-[#303030] bg-white px-4 py-2.5 text-sm font-bold text-black shadow-button transition hover:bg-[#f5f5f5] disabled:opacity-60"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
 
-        {message && <p className="mt-3 text-center text-xs text-[#f5c518]">{message}</p>}
-        {error && <p className="mt-3 text-center text-xs text-red-400">{error}</p>}
+            {message && <p className="mt-3 text-center text-xs text-[#f5c518]">{message}</p>}
+            {error && <p className="mt-3 text-center text-xs text-red-400">{error}</p>}
+          </>
+        )}
         <Link to="/" className="mt-5 block text-center text-xs font-bold uppercase tracking-[0.11em] text-[#969696] transition hover:text-white">
           Back to hub
         </Link>
