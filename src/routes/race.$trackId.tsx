@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Flag, Gauge, HeartPulse, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
 import { getTrack } from "@/lib/tracks";
 import {
   startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
@@ -383,7 +383,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
-  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, elapsed: 0, lapProgress: 0, drifting: false });
+  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, health: 100, elapsed: 0, lapProgress: 0, drifting: false });
   const [count, setCount] = useState<string | null>("3");
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
@@ -788,6 +788,30 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let shake = 0;
     let prevBoosting = false;
     let lastCountdownBeep = -1;
+    let playerHealth = 100;
+    let lastDamageAt = 0;
+    const carHitCooldowns: Record<string, number> = {};
+
+    function applyDamage(amount: number, hitX: number, hitY: number, color = "rgba(239,68,68,0.72)") {
+      if (amount <= 0 || player.finishedAt) return;
+      const nowMs = performance.now();
+      if (nowMs - lastDamageAt < 180) return;
+      lastDamageAt = nowMs;
+      playerHealth = Math.max(0, playerHealth - amount);
+      shake = Math.max(shake, 5 + amount * 0.25);
+      playCrash();
+      for (let i = 0; i < 8; i++) {
+        spawnParticle(
+          hitX,
+          hitY,
+          (Math.random() - 0.5) * 180,
+          (Math.random() - 0.5) * 180,
+          i % 2 ? color : "rgba(250,250,250,0.72)",
+          0.35 + Math.random() * 0.2,
+          2.5 + Math.random() * 2
+        );
+      }
+    }
 
     function getStandings(): RaceStanding[] {
       return [...cars]
@@ -898,7 +922,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const padActive = boostUntil > now;
       const driftBoosting = driftBoostUntil > now;
       const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1) * (driftBoosting ? 1.08 : 1);
-      const maxSpeed = baseMax * boostMul;
+      const healthLimiter = playerHealth <= 0 ? 0.42 : 0.72 + (playerHealth / 100) * 0.28;
+      const maxSpeed = baseMax * boostMul * healthLimiter;
       if (!isSpinning) {
         if (accelKey) player.speed += accel * 0.8 * dt;
         if (brakeKey) player.speed -= accel * 1.6 * dt;
@@ -1041,9 +1066,35 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         lastTrailY = player.y;
       }
 
-      // ===== Car-vs-car collisions disabled =====
-      // Each car runs in its own fixed lane; faster cars cleanly pass through
-      // slower ones without any rigid-body push.
+      // ===== Soft car-vs-car contact =====
+      // Cars stay on their own racing lanes, but close overlap now costs speed and health.
+      if (airUntil < now) {
+        for (let i = 1; i < cars.length; i++) {
+          const rival = cars[i];
+          if (rival.finishedAt) continue;
+          const sameLapBias = rival.lap - player.lap;
+          const trackGap = Math.abs(signedTrackDelta(player.t, rival.t) + sameLapBias);
+          if (trackGap > 0.012) continue;
+          const dx = player.x - rival.x;
+          const dy = player.y - rival.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 46) continue;
+          const canHit = (carHitCooldowns[rival.id] ?? 0) < now;
+          const relativeSpeed = Math.abs(player.speed - rival.speed);
+          const impact = Math.min(16, 5 + relativeSpeed * 18 + speedFrac * 8);
+          const nx = dist > 0.001 ? dx / dist : -Math.sin(player.angle);
+          const ny = dist > 0.001 ? dy / dist : Math.cos(player.angle);
+          player.x += nx * 5;
+          player.y += ny * 5;
+          lateralVelocity += ((nx * -Math.sin(player.angle)) + (ny * Math.cos(player.angle))) * 42;
+          player.speed *= 0.82;
+          shake = Math.max(shake, 5);
+          if (canHit) {
+            carHitCooldowns[rival.id] = now + 900;
+            applyDamage(impact, player.x - nx * 15, player.y - ny * 15, "rgba(245,197,24,0.82)");
+          }
+        }
+      }
 
       // ===== Track feature interactions =====
       for (const f of featurePos) {
@@ -1133,11 +1184,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const barrierHit = Math.abs(signedOffset) > TRACK_BARRIER_LIMIT;
       if (barrierHit) {
         const side = Math.sign(signedOffset) || 1;
+        const hitSpeed = Math.abs(player.speed);
+        const impactDamage = Math.min(14, 3 + hitSpeed * 24 + Math.abs(lateralVelocity) * 0.035);
         player.x = railPoint.x + normalX * side * TRACK_BARRIER_LIMIT;
         player.y = railPoint.y + normalY * side * TRACK_BARRIER_LIMIT;
         lateralVelocity *= -0.18;
         player.speed *= Math.pow(0.42, dt);
         shake = Math.max(shake, 3.5);
+        if (hitSpeed > 0.07 || Math.abs(lateralVelocity) > 30) {
+          applyDamage(impactDamage, player.x, player.y, "rgba(239,68,68,0.82)");
+        }
         if (Math.abs(player.speed) > 0.08 && Math.random() < 0.55) {
           spawnParticle(
             player.x - normalX * side * 8,
@@ -1307,6 +1363,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         pos,
         total: cars.length,
         nitro: nitro / nitroCap,
+        health: Math.round(playerHealth),
         elapsed: Math.max(0, ((player.finishedAt ?? now) - startedAt - COUNTDOWN_MS) / 1000),
         lapProgress: player.lap >= laps ? 1 : player.t,
         drifting,
@@ -2680,6 +2737,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
             <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
           </div>
+          {(() => {
+            const healthColor = hud.health > 60 ? "#22c55e" : hud.health > 30 ? "#facc15" : "#ef4444";
+            return (
+              <div
+                className="w-44 rounded-xl border bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur transition-all"
+                style={{ borderColor: healthColor, boxShadow: `0 0 22px -10px ${healthColor}` }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    <HeartPulse className="h-3 w-3" style={{ color: healthColor }} /> Health
+                  </span>
+                  <span className="tabular-nums" style={{ color: healthColor }}>{hud.health}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full transition-[width] duration-150" style={{ width: `${hud.health}%`, background: healthColor }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-end gap-2">
