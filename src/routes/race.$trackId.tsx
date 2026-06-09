@@ -199,6 +199,7 @@ const ROAD_W = 320;     // 6 clear lanes with consistent arcade-racer width
 const LANE_COUNT = 6;
 const LANE_W = ROAD_W / LANE_COUNT;
 const SPEED_KMH_FACTOR = 940; // default top speed lands around 310 km/h
+const TRACK_BARRIER_LIMIT = ROAD_W / 2 - 18;
 const TRACK_POINTS = [
   { x: 1500, y: 4180 },
   { x: 3300, y: 4210 },
@@ -1125,9 +1126,31 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // Project to track for lap detection / off-road
       const proj = projectToTrack(player.x, player.y, player.t);
-      const offRoad = proj.dist > ROAD_W / 2;
-      if (offRoad) player.speed *= Math.pow(0.15, dt); // grass slows
-      const edgeGrip = proj.dist > ROAD_W * 0.39 && proj.dist <= ROAD_W / 2;
+      const railPoint = pathPoint(proj.t);
+      const normalX = -railPoint.hy;
+      const normalY = railPoint.hx;
+      const signedOffset = (player.x - railPoint.x) * normalX + (player.y - railPoint.y) * normalY;
+      const barrierHit = Math.abs(signedOffset) > TRACK_BARRIER_LIMIT;
+      if (barrierHit) {
+        const side = Math.sign(signedOffset) || 1;
+        player.x = railPoint.x + normalX * side * TRACK_BARRIER_LIMIT;
+        player.y = railPoint.y + normalY * side * TRACK_BARRIER_LIMIT;
+        lateralVelocity *= -0.18;
+        player.speed *= Math.pow(0.42, dt);
+        shake = Math.max(shake, 3.5);
+        if (Math.abs(player.speed) > 0.08 && Math.random() < 0.55) {
+          spawnParticle(
+            player.x - normalX * side * 8,
+            player.y - normalY * side * 8,
+            -normalX * side * 120 + (Math.random() - 0.5) * 80,
+            -normalY * side * 120 + (Math.random() - 0.5) * 80,
+            "rgba(250,250,250,0.68)", 0.35, 3.2
+          );
+        }
+      }
+      const offRoad = barrierHit;
+      if (offRoad) player.speed *= Math.pow(0.55, dt);
+      const edgeGrip = Math.abs(signedOffset) > ROAD_W * 0.39 && !barrierHit;
       if (edgeGrip) {
         player.speed *= Math.pow(0.82, dt);
         lateralVelocity *= Math.pow(0.52, dt);
