@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Car, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
+import { Car, Coins, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
 import { getRankInfo, type GameState } from "@/lib/garage";
 
 const navItems = [
@@ -31,13 +31,31 @@ export function RacingTopNav() {
 
   return (
     <header className="flex flex-col gap-3 border-b border-[#303030] pb-4 lg:flex-row lg:items-center lg:justify-between">
-      <Link to="/" className="flex items-center gap-2.5">
-        <span className="grid h-10 w-10 place-items-center bg-[#da291c] text-lg">🏁</span>
-        <span className="leading-tight">
-          <span className="block text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">World Quiz Race</span>
-          <span className="block text-sm font-semibold uppercase tracking-[0.05em] text-white sm:text-base">Race Hub</span>
-        </span>
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to="/" className="flex items-center gap-2.5">
+          <span className="grid h-10 w-10 place-items-center bg-[#da291c] text-lg">🏁</span>
+          <span className="leading-tight">
+            <span className="block text-[11px] font-bold uppercase tracking-[0.11em] text-[#da291c]">
+              World Quiz Race
+            </span>
+            <span className="block text-sm font-semibold uppercase tracking-[0.05em] text-white sm:text-base">
+              Race Hub
+            </span>
+          </span>
+        </Link>
+
+        <Link
+          to="/coins"
+          className={`flex h-10 items-center justify-center gap-2 border px-3 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
+            pathname.startsWith("/coins")
+              ? "border-[#f5c518] bg-[#2a1f08] text-[#f5c518] shadow-[0_0_28px_-12px_rgba(245,197,24,0.9)]"
+              : "border-[#303030] bg-[#111] text-[#f5c518] hover:border-[#f5c518] hover:bg-[#1e1e1e]"
+          }`}
+        >
+          <Coins className="h-4 w-4" />
+          <span>Coins</span>
+        </Link>
+      </div>
 
       <nav className="grid grid-cols-5 gap-1 border border-[#303030] bg-[#111] p-1">
         {navItems.map(({ to, label, icon: Icon }) => {
@@ -47,7 +65,9 @@ export function RacingTopNav() {
               key={to}
               to={to}
               className={`flex h-11 items-center justify-center gap-2 px-3 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
-                active ? "bg-[#da291c] text-white shadow-[0_0_28px_-12px_rgba(218,41,28,0.9)]" : "text-[#969696] hover:bg-[#1e1e1e] hover:text-white"
+                active
+                  ? "bg-[#da291c] text-white shadow-[0_0_28px_-12px_rgba(218,41,28,0.9)]"
+                  : "text-[#969696] hover:bg-[#1e1e1e] hover:text-white"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -60,7 +80,13 @@ export function RacingTopNav() {
   );
 }
 
-export function ProgressionPanel({ state, compact = false }: { state: GameState; compact?: boolean }) {
+export function ProgressionPanel({
+  state,
+  compact = false,
+}: {
+  state: GameState;
+  compact?: boolean;
+}) {
   const rank = getRankInfo(state);
   const week = getCurrentWeek();
   const winDates = new Set(state.raceWinDates ?? []);
@@ -70,13 +96,20 @@ export function ProgressionPanel({ state, compact = false }: { state: GameState;
     <div className={`border border-[#303030] bg-[#111] ${compact ? "p-4" : "p-5"}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">Road To Champion</div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">
+            Road To Champion
+          </div>
           <div className="font-display mt-1 text-2xl uppercase text-white">{rank.rank}</div>
         </div>
-        <div className="text-right text-xs font-bold uppercase tracking-[0.12em] text-[#f5c518]">{rank.progress}%</div>
+        <div className="text-right text-xs font-bold uppercase tracking-[0.12em] text-[#f5c518]">
+          {rank.progress}%
+        </div>
       </div>
       <div className="mt-4 h-3 overflow-hidden border border-[#303030] bg-[#181818]">
-        <div className="h-full bg-[#da291c] shadow-[0_0_18px_rgba(218,41,28,0.7)] transition-[width] duration-500" style={{ width: `${rank.progress}%` }} />
+        <div
+          className="h-full bg-[#da291c] shadow-[0_0_18px_rgba(218,41,28,0.7)] transition-[width] duration-500"
+          style={{ width: `${rank.progress}%` }}
+        />
       </div>
       <div className="mt-4 grid grid-cols-4 gap-1 text-center text-[10px] font-bold uppercase tracking-[0.08em] text-[#696969]">
         {rank.ranks.map((item) => (
@@ -112,7 +145,9 @@ export function ProgressionPanel({ state, compact = false }: { state: GameState;
                   title={active ? `Race won on ${day.key}` : `No race win on ${day.key}`}
                 >
                   <span>{day.label}</span>
-                  <span className="mt-1 text-[9px]">{active ? "WIN" : day.today ? "NOW" : "--"}</span>
+                  <span className="mt-1 text-[9px]">
+                    {active ? "WIN" : day.today ? "NOW" : "--"}
+                  </span>
                 </div>
               );
             })}
@@ -151,7 +186,15 @@ function getCurrentWeek() {
   });
 }
 
-export function PremiumStat({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+export function PremiumStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+}) {
   return (
     <div className="group border border-[#303030] bg-[#1e1e1e] p-4 transition hover:border-[#da291c]/70 hover:shadow-[0_0_34px_-20px_rgba(218,41,28,0.9)]">
       <div className="flex items-center gap-2 text-[#f5c518]">
@@ -174,7 +217,10 @@ export function FeedbackToast({ message }: { message: string | null }) {
 
 export function UserBadge() {
   return (
-    <Link to="/profile" className="grid h-10 w-10 place-items-center border border-[#303030] bg-[#1e1e1e] text-white transition hover:border-[#da291c]">
+    <Link
+      to="/profile"
+      className="grid h-10 w-10 place-items-center border border-[#303030] bg-[#1e1e1e] text-white transition hover:border-[#da291c]"
+    >
       <UserCircle className="h-5 w-5" />
     </Link>
   );

@@ -14,6 +14,7 @@ import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as GarageRouteImport } from './routes/garage'
 import { Route as DriversRouteImport } from './routes/drivers'
+import { Route as CoinsRouteImport } from './routes/coins'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RaceTrackIdRouteImport } from './routes/race.$trackId'
@@ -44,6 +45,11 @@ const GarageRoute = GarageRouteImport.update({
 const DriversRoute = DriversRouteImport.update({
   id: '/drivers',
   path: '/drivers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoinsRoute = CoinsRouteImport.update({
+  id: '/coins',
+  path: '/coins',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -80,6 +86,7 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/coins': typeof CoinsRoute
   '/drivers': typeof DriversRoute
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/coins': typeof CoinsRoute
   '/drivers': typeof DriversRoute
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/coins': typeof CoinsRoute
   '/drivers': typeof DriversRoute
   '/garage': typeof GarageRoute
   '/profile': typeof ProfileRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/coins'
     | '/drivers'
     | '/garage'
     | '/profile'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/coins'
     | '/drivers'
     | '/garage'
     | '/profile'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/coins'
     | '/drivers'
     | '/garage'
     | '/profile'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  CoinsRoute: typeof CoinsRoute
   DriversRoute: typeof DriversRoute
   GarageRoute: typeof GarageRoute
   ProfileRoute: typeof ProfileRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/drivers'
       fullPath: '/drivers'
       preLoaderRoute: typeof DriversRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coins': {
+      id: '/coins'
+      path: '/coins'
+      fullPath: '/coins'
+      preLoaderRoute: typeof CoinsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -267,6 +287,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  CoinsRoute: CoinsRoute,
   DriversRoute: DriversRoute,
   GarageRoute: GarageRoute,
   ProfileRoute: ProfileRoute,
