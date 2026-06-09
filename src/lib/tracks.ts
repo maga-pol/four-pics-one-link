@@ -31,6 +31,21 @@ export const TRACKS: Track[] = [
       { id: "neon-sector", name: "Neon Chicane" },
     ],
   },
+  {
+    id: "dubai-grand-circuit",
+    name: "Dubai Grand Circuit",
+    flag: "AE",
+    description: "Race a premium Dubai night circuit with long straights, neon towers, palm-lined roads, and flowing F1-inspired corners.",
+    laps: 3,
+    region: "Dubai Night GP",
+    stages: [
+      { id: "start-finish", name: "Marina Start / Finish", active: true },
+      { id: "high-speed-straight", name: "High-Speed Boulevard" },
+      { id: "hotel-hairpin", name: "Luxury Hotel Hairpin" },
+      { id: "technical-sector", name: "Downtown Technical Sector" },
+      { id: "palm-run", name: "Palm Neon Run" },
+    ],
+  },
 ];
 
 export function getTrack(id: string): Track | undefined {

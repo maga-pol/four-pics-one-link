@@ -246,6 +246,59 @@ const GRADE_SEPARATIONS = [
   },
 ];
 
+const DUBAI_TRACK_POINTS = [
+  { x: 980, y: 4100 },
+  { x: 3100, y: 4100 },
+  { x: 5400, y: 4020 },
+  { x: 7600, y: 3680 },
+  { x: 8180, y: 2980 },
+  { x: 7820, y: 2260 },
+  { x: 6640, y: 1780 },
+  { x: 5020, y: 1640 },
+  { x: 3720, y: 1900 },
+  { x: 3150, y: 2460 },
+  { x: 3620, y: 3000 },
+  { x: 4940, y: 2940 },
+  { x: 6040, y: 2640 },
+  { x: 6500, y: 3100 },
+  { x: 6020, y: 3520 },
+  { x: 4620, y: 3650 },
+  { x: 3000, y: 3500 },
+  { x: 1840, y: 3320 },
+  { x: 1120, y: 3600 },
+  { x: 980, y: 4100 },
+];
+
+const DUBAI_TURN_GUIDES = [
+  { t: 0.18, dir: -1, sharp: 0.48 },
+  { t: 0.31, dir: -1, sharp: 0.84 },
+  { t: 0.45, dir: -1, sharp: 0.56 },
+  { t: 0.55, dir: 1, sharp: 0.72 },
+  { t: 0.66, dir: -1, sharp: 0.78 },
+  { t: 0.78, dir: 1, sharp: 0.62 },
+  { t: 0.9, dir: 1, sharp: 0.68 },
+];
+
+type RaceTheme = "sakura" | "dubai";
+let activeTrackPoints = TRACK_POINTS;
+let activeTurnGuides = TURN_GUIDES;
+let activeGradeSeparations = GRADE_SEPARATIONS;
+let activeTheme: RaceTheme = "sakura";
+
+function applyRaceLayout(trackId: string) {
+  if (trackId === "dubai-grand-circuit") {
+    activeTrackPoints = DUBAI_TRACK_POINTS;
+    activeTurnGuides = DUBAI_TURN_GUIDES;
+    activeGradeSeparations = [];
+    activeTheme = "dubai";
+    return;
+  }
+  activeTrackPoints = TRACK_POINTS;
+  activeTurnGuides = TURN_GUIDES;
+  activeGradeSeparations = GRADE_SEPARATIONS;
+  activeTheme = "sakura";
+}
+
 function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
   const preferredDriverIds = ["leclerc", "norris", "piastri", "hamilton", "russell", "alonso", "sainz"];
   const drivers = preferredDriverIds
@@ -293,14 +346,15 @@ function catmull(a: number, b: number, c: number, d: number, t: number) {
 
 function rawPoint(t: number) {
   const wrapped = ((t % 1) + 1) % 1;
-  const count = TRACK_POINTS.length - 1;
+  const points = activeTrackPoints;
+  const count = points.length - 1;
   const scaled = wrapped * count;
   const i = Math.floor(scaled);
   const local = scaled - i;
-  const p0 = TRACK_POINTS[(i - 1 + count) % count];
-  const p1 = TRACK_POINTS[i % count];
-  const p2 = TRACK_POINTS[(i + 1) % count];
-  const p3 = TRACK_POINTS[(i + 2) % count];
+  const p0 = points[(i - 1 + count) % count];
+  const p1 = points[i % count];
+  const p2 = points[(i + 1) % count];
+  const p3 = points[(i + 2) % count];
   return {
     x: catmull(p0.x, p1.x, p2.x, p3.x, local),
     y: catmull(p0.y, p1.y, p2.y, p3.y, local),
@@ -351,6 +405,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   }
 
   useEffect(() => {
+    applyRaceLayout(trackId);
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const wrap = wrapRef.current!;
@@ -488,7 +543,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     type Decor = {
       x: number;
       y: number;
-      kind: "tree" | "pole" | "sakura" | "pine" | "rock" | "flag" | "banner" | "billboard" | "lantern" | "torii" | "temple" | "house" | "spectator" | "drone" | "balloon" | "train" | "car";
+      kind: "tree" | "palm" | "pole" | "sakura" | "pine" | "rock" | "flag" | "banner" | "billboard" | "lantern" | "torii" | "temple" | "house" | "hotel" | "grandstand" | "pit" | "spectator" | "drone" | "balloon" | "train" | "car";
       size: number;
       angle?: number;
       phase?: number;
@@ -517,7 +572,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const x = TRACK_CX + Math.cos(a) * r;
         const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
         if (x < 40 || x > WORLD_W - 40 || y < 40 || y > WORLD_H - 40) continue;
-        const kind = rnd() > 0.25 ? "tree" : "rock";
+        const kind = activeTheme === "dubai" ? (rnd() > 0.35 ? "palm" : "rock") : (rnd() > 0.25 ? "tree" : "rock");
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
       // Inside the ring (infield)
@@ -526,7 +581,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const r = rnd() * (TRACK_RX - ROAD_W - 100);
         const x = TRACK_CX + Math.cos(a) * r;
         const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
-        const kind = rnd() > 0.4 ? "tree" : "rock";
+        const kind = activeTheme === "dubai" ? (rnd() > 0.45 ? "palm" : "rock") : (rnd() > 0.4 ? "tree" : "rock");
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
       // Light poles every ~3% along both edges
@@ -576,16 +631,31 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       };
       for (let i = 0; i < 150; i++) {
         const t = (i / 150 + rnd() * 0.004) % 1;
-        placeTrackside(t, i % 2 === 0 ? 1 : -1, 42 + rnd() * 34, i % 4 === 0 ? "pine" : "sakura", 24 + rnd() * 22);
+        placeTrackside(t, i % 2 === 0 ? 1 : -1, 42 + rnd() * 34, activeTheme === "dubai" ? "palm" : (i % 4 === 0 ? "pine" : "sakura"), 24 + rnd() * 22);
       }
       for (let i = 0; i < 72; i++) {
         placeTrackside((i + 0.35) / 72, i % 2 === 0 ? 1 : -1, 22, i % 3 === 0 ? "banner" : "lantern", 20 + rnd() * 8);
       }
-      for (const t of [0.035, 0.245, 0.515, 0.825]) {
-        const p = pathPoint(t);
-        decor.push({ x: p.x, y: p.y, kind: "torii", size: 92, angle: Math.atan2(p.hy, p.hx), phase: rnd() * Math.PI * 2 });
+      if (activeTheme === "sakura") {
+        for (const t of [0.035, 0.245, 0.515, 0.825]) {
+          const p = pathPoint(t);
+          decor.push({ x: p.x, y: p.y, kind: "torii", size: 92, angle: Math.atan2(p.hy, p.hx), phase: rnd() * Math.PI * 2 });
+        }
       }
-      for (const item of [
+      const landmarkItems = activeTheme === "dubai" ? [
+        { x: 4380, y: 760, kind: "hotel" as const, size: 230 },
+        { x: 6120, y: 780, kind: "hotel" as const, size: 190 },
+        { x: 2500, y: 4370, kind: "grandstand" as const, size: 170 },
+        { x: 4700, y: 4380, kind: "grandstand" as const, size: 190 },
+        { x: 3570, y: 3820, kind: "pit" as const, size: 210 },
+        { x: 7200, y: 980, kind: "billboard" as const, size: 135 },
+        { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
+        { x: 1640, y: 4720, kind: "billboard" as const, size: 115 },
+        { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
+        { x: 6810, y: 980, kind: "drone" as const, size: 46 },
+        { x: 8100, y: 2520, kind: "car" as const, size: 70 },
+        { x: 7900, y: 2700, kind: "car" as const, size: 60 },
+      ] : [
         { x: 1220, y: 1420, kind: "temple" as const, size: 150 },
         { x: 7340, y: 1540, kind: "temple" as const, size: 130 },
         { x: 7700, y: 4300, kind: "house" as const, size: 120 },
@@ -600,7 +670,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         { x: 2800, y: 860, kind: "drone" as const, size: 42 },
         { x: 8100, y: 2520, kind: "car" as const, size: 70 },
         { x: 7900, y: 2700, kind: "car" as const, size: 60 },
-      ]) {
+      ];
+      for (const item of landmarkItems) {
         decor.push({ ...item, angle: 0, phase: rnd() * Math.PI * 2 });
       }
       for (let i = 0; i < 96; i++) {
@@ -640,7 +711,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let airUntil = 0;       // ms timestamp until ramp jump lands
 
     // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
-    const DANGER_CORNERS: number[] = TURN_GUIDES.filter((turn) => turn.sharp > 0.75).map((turn) => turn.t);
+    const DANGER_CORNERS: number[] = activeTurnGuides.filter((turn) => turn.sharp > 0.75).map((turn) => turn.t);
     const SPIN_THRESHOLD = 999; // effectively disabled
     const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
     const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
@@ -761,7 +832,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     function upcomingTurn(t: number, lookAhead = 0.065) {
       let best = { dir: 0, sharp: 0, ahead: 1 };
-      for (const turn of TURN_GUIDES) {
+      for (const turn of activeTurnGuides) {
         const ahead = forwardDelta(t, turn.t);
         if (ahead > lookAhead) continue;
         const weight = 1 - ahead / lookAhead;
@@ -1405,6 +1476,64 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function drawWorldBackdrop(now: number) {
+      if (activeTheme === "dubai") {
+        const sky = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+        sky.addColorStop(0, "#050816");
+        sky.addColorStop(0.45, "#101532");
+        sky.addColorStop(0.72, "#1e1735");
+        sky.addColorStop(1, "#2a2116");
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+        const glow = ctx.createRadialGradient(WORLD_W * 0.55, 950, 80, WORLD_W * 0.55, 950, 2200);
+        glow.addColorStop(0, "rgba(56,189,248,0.22)");
+        glow.addColorStop(0.45, "rgba(168,85,247,0.12)");
+        glow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+        for (let i = 0; i < 42; i++) {
+          const x = 180 + i * 210;
+          const h = 180 + ((i * 71) % 620);
+          const w = 82 + ((i * 17) % 52);
+          ctx.fillStyle = i % 5 === 0 ? "rgba(12,19,38,0.98)" : "rgba(17,24,45,0.92)";
+          ctx.fillRect(x, 1180 - h, w, h);
+          ctx.fillStyle = i % 3 === 0 ? "rgba(56,189,248,0.75)" : "rgba(245,197,24,0.68)";
+          for (let y = 1180 - h + 24; y < 1160; y += 48) {
+            ctx.fillRect(x + 16, y, 12, 16);
+            ctx.fillRect(x + w - 28, y + 18, 12, 16);
+          }
+        }
+
+        ctx.fillStyle = "rgba(15,23,42,0.9)";
+        ctx.beginPath();
+        ctx.moveTo(3820, 1120);
+        ctx.lineTo(4380, 180);
+        ctx.lineTo(4920, 1120);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(56,189,248,0.65)";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(4380, 180);
+        ctx.lineTo(4380, 1120);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(245,197,24,0.35)";
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(500, 1210);
+        ctx.lineTo(8400, 990);
+        ctx.stroke();
+        for (let i = 0; i < 24; i++) {
+          const x = 600 + ((now * 0.055 + i * 360) % 7700);
+          const y = 1210 - (x - 500) * 0.028;
+          ctx.fillStyle = i % 2 ? "#38bdf8" : "#facc15";
+          ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+        }
+        return;
+      }
+
       const sky = ctx.createLinearGradient(0, 0, 0, WORLD_H);
       sky.addColorStop(0, "#2b1b3d");
       sky.addColorStop(0.35, "#5d2747");
@@ -1566,7 +1695,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const off = (ROAD_W / 2 + 54 + ((i * 31) % 52)) * side;
         const x = p.x + (-p.hy) * off;
         const y = p.y + (p.hx) * off;
-        ctx.fillStyle = i % 3 === 0 ? "rgba(95, 66, 36, 0.55)" : "rgba(22, 101, 52, 0.55)";
+        ctx.fillStyle = activeTheme === "dubai"
+          ? (i % 3 === 0 ? "rgba(190, 150, 82, 0.48)" : "rgba(85, 63, 38, 0.5)")
+          : (i % 3 === 0 ? "rgba(95, 66, 36, 0.55)" : "rgba(22, 101, 52, 0.55)");
         ctx.beginPath();
         ctx.ellipse(x, y, 18 + (i % 7) * 3, 7 + (i % 5), Math.atan2(p.hy, p.hx), 0, Math.PI * 2);
         ctx.fill();
@@ -1576,7 +1707,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     function drawTurnArrows(now: number) {
       ctx.save();
-      for (const turn of TURN_GUIDES) {
+      for (const turn of activeTurnGuides) {
         for (let i = 0; i < 3; i++) {
           const t = (turn.t - 0.03 + i * 0.01 + 1) % 1;
           const p = pathPoint(t);
@@ -1608,7 +1739,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function isInLowerUnderpass(t: number) {
-      return GRADE_SEPARATIONS.some((zone) => isBetweenT(t, zone.lowerStart, zone.lowerEnd));
+      return activeGradeSeparations.some((zone) => isBetweenT(t, zone.lowerStart, zone.lowerEnd));
     }
 
     function sortedLowerTunnelCars() {
@@ -1640,7 +1771,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     function drawUnderpasses(now: number) {
       ctx.save();
-      for (const zone of GRADE_SEPARATIONS) {
+      for (const zone of activeGradeSeparations) {
         strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W + 82, "rgba(4,12,22,0.72)");
         strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W + 32, "#111827");
         strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W, "#202535");
@@ -1698,7 +1829,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     function drawOverpasses(now: number) {
       ctx.save();
-      for (const zone of GRADE_SEPARATIONS) {
+      for (const zone of activeGradeSeparations) {
         const crossing = pathPoint(zone.crossingT);
         const bridgeStart = zone.upperStart;
         const bridgeEnd = zone.upperEnd;
@@ -1938,7 +2069,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.stroke();
         ctx.restore();
       };
-      for (const zone of GRADE_SEPARATIONS) {
+      for (const zone of activeGradeSeparations) {
         drawMiniSegment(zone.lowerStart, zone.lowerEnd, "#38bdf8", 3, [2, 2]);
         drawMiniSegment(zone.upperRampInStart, zone.upperRampOutEnd, "#facc15", 3, [2, 2]);
       }
@@ -1958,7 +2089,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         }
       }
       // Danger corner markers on minimap
-      for (const turn of TURN_GUIDES) {
+      for (const turn of activeTurnGuides) {
         const p = rawPoint(turn.t);
         const X = ox + p.x * s, Y = oy + p.y * s;
         ctx.fillStyle = turn.sharp > 0.75 ? "#facc15" : "#22d3ee";
@@ -2126,6 +2257,24 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath(); ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#22c55e";
         ctx.beginPath(); ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2); ctx.fill();
+      } else if (d.kind === "palm") {
+        const sway = Math.sin((d.phase ?? 0) + performance.now() / 850) * 0.12;
+        ctx.fillStyle = "rgba(0,0,0,0.32)";
+        ctx.beginPath(); ctx.ellipse(4, 6, d.size * 0.7, d.size * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.rotate(sway);
+        ctx.fillStyle = "#8b5a2b";
+        ctx.fillRect(-d.size * 0.08, -d.size * 0.08, d.size * 0.16, d.size * 0.92);
+        ctx.translate(0, -d.size * 0.16);
+        for (let i = 0; i < 7; i++) {
+          const a = -Math.PI * 0.95 + i * (Math.PI * 1.9 / 6);
+          ctx.save();
+          ctx.rotate(a);
+          ctx.fillStyle = i % 2 ? "#22c55e" : "#16a34a";
+          ctx.beginPath();
+          ctx.ellipse(d.size * 0.36, 0, d.size * 0.42, d.size * 0.1, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
       } else if (d.kind === "sakura" || d.kind === "pine") {
         const sway = Math.sin((d.phase ?? 0) + performance.now() / 900) * 3;
         ctx.rotate(sway * 0.01);
@@ -2231,14 +2380,44 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.fillRect(-d.size * 0.72, -d.size * 0.64, d.size * 1.44, d.size * 0.12);
         ctx.fillStyle = "#111111";
         ctx.fillRect(-d.size, -d.size, d.size * 2, d.size * 0.12);
-      } else if (d.kind === "temple" || d.kind === "house") {
+      } else if (d.kind === "temple" || d.kind === "house" || d.kind === "hotel" || d.kind === "grandstand" || d.kind === "pit") {
+        if (d.kind === "grandstand") {
+          const w = d.size * 1.8;
+          const h = d.size * 0.7;
+          ctx.fillStyle = "rgba(0,0,0,0.35)";
+          ctx.beginPath(); ctx.ellipse(0, h * 0.48, w * 0.55, h * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#111827";
+          ctx.fillRect(-w / 2, -h * 0.36, w, h * 0.72);
+          ctx.fillStyle = "#38bdf8";
+          ctx.fillRect(-w / 2, -h * 0.46, w, h * 0.09);
+          for (let i = 0; i < 9; i++) {
+            ctx.fillStyle = ["#facc15", "#ffffff", "#ef4444"][i % 3];
+            ctx.fillRect(-w * 0.42 + i * w * 0.1, -h * 0.18, w * 0.045, h * 0.34);
+          }
+          ctx.restore();
+          return;
+        }
+        if (d.kind === "pit") {
+          const w = d.size * 2.0;
+          const h = d.size * 0.55;
+          ctx.fillStyle = "rgba(0,0,0,0.36)";
+          ctx.beginPath(); ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#202838";
+          ctx.fillRect(-w / 2, -h * 0.45, w, h * 0.9);
+          ctx.fillStyle = "#facc15";
+          ctx.fillRect(-w / 2, -h * 0.56, w, h * 0.12);
+          ctx.fillStyle = "#38bdf8";
+          for (let i = 0; i < 8; i++) ctx.fillRect(-w * 0.42 + i * w * 0.12, -h * 0.18, w * 0.07, h * 0.26);
+          ctx.restore();
+          return;
+        }
         const w = d.size * (d.kind === "temple" ? 1.4 : 1.15);
         const h = d.size * 0.78;
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.beginPath(); ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = d.kind === "temple" ? "#4b2a1d" : "#2b2b34";
+        ctx.fillStyle = d.kind === "hotel" ? "#101827" : d.kind === "temple" ? "#4b2a1d" : "#2b2b34";
         ctx.fillRect(-w * 0.42, -h * 0.15, w * 0.84, h * 0.62);
-        ctx.fillStyle = d.kind === "temple" ? "#da291c" : "#f5c518";
+        ctx.fillStyle = d.kind === "hotel" ? "#38bdf8" : d.kind === "temple" ? "#da291c" : "#f5c518";
         ctx.beginPath();
         ctx.moveTo(-w * 0.58, -h * 0.18);
         ctx.lineTo(0, -h * 0.72);
