@@ -195,9 +195,10 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 214;     // 4 clear lanes with consistent arcade-racer width
-const LANE_COUNT = 4;
+const ROAD_W = 320;     // 6 clear lanes with consistent arcade-racer width
+const LANE_COUNT = 6;
 const LANE_W = ROAD_W / LANE_COUNT;
+const SPEED_KMH_FACTOR = 940; // default top speed lands around 310 km/h
 const TRACK_POINTS = [
   { x: 1500, y: 4180 },
   { x: 3300, y: 4210 },
@@ -1278,7 +1279,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const pos = standings.find((standing) => standing.isPlayer)?.rank ?? 1;
 
       setHud({
-        speed: Math.round(player.speed * 800),
+        speed: Math.round(player.speed * SPEED_KMH_FACTOR),
         lap: Math.min(laps, player.lap + 1),
         pos,
         total: cars.length,
@@ -1369,7 +1370,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       drawKerb(-ROAD_W / 2);
       drawCrowdBarriers();
 
-      // Lane dividers (3 dashed lines for 4 lanes)
+      // Lane dividers for the wider 6-lane circuit.
       ctx.strokeStyle = "rgba(255,255,255,0.45)";
       ctx.lineWidth = 2.5;
       ctx.setLineDash([18, 18]);
@@ -2177,7 +2178,21 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
     function drawKerb(offset: number) {
       const steps = 600;
-      ctx.lineWidth = 6;
+      ctx.save();
+      ctx.lineWidth = 16;
+      ctx.strokeStyle = "rgba(10,10,12,0.82)";
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const p = pathPoint(t);
+        const x = p.x + (-p.hy) * offset;
+        const y = p.y + (p.hx) * offset;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.lineWidth = 10;
       for (let i = 0; i < steps; i++) {
         const t0 = i / steps;
         const t1 = (i + 1) / steps;
@@ -2193,6 +2208,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.lineTo(bx, by);
         ctx.stroke();
       }
+      ctx.restore();
     }
 
     function drawFeature(f: { x: number; y: number; angle: number; kind: "boost" | "ramp" }, now: number) {
