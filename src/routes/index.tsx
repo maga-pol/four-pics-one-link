@@ -1,6 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Brain, CarFront, Coins, LogOut, Play, Trophy, UserCircle, Wrench } from "lucide-react";
+import {
+  Brain,
+  CarFront,
+  Coins,
+  LogOut,
+  Play,
+  Plus,
+  Trophy,
+  UserCircle,
+  Wrench,
+} from "lucide-react";
 import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -102,7 +112,20 @@ function HomeHUD() {
 
   return (
     <RacingShell>
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex items-center border border-[#f5c518]/50 bg-[#2a1f08] text-[#f5c518] shadow-[0_0_22px_rgba(245,197,24,0.14)]">
+          <div className="flex h-10 items-center gap-2 px-3 text-[11px] font-black uppercase tracking-[0.1em]">
+            <Coins className="h-4 w-4" />
+            <span className="tabular-nums">{state.coins ?? 0}</span>
+          </div>
+          <Link
+            to="/coins"
+            aria-label="Open coin shop"
+            className="grid h-10 w-10 place-items-center border-l border-[#f5c518]/30 bg-[#f5c518] text-[#1a1100] transition hover:bg-[#ffd633]"
+          >
+            <Plus className="h-4 w-4" />
+          </Link>
+        </div>
         {user ? (
           <>
             <Link
@@ -167,7 +190,7 @@ function HomeHUD() {
                   style={{ fontSize: 18, letterSpacing: "0.12em" }}
                 >
                   <Play className="h-3.5 w-3.5 fill-current" />{" "}
-                  {canUnlockNext ? nextUnlock.label : "Earn Coins"}
+                  {canUnlockNext ? nextUnlock.label : "Play Quiz"}
                 </Link>
               )}
               <Link
@@ -250,12 +273,7 @@ function HomeHUD() {
             <div className="mt-2 h-px bg-[repeating-linear-gradient(90deg,#303030_0_24px,transparent_24px_42px)] animate-road" />
           </div>
 
-          <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
-            <PremiumStat
-              icon={<Coins className="h-4 w-4" />}
-              label="Coins"
-              value={<span className="animate-counter-bump tabular-nums">{state.coins ?? 0}</span>}
-            />
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
             <PremiumStat
               icon={<Trophy className="h-4 w-4" />}
               label="Wins"
