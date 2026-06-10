@@ -62,7 +62,7 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
       "answer must be the country name or common country abbreviation.",
       "acceptedAnswers must include lowercase variants and common abbreviations.",
       "photoQuery must be 3 to 5 comma-separated English tags, no URLs.",
-      'Schema: {"name":"Burj Khalifa, Dubai","answer":"UAE","acceptedAnswers":["uae","united arab emirates","emirates"],"continent":"Asia","photoQuery":"burj,khalifa,dubai"}',
+      'Schema: {"name":"Famous Place, City","answer":"Country","acceptedAnswers":["country","common country name"],"continent":"Continent","photoQuery":"famous,place,city"}',
     ].join("\n");
 
     try {

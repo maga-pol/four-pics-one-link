@@ -11,7 +11,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
+import { getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
 import { getAccountStorageKey, normalizeState, writeGameState } from "@/lib/garage";
 import { generateQuizLevel } from "@/lib/api/quiz-ai.functions";
 
@@ -56,14 +56,11 @@ function recordQuizAttempt() {
 }
 
 function QuizScreen() {
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * LEVELS.length));
   const [qNum, setQNum] = useState(1);
   const [streak, setStreak] = useState(0);
-  const fallbackLevel: Level = LEVELS[idx];
-  const [aiLevel, setAiLevel] = useState<Level | null>(null);
-  const [aiSource, setAiSource] = useState<"loading" | "gemini" | "fallback">("loading");
-  const level: Level = aiLevel ?? fallbackLevel;
-  const seeds = level.photoSeeds;
+  const [level, setLevel] = useState<Level | null>(null);
+  const [aiSource, setAiSource] = useState<"loading" | "gemini" | "error">("loading");
+  const [retryNonce, setRetryNonce] = useState(0);
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
   const [hint, setHint] = useState(false);
@@ -77,28 +74,28 @@ function QuizScreen() {
     const difficulty = qNum <= 7 ? "easy" : qNum <= 14 ? "medium" : "hard";
 
     setAiSource("loading");
-    setAiLevel(null);
+    setLevel(null);
     void generateQuizLevel({ data: { questionNumber: qNum, difficulty } })
       .then((result) => {
         if (!alive) return;
         if (result.source === "gemini" && result.level) {
-          setAiLevel(result.level);
+          setLevel(result.level);
           setAiSource("gemini");
         } else {
-          setAiSource("fallback");
+          setAiSource("error");
         }
       })
       .catch(() => {
-        if (alive) setAiSource("fallback");
+        if (alive) setAiSource("error");
       });
 
     return () => {
       alive = false;
     };
-  }, [qNum]);
+  }, [qNum, retryNonce]);
 
   function submit() {
-    if (result || !input.trim()) return;
+    if (result || !input.trim() || !level) return;
     if (isCorrect(input, level)) {
       const r = hint ? 80 : 120;
       addCoins(r);
@@ -117,7 +114,6 @@ function QuizScreen() {
     setResult(null);
     setHint(false);
     setQNum((n) => (n >= QUIZ_LEN ? 1 : n + 1));
-    setIdx((i) => (i + 1) % LEVELS.length);
   }
 
   const difficulty = qNum <= 7 ? "EASY" : qNum <= 14 ? "MEDIUM" : "HARD";
@@ -169,7 +165,7 @@ function QuizScreen() {
                   ? "AI Quiz · Guess the Country"
                   : aiSource === "loading"
                     ? "Generating Quiz · Guess the Country"
-                    : "Quiz · Guess the Country"}
+                    : "AI Quiz Offline · Retry Needed"}
               </div>
               <div className="mt-0.5 text-2xl font-extrabold leading-none">
                 LEVEL <span className="text-gradient-title">{qNum}</span>
@@ -202,23 +198,46 @@ function QuizScreen() {
 
         {/* PHOTOS */}
         <div className="grid grid-cols-2 gap-2.5">
-          {seeds.map((seed, i) => (
-            <div
-              key={`${idx}-${seed}-${i}`}
-              className="group relative aspect-square overflow-hidden rounded-3xl border border-white/15 bg-muted shadow-card animate-pop-in"
-              style={{ animationDelay: `${i * 0.07}s` }}
-            >
-              <img
-                src={getPhotoUrl(level.photoQuery, seed, 600)}
-                alt={`clue ${i + 1}`}
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          {aiSource === "loading" &&
+            Array.from({ length: 4 }, (_, i) => (
+              <div
+                key={`loading-${i}`}
+                className="aspect-square animate-pulse rounded-3xl border border-white/15 bg-white/[0.06] shadow-card"
               />
-              <span className="pointer-events-none absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-primary text-[11px] font-extrabold text-white shadow-button">
-                {i + 1}
-              </span>
+            ))}
+          {aiSource === "error" && (
+            <div className="col-span-2 rounded-3xl border border-destructive/50 bg-destructive/10 p-6 text-center shadow-card">
+              <div className="text-lg font-extrabold text-white">AI quiz was not generated</div>
+              <div className="mt-2 text-sm font-bold text-white/60">
+                Check GEMINI_API_KEY or try again.
+              </div>
+              <button
+                type="button"
+                onClick={() => setRetryNonce((n) => n + 1)}
+                className="arcade-btn arcade-btn-cyan mt-5 h-12 px-6 text-sm"
+              >
+                Generate Again
+              </button>
             </div>
-          ))}
+          )}
+          {level &&
+            level.photoSeeds.map((seed, i) => (
+              <div
+                key={`${level.id}-${seed}-${i}`}
+                className="group relative aspect-square overflow-hidden rounded-3xl border border-white/15 bg-muted shadow-card animate-pop-in"
+                style={{ animationDelay: `${i * 0.07}s` }}
+              >
+                <img
+                  src={getPhotoUrl(level.photoQuery, seed, 600)}
+                  alt={`clue ${i + 1}`}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+                <span className="pointer-events-none absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-primary text-[11px] font-extrabold text-white shadow-button">
+                  {i + 1}
+                </span>
+              </div>
+            ))}
         </div>
 
         <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -232,7 +251,7 @@ function QuizScreen() {
           </button>
           {hint && (
             <span className="rounded-full bg-white/10 px-3 py-1.5 font-extrabold text-white">
-              🗺 {level.continent}
+              🗺 {level?.continent}
             </span>
           )}
         </div>
@@ -249,13 +268,13 @@ function QuizScreen() {
             autoFocus
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={!!result}
+            disabled={!!result || !level}
             placeholder="Type a country…"
             className="flex-1 rounded-full border-2 border-white/15 bg-white/[0.06] px-5 py-3.5 text-base font-bold text-white outline-none placeholder:text-white/40 transition focus:border-primary/70 focus:bg-white/[0.1] focus:shadow-glow disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={!!result || !input.trim()}
+            disabled={!!result || !input.trim() || !level}
             className="arcade-btn h-14 px-7 text-sm"
           >
             Submit <ChevronRight className="h-4 w-4" />
@@ -263,7 +282,7 @@ function QuizScreen() {
         </form>
 
         {/* RESULT OVERLAY */}
-        {result && (
+        {result && level && (
           <div className="fixed inset-0 z-40 grid place-items-center bg-background/80 p-6 backdrop-blur-md animate-fade-up">
             <div className="relative w-[min(94%,440px)] arcade-card p-7 text-center animate-pop-in">
               {result === "correct" && (
