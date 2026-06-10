@@ -558,7 +558,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const aiLanes = gridLanes.filter((_, i) => i !== 2);
     const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
     const playerOff = startLatOff(playerLane);
-    const AI_PACE = [1, 1, 1, 1, 1];
     const cars: Car[] = [
       {
         id: "p",
@@ -598,7 +597,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           x: startP.x + -startP.hy * off,
           y: startP.y + startP.hx * off,
           angle: startAngle,
-          // Filled below from this bot's pace profile.
+          // Filled below so bot top speed matches the player's current top speed.
           topT: 0, // filled in below once AI_TOP_T is known
         } as Car;
       }),
@@ -645,7 +644,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const PLAYER_TOP_WORLD = baseSpeed * 1.4 * 1200; // matches maxSpeed * moveScale
     const AI_TOP_T = PLAYER_TOP_WORLD / perimeter;
     for (let i = 1; i < cars.length; i++) {
-      const baseTop = AI_TOP_T * (AI_PACE[i - 1] ?? 0.88);
+      const baseTop = AI_TOP_T;
       cars[i].topT = baseTop;
       cars[i].baseTopT = baseTop;
       cars[i].speed = baseTop * 0.58;
@@ -671,7 +670,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             (candidate) => !candidate.isPlayer && candidate.driverCode === botPlan.id,
           );
           if (!car || !car.baseTopT) continue;
-          car.topT = car.baseTopT * botPlan.pace;
+          car.topT = car.baseTopT;
           car.aiAggro = botPlan.aggression;
           car.aiSkill = botPlan.skill;
           car.aiDriftBias = botPlan.driftBias;
@@ -1567,7 +1566,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 1; i < cars.length; i++) {
         const c = cars[i];
         if (c.finishedAt) continue;
-        // Per-car top speed comes from this bot's pace profile; no rubber-banding.
+        // Bot top speed matches the player's current top speed; no rubber-banding.
         const ownTop = c.baseTopT ?? c.topT ?? AI_TOP_T;
         // Bots automatically slow to 84% before sharp corners so they never spin out.
         const turn = upcomingTurn(c.t, 0.078);
