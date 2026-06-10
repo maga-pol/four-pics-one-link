@@ -41,6 +41,20 @@ function seedsForQuestion(questionNumber: number, text: string) {
   return [base + 1, base + 2, base + 3, base + 4];
 }
 
+function getRandomTargetCountry() {
+  const regionCodes =
+    typeof Intl.supportedValuesOf === "function"
+      ? Intl.supportedValuesOf("region").filter((code) => /^[A-Z]{2}$/.test(code))
+      : [];
+  const codes = regionCodes.length > 0 ? regionCodes : ["BR", "CA", "EG", "FR", "IN", "JP"];
+  const code = codes[Math.floor(Math.random() * codes.length)] ?? "JP";
+  const names = new Intl.DisplayNames(["en"], { type: "region" });
+  return {
+    code,
+    name: names.of(code) ?? code,
+  };
+}
+
 export const generateQuizLevel = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -51,16 +65,19 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const config = getServerConfig();
     if (!config.geminiApiKey) return { source: "fallback" as const, level: null };
+    const targetCountry = getRandomTargetCountry();
 
     const prompt = [
       "You generate one geography quiz question for a student arcade game.",
       "Return ONLY compact JSON. No markdown.",
       "The player sees 4 photos from loremflickr and guesses the country.",
-      "Choose a real famous landmark, city place, monument, natural wonder, stadium, or skyline.",
+      `Target country/region: ${targetCountry.name} (${targetCountry.code}).`,
+      "Generate the quiz ONLY for this target country/region.",
+      "Choose a real famous landmark, city place, monument, natural wonder, stadium, skyline, or recognizable local scene from the target.",
       "Use places with visually searchable Flickr tags. Avoid obscure locations.",
       `Difficulty: ${data.difficulty}. Question number: ${data.questionNumber}.`,
-      "answer must be the country name or common country abbreviation.",
-      "acceptedAnswers must include lowercase variants and common abbreviations.",
+      `answer must be "${targetCountry.name}" or its common country abbreviation.`,
+      "acceptedAnswers must include lowercase variants, the official/common country name, and common abbreviations if they exist.",
       "photoQuery must be 3 to 5 comma-separated English tags, no URLs.",
       'Schema: {"name":"Famous Place, City","answer":"Country","acceptedAnswers":["country","common country name"],"continent":"Continent","photoQuery":"famous,place,city"}',
     ].join("\n");
