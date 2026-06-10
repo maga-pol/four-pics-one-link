@@ -243,6 +243,10 @@ function QuizScreen() {
       : aiReason === "gemini_error"
         ? "Gemini rejected the request. Check the API key and model."
         : "The AI response was not usable. Try again.";
+  const photoSources =
+    level?.photoUrls && level.photoUrls.length >= 4
+      ? level.photoUrls.slice(0, 4)
+      : (level?.photoSeeds.map((seed) => getPhotoUrl(level.photoQuery, seed, 600)) ?? []);
 
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
@@ -337,12 +341,8 @@ function QuizScreen() {
             </div>
           )}
           {level &&
-            level.photoSeeds.map((seed, i) => (
-              <QuizPhoto
-                key={`${level.id}-${seed}-${i}`}
-                src={getPhotoUrl(level.photoQuery, seed, 600)}
-                index={i}
-              />
+            photoSources.map((src, i) => (
+              <QuizPhoto key={`${level.id}-${src}-${i}`} src={src} index={i} />
             ))}
         </div>
 

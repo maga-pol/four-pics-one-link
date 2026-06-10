@@ -6,6 +6,7 @@ export type Level = {
   continent: string;
   photoQuery: string;
   photoSeeds: number[];
+  photoUrls?: string[];
 };
 
 export const LEVELS: Level[] = [];

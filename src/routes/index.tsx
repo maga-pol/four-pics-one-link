@@ -65,11 +65,15 @@ function HomeHUD() {
     setHydrated(true);
   }, []);
   useEffect(() => {
-    function onFocus() {
+    function syncState() {
       setState(readGameState());
     }
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("focus", syncState);
+    window.addEventListener("wqr-state-updated", syncState);
+    return () => {
+      window.removeEventListener("focus", syncState);
+      window.removeEventListener("wqr-state-updated", syncState);
+    };
   }, []);
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;

@@ -41,6 +41,56 @@ function seedsForQuestion(questionNumber: number, text: string) {
   return [base + 1, base + 2, base + 3, base + 4];
 }
 
+type WikimediaImagePage = {
+  title?: string;
+  imageinfo?: Array<{
+    thumburl?: string;
+    url?: string;
+    mime?: string;
+  }>;
+};
+
+async function fetchWikimediaPhotoUrls(query: string, seeds: number[]) {
+  const search = query.replace(/,/g, " ");
+  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrnamespace", "6");
+  url.searchParams.set("gsrlimit", "24");
+  url.searchParams.set("gsrsearch", search);
+  url.searchParams.set("prop", "imageinfo");
+  url.searchParams.set("iiprop", "url|mime");
+  url.searchParams.set("iiurlwidth", "640");
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "WorldQuizRace/1.0 (student geography quiz)",
+      },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const pages = Object.values(json?.query?.pages ?? {}) as WikimediaImagePage[];
+    const urls = pages
+      .sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""))
+      .map((page) => page.imageinfo?.[0])
+      .filter((image) => image?.mime?.startsWith("image/"))
+      .map((image) => image?.thumburl ?? image?.url)
+      .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
+
+    if (urls.length <= 4) return urls;
+
+    const start = Math.abs(seeds[0] ?? 0) % urls.length;
+    return Array.from({ length: 4 }, (_, i) => urls[(start + i) % urls.length]);
+  } catch {
+    return [];
+  }
+}
+
 const PHOTO_FRIENDLY_COUNTRY_CODES = [
   "AE",
   "AR",
@@ -168,6 +218,9 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
         return { source: "fallback" as const, reason: "bad_response" as const, level: null };
       }
 
+      const photoSeeds = seedsForQuestion(data.questionNumber, `${quiz.data.name}:${photoQuery}`);
+      const photoUrls = await fetchWikimediaPhotoUrls(photoQuery, photoSeeds);
+
       return {
         source: "gemini" as const,
         reason: null,
@@ -178,7 +231,8 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
           acceptedAnswers: quiz.data.acceptedAnswers,
           continent: quiz.data.continent,
           photoQuery,
-          photoSeeds: seedsForQuestion(data.questionNumber, `${quiz.data.name}:${photoQuery}`),
+          photoSeeds,
+          photoUrls,
         },
       };
     } catch {

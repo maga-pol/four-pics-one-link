@@ -1,7 +1,17 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { Car, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
-import { getRankInfo, type GameState } from "@/lib/garage";
+import { useState, type ReactNode } from "react";
+import {
+  Car,
+  Coins,
+  Flag,
+  Flame,
+  Home,
+  Map,
+  MessageCircle,
+  Trophy,
+  UserCircle,
+} from "lucide-react";
+import { getRankInfo, readGameState, writeGameState, type GameState } from "@/lib/garage";
 
 const navItems = [
   { to: "/", label: "Home", icon: Home },
@@ -47,26 +57,98 @@ export function RacingTopNav({ topSlot }: { topSlot?: ReactNode }) {
         {topSlot}
       </div>
 
-      <nav className="grid grid-cols-5 gap-1 border border-[#303030] bg-[#111] p-1">
-        {navItems.map(({ to, label, icon: Icon }) => {
-          const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={`flex h-11 items-center justify-center gap-2 px-3 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
-                active
-                  ? "bg-[#da291c] text-white shadow-[0_0_28px_-12px_rgba(218,41,28,0.9)]"
-                  : "text-[#969696] hover:bg-[#1e1e1e] hover:text-white"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="flex items-start gap-2">
+        <nav className="grid grid-cols-5 gap-1 border border-[#303030] bg-[#111] p-1">
+          {navItems.map(({ to, label, icon: Icon }) => {
+            const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={`flex h-11 items-center justify-center gap-2 px-3 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
+                  active
+                    ? "bg-[#da291c] text-white shadow-[0_0_28px_-12px_rgba(218,41,28,0.9)]"
+                    : "text-[#969696] hover:bg-[#1e1e1e] hover:text-white"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <DevCoinChat />
+      </div>
     </header>
+  );
+}
+
+function DevCoinChat() {
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState("");
+
+  if (!import.meta.env.DEV) return null;
+
+  function grantCoins() {
+    const amount = Math.min(1_000_000, Math.max(0, Math.floor(Number(message.match(/\d+/)?.[0]))));
+    if (!amount) {
+      setFeedback("Type an amount");
+      return;
+    }
+
+    const state = readGameState();
+    writeGameState({ ...state, coins: (state.coins ?? 0) + amount });
+    window.dispatchEvent(new Event("wqr-state-updated"));
+    setFeedback(`+${amount} coins`);
+    setMessage("");
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="grid h-[54px] w-11 place-items-center border border-[#303030] bg-[#111] text-[#696969] transition hover:border-[#f5c518]/60 hover:text-[#f5c518]"
+        aria-label="Open dev coin chat"
+        title="DEV coin chat"
+      >
+        <MessageCircle className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-14 z-50 w-64 border border-[#303030] bg-[#111] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#f5c518]">
+            <Coins className="h-3.5 w-3.5" />
+            Dev Coins
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              grantCoins();
+            }}
+            className="flex gap-2"
+          >
+            <input
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="write amount..."
+              className="min-w-0 flex-1 border border-[#303030] bg-[#181818] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-[#696969] focus:border-[#f5c518]/70"
+            />
+            <button
+              type="submit"
+              className="border border-[#f5c518]/50 bg-[#2a1f08] px-3 text-xs font-black uppercase text-[#f5c518] transition hover:bg-[#3a2a0a]"
+            >
+              Add
+            </button>
+          </form>
+          {feedback && (
+            <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[#969696]">
+              {feedback}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
