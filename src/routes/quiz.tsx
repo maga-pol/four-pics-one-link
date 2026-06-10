@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Check,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
 import { getAccountStorageKey, normalizeState, writeGameState } from "@/lib/garage";
+import { generateQuizLevel } from "@/lib/api/quiz-ai.functions";
 
 export const Route = createFileRoute("/quiz")({
   head: () => ({
@@ -58,11 +59,11 @@ function QuizScreen() {
   const [idx, setIdx] = useState(() => Math.floor(Math.random() * LEVELS.length));
   const [qNum, setQNum] = useState(1);
   const [streak, setStreak] = useState(0);
-  const level: Level = LEVELS[idx];
-  const seeds = useMemo(
-    () => Array.from({ length: 4 }, () => Math.floor(Math.random() * 1_000_000) + 1),
-    [idx],
-  );
+  const fallbackLevel: Level = LEVELS[idx];
+  const [aiLevel, setAiLevel] = useState<Level | null>(null);
+  const [aiSource, setAiSource] = useState<"loading" | "gemini" | "fallback">("loading");
+  const level: Level = aiLevel ?? fallbackLevel;
+  const seeds = level.photoSeeds;
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
   const [hint, setHint] = useState(false);
@@ -70,6 +71,31 @@ function QuizScreen() {
   const [reward, setReward] = useState(0);
 
   useEffect(() => setCoins(readCoins()), []);
+
+  useEffect(() => {
+    let alive = true;
+    const difficulty = qNum <= 7 ? "easy" : qNum <= 14 ? "medium" : "hard";
+
+    setAiSource("loading");
+    setAiLevel(null);
+    void generateQuizLevel({ data: { questionNumber: qNum, difficulty } })
+      .then((result) => {
+        if (!alive) return;
+        if (result.source === "gemini" && result.level) {
+          setAiLevel(result.level);
+          setAiSource("gemini");
+        } else {
+          setAiSource("fallback");
+        }
+      })
+      .catch(() => {
+        if (alive) setAiSource("fallback");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [qNum]);
 
   function submit() {
     if (result || !input.trim()) return;
@@ -139,7 +165,11 @@ function QuizScreen() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-secondary">
-                Quiz · Guess the Country
+                {aiSource === "gemini"
+                  ? "AI Quiz · Guess the Country"
+                  : aiSource === "loading"
+                    ? "Generating Quiz · Guess the Country"
+                    : "Quiz · Guess the Country"}
               </div>
               <div className="mt-0.5 text-2xl font-extrabold leading-none">
                 LEVEL <span className="text-gradient-title">{qNum}</span>
