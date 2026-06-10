@@ -109,23 +109,26 @@ function HomeHUD() {
         ? { to: "/tracks" as const, label: "Unlock Track", cost: firstTrack.cost }
         : null;
   const canUnlockNext = nextUnlock ? (state.coins ?? 0) >= nextUnlock.cost : true;
+  const showQuizCta = !nextUnlock || canUnlockNext;
+  const coinBalance = (
+    <div className="flex items-center border border-[#f5c518]/50 bg-[#2a1f08] text-[#f5c518] shadow-[0_0_22px_rgba(245,197,24,0.14)]">
+      <div className="flex h-10 items-center gap-2 px-3 text-[11px] font-black uppercase tracking-[0.1em]">
+        <Coins className="h-4 w-4" />
+        <span className="tabular-nums">{state.coins ?? 0}</span>
+      </div>
+      <Link
+        to="/coins"
+        aria-label="Open coin shop"
+        className="grid h-10 w-10 place-items-center border-l border-[#f5c518]/30 bg-[#f5c518] text-[#1a1100] transition hover:bg-[#ffd633]"
+      >
+        <Plus className="h-4 w-4" />
+      </Link>
+    </div>
+  );
 
   return (
-    <RacingShell>
+    <RacingShell topSlot={coinBalance}>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <div className="flex items-center border border-[#f5c518]/50 bg-[#2a1f08] text-[#f5c518] shadow-[0_0_22px_rgba(245,197,24,0.14)]">
-          <div className="flex h-10 items-center gap-2 px-3 text-[11px] font-black uppercase tracking-[0.1em]">
-            <Coins className="h-4 w-4" />
-            <span className="tabular-nums">{state.coins ?? 0}</span>
-          </div>
-          <Link
-            to="/coins"
-            aria-label="Open coin shop"
-            className="grid h-10 w-10 place-items-center border-l border-[#f5c518]/30 bg-[#f5c518] text-[#1a1100] transition hover:bg-[#ffd633]"
-          >
-            <Plus className="h-4 w-4" />
-          </Link>
-        </div>
         {user ? (
           <>
             <Link
@@ -174,7 +177,11 @@ function HomeHUD() {
             <p className="max-w-[520px] text-sm font-bold uppercase tracking-[0.1em] text-[#969696]">
               Answer quizzes, earn coins, tune your car, then win races.
             </p>
-            <div className="grid w-full max-w-[520px] grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              className={`grid w-full max-w-[520px] grid-cols-1 gap-3 ${
+                showQuizCta ? "sm:grid-cols-2" : ""
+              }`}
+            >
               {!nextUnlock ? (
                 <Link
                   to={`/race/${firstTrack.id}`}
@@ -193,12 +200,14 @@ function HomeHUD() {
                   {canUnlockNext ? nextUnlock.label : "Play Quiz"}
                 </Link>
               )}
-              <Link
-                to="/quiz"
-                className="font-display inline-flex h-[68px] w-full items-center justify-center gap-3 border-2 border-[#ffd633] bg-[#f5c518] px-5 text-center text-[18px] font-black uppercase tracking-[0.12em] text-[#1a1100] shadow-[0_0_34px_-8px_rgba(245,197,24,0.9)] transition hover:bg-[#ffd633]"
-              >
-                <Coins className="h-6 w-6" /> Play Quiz
-              </Link>
+              {showQuizCta && (
+                <Link
+                  to="/quiz"
+                  className="font-display inline-flex h-[68px] w-full items-center justify-center gap-3 border-2 border-[#ffd633] bg-[#f5c518] px-5 text-center text-[18px] font-black uppercase tracking-[0.12em] text-[#1a1100] shadow-[0_0_34px_-8px_rgba(245,197,24,0.9)] transition hover:bg-[#ffd633]"
+                >
+                  <Coins className="h-6 w-6" /> Play Quiz
+                </Link>
+              )}
             </div>
             <div className="grid w-full max-w-[520px] grid-cols-4 border border-[#303030] bg-[#111] text-center text-[10px] font-bold uppercase tracking-[0.08em] text-[#969696]">
               <LoopStep icon={<Brain className="h-3.5 w-3.5" />} label="Quiz" />

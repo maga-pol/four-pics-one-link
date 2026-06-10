@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Car, Coins, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
+import { Car, Flag, Flame, Home, Map, Trophy, UserCircle } from "lucide-react";
 import { getRankInfo, type GameState } from "@/lib/garage";
 
 const navItems = [
@@ -11,7 +11,7 @@ const navItems = [
   { to: "/profile", label: "Profile", icon: Trophy },
 ] as const;
 
-export function RacingShell({ children }: { children: ReactNode }) {
+export function RacingShell({ children, topSlot }: { children: ReactNode; topSlot?: ReactNode }) {
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-[#181818]" />
@@ -19,14 +19,14 @@ export function RacingShell({ children }: { children: ReactNode }) {
       <div className="pointer-events-none absolute left-0 top-0 h-72 w-72 bg-[#da291c]/10 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 bg-[#f5c518]/10 blur-[130px]" />
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1280px] flex-col gap-4 p-3 pb-24 sm:p-5 sm:pb-5">
-        <RacingTopNav />
+        <RacingTopNav topSlot={topSlot} />
         {children}
       </div>
     </main>
   );
 }
 
-export function RacingTopNav() {
+export function RacingTopNav({ topSlot }: { topSlot?: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return (
@@ -44,17 +44,7 @@ export function RacingTopNav() {
           </span>
         </Link>
 
-        <Link
-          to="/coins"
-          className={`flex h-10 items-center justify-center gap-2 border px-3 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
-            pathname.startsWith("/coins")
-              ? "border-[#f5c518] bg-[#2a1f08] text-[#f5c518] shadow-[0_0_28px_-12px_rgba(245,197,24,0.9)]"
-              : "border-[#303030] bg-[#111] text-[#f5c518] hover:border-[#f5c518] hover:bg-[#1e1e1e]"
-          }`}
-        >
-          <Coins className="h-4 w-4" />
-          <span>Coins</span>
-        </Link>
+        {topSlot}
       </div>
 
       <nav className="grid grid-cols-5 gap-1 border border-[#303030] bg-[#111] p-1">
