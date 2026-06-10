@@ -21,7 +21,16 @@ export function resetAndShuffleLevels(): Level[] {
 }
 
 export function getPhotoUrl(query: string, seed: number, size = 640) {
-  return `https://loremflickr.com/${size}/${size}/${query}/all?lock=${seed}`;
+  const tags = query
+    .toLowerCase()
+    .replace(/[^a-z0-9, ]/g, "")
+    .split(/[,\s]+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map(encodeURIComponent)
+    .join(",");
+
+  return `https://source.unsplash.com/featured/${size}x${size}/?${tags}&sig=${seed}`;
 }
 
 export function normalize(s: string) {

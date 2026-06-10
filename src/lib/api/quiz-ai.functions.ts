@@ -41,19 +41,61 @@ function seedsForQuestion(questionNumber: number, text: string) {
   return [base + 1, base + 2, base + 3, base + 4];
 }
 
+const PHOTO_FRIENDLY_COUNTRY_CODES = [
+  "AE",
+  "AR",
+  "AT",
+  "AU",
+  "BE",
+  "BR",
+  "CA",
+  "CH",
+  "CL",
+  "CN",
+  "CZ",
+  "DE",
+  "DK",
+  "EG",
+  "ES",
+  "FI",
+  "FR",
+  "GB",
+  "GR",
+  "HR",
+  "HU",
+  "ID",
+  "IE",
+  "IN",
+  "IS",
+  "IT",
+  "JP",
+  "KR",
+  "MA",
+  "MX",
+  "MY",
+  "NL",
+  "NO",
+  "NZ",
+  "PE",
+  "PH",
+  "PL",
+  "PT",
+  "QA",
+  "SA",
+  "SE",
+  "SG",
+  "TH",
+  "TR",
+  "US",
+  "VN",
+  "ZA",
+];
+
 function getRandomTargetCountry() {
   const names = new Intl.DisplayNames(["en"], { type: "region" });
-  const codes: string[] = [];
-
-  for (let first = 65; first <= 90; first++) {
-    for (let second = 65; second <= 90; second++) {
-      const code = String.fromCharCode(first, second);
-      const name = names.of(code);
-      if (name && name !== code) codes.push(code);
-    }
-  }
-
-  const code = codes[Math.floor(Math.random() * codes.length)] ?? "JP";
+  const code =
+    PHOTO_FRIENDLY_COUNTRY_CODES[Math.floor(Math.random() * PHOTO_FRIENDLY_COUNTRY_CODES.length)] ??
+    "JP";
   return {
     code,
     name: names.of(code) ?? code,
@@ -77,16 +119,17 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
     const prompt = [
       "You generate one geography quiz question for a student arcade game.",
       "Return ONLY compact JSON. No markdown.",
-      "The player sees 4 photos from loremflickr and guesses the country.",
+      "The player sees 4 photos from an image-search source and guesses the country.",
       `Target country/region: ${targetCountry.name} (${targetCountry.code}).`,
       "Generate the quiz ONLY for this target country/region.",
-      "Choose a real famous landmark, city place, monument, natural wonder, stadium, skyline, or recognizable local scene from the target.",
-      "Use places with visually searchable Flickr tags. Avoid obscure locations.",
+      "Choose a real famous capital, landmark, monument, skyline, or recognizable tourist place from the target.",
+      "Use simple, popular, photo-friendly places. Avoid obscure locations.",
       `Difficulty: ${data.difficulty}. Question number: ${data.questionNumber}.`,
       `answer must be "${targetCountry.name}" or its common country abbreviation.`,
       "acceptedAnswers must include lowercase variants, the official/common country name, and common abbreviations if they exist.",
-      "photoQuery must be 3 to 5 comma-separated English tags, no URLs.",
-      'Schema: {"name":"Famous Place, City","answer":"Country","acceptedAnswers":["country","common country name"],"continent":"Continent","photoQuery":"famous,place,city"}',
+      `photoQuery must be simple comma-separated English tags for image search. Use one of these patterns: "capital,${targetCountry.name}", "landmark,${targetCountry.name}", "city,${targetCountry.name}", or "tourism,${targetCountry.name}".`,
+      "Do not use long phrases, rare proper nouns, URLs, hashtags, or camera words.",
+      'Schema: {"name":"Famous Place, City","answer":"Country","acceptedAnswers":["country","common country name"],"continent":"Continent","photoQuery":"landmark,country"}',
     ].join("\n");
 
     try {
@@ -98,7 +141,7 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
-              temperature: 0.95,
+              temperature: 0.65,
               responseMimeType: "application/json",
             },
           }),

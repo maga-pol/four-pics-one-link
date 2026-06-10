@@ -25,6 +25,23 @@ export const Route = createFileRoute("/quiz")({
 const STORAGE = "wqr-state";
 const QUIZ_LEN = 20;
 
+type QuizDifficulty = "easy" | "medium" | "hard";
+type GeneratedQuizResult = {
+  source: "gemini" | "fallback";
+  reason: string | null;
+  level: Level | null;
+};
+
+function getDifficultyForQuestion(questionNumber: number): QuizDifficulty {
+  if (questionNumber <= 7) return "easy";
+  if (questionNumber <= 14) return "medium";
+  return "hard";
+}
+
+function getNextQuestionNumber(questionNumber: number) {
+  return questionNumber >= QUIZ_LEN ? 1 : questionNumber + 1;
+}
+
 function readCoins(): number {
   if (typeof window === "undefined") return 0;
   try {
@@ -55,6 +72,38 @@ function recordQuizAttempt() {
   } catch {}
 }
 
+function QuizPhoto({ src, index }: { src: string; index: number }) {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
+
+  return (
+    <div
+      className="group relative aspect-square overflow-hidden rounded-3xl border border-white/15 bg-muted shadow-card animate-pop-in"
+      style={{ animationDelay: `${index * 0.07}s` }}
+    >
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.08] via-white/[0.14] to-white/[0.04]" />
+      )}
+      <img
+        src={src}
+        alt={`clue ${index + 1}`}
+        loading={index === 0 ? "eager" : "lazy"}
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={`h-full w-full object-cover transition duration-500 group-hover:scale-110 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <span className="pointer-events-none absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-primary text-[11px] font-extrabold text-white shadow-button">
+        {index + 1}
+      </span>
+    </div>
+  );
+}
+
 function QuizScreen() {
   const [qNum, setQNum] = useState(1);
   const [streak, setStreak] = useState(0);
@@ -62,6 +111,10 @@ function QuizScreen() {
   const [aiSource, setAiSource] = useState<"loading" | "gemini" | "error">("loading");
   const [aiReason, setAiReason] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [prefetched, setPrefetched] = useState<{
+    questionNumber: number;
+    result: GeneratedQuizResult;
+  } | null>(null);
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
   const [hint, setHint] = useState(false);
@@ -72,12 +125,29 @@ function QuizScreen() {
 
   useEffect(() => {
     let alive = true;
-    const difficulty = qNum <= 7 ? "easy" : qNum <= 14 ? "medium" : "hard";
+    const cached = prefetched?.questionNumber === qNum ? prefetched.result : null;
 
     setAiSource("loading");
     setAiReason(null);
     setLevel(null);
-    void generateQuizLevel({ data: { questionNumber: qNum, difficulty } })
+
+    if (cached) {
+      if (cached.source === "gemini" && cached.level) {
+        setLevel(cached.level);
+        setAiSource("gemini");
+      } else {
+        setAiReason(cached.reason ?? "server_error");
+        setAiSource("error");
+      }
+      setPrefetched(null);
+      return () => {
+        alive = false;
+      };
+    }
+
+    void generateQuizLevel({
+      data: { questionNumber: qNum, difficulty: getDifficultyForQuestion(qNum) },
+    })
       .then((result) => {
         if (!alive) return;
         if (result.source === "gemini" && result.level) {
@@ -99,6 +169,43 @@ function QuizScreen() {
     };
   }, [qNum, retryNonce]);
 
+  useEffect(() => {
+    if (aiSource !== "gemini" || !level || result) return;
+
+    const questionNumber = getNextQuestionNumber(qNum);
+    if (prefetched?.questionNumber === questionNumber) return;
+
+    let alive = true;
+    void generateQuizLevel({
+      data: {
+        questionNumber,
+        difficulty: getDifficultyForQuestion(questionNumber),
+      },
+    })
+      .then((generated) => {
+        if (!alive) return;
+        setPrefetched({
+          questionNumber,
+          result: {
+            source: generated.source,
+            reason: generated.reason,
+            level: generated.level,
+          },
+        });
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPrefetched({
+          questionNumber,
+          result: { source: "fallback", reason: "server_error", level: null },
+        });
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [aiSource, level, prefetched?.questionNumber, qNum, result]);
+
   function submit() {
     if (result || !input.trim() || !level) return;
     if (isCorrect(input, level)) {
@@ -118,7 +225,7 @@ function QuizScreen() {
     setInput("");
     setResult(null);
     setHint(false);
-    setQNum((n) => (n >= QUIZ_LEN ? 1 : n + 1));
+    setQNum((n) => getNextQuestionNumber(n));
   }
 
   const difficulty = qNum <= 7 ? "EASY" : qNum <= 14 ? "MEDIUM" : "HARD";
@@ -231,21 +338,11 @@ function QuizScreen() {
           )}
           {level &&
             level.photoSeeds.map((seed, i) => (
-              <div
+              <QuizPhoto
                 key={`${level.id}-${seed}-${i}`}
-                className="group relative aspect-square overflow-hidden rounded-3xl border border-white/15 bg-muted shadow-card animate-pop-in"
-                style={{ animationDelay: `${i * 0.07}s` }}
-              >
-                <img
-                  src={getPhotoUrl(level.photoQuery, seed, 600)}
-                  alt={`clue ${i + 1}`}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-                <span className="pointer-events-none absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-primary text-[11px] font-extrabold text-white shadow-button">
-                  {i + 1}
-                </span>
-              </div>
+                src={getPhotoUrl(level.photoQuery, seed, 600)}
+                index={i}
+              />
             ))}
         </div>
 
