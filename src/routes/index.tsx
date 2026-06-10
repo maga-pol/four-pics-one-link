@@ -11,7 +11,6 @@ import {
   UserCircle,
   Wrench,
 } from "lucide-react";
-import { TRACKS } from "@/lib/tracks";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -87,8 +86,6 @@ function HomeHUD() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const tracks = TRACKS;
-  const firstTrack = tracks[0];
   const ownedCars = new Set(state.ownedCarIds ?? []);
   const ownedDrivers = new Set(state.unlockedDriverIds ?? []);
   const selectedCar = CARS.find((car) => ownedCars.has(car.id) && car.id === state.selectedCarId);
@@ -172,7 +169,7 @@ function HomeHUD() {
                 <Play className="h-3.5 w-3.5 fill-current" /> Play Quiz
               </Link>
               <Link
-                to={`/race/${firstTrack.id}`}
+                to="/tracks"
                 className="play-btn font-display z-20 h-[68px] w-full"
                 style={{ fontSize: 18, letterSpacing: "0.12em" }}
               >

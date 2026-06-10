@@ -487,8 +487,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     lapProgress: 0,
     drifting: false,
   });
-  const [count, setCount] = useState<string | null>(null);
-  const [raceStarted, setRaceStarted] = useState(true);
+  const [count, setCount] = useState<string | null>("3");
+  const [raceStarted, setRaceStarted] = useState(false);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [showHint, setShowHint] = useState<boolean>(() => {
@@ -979,9 +979,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       particles.push({ x, y, vx, vy, life, max: life, size, color });
     }
 
-    // Start immediately. A previous countdown freeze could leave cars stuck if the overlay failed.
-    const COUNTDOWN_MS = 0;
-    let countdownDone = true;
+    const COUNTDOWN_MS = 3500;
+    let countdownDone = false;
 
     // ===== NITRO — +20% top speed for 3s, 8s cooldown =====
     const NITRO_DURATION = 3000;
@@ -990,12 +989,13 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let nitroReadyAt = 0;
     let nitro = 1; // HUD readiness (0..1)
     let last = performance.now();
-    const countdownStartedAt = performance.now();
-    let raceStartedAt = countdownStartedAt;
+    let countdownStartedAt = 0;
+    let raceStartedAt = 0;
     let raf = 0;
     let running = true;
     let finished = false;
-    let raceLaunched = true;
+    let countdownActive = false;
+    let raceLaunched = false;
 
     function onKey(e: KeyboardEvent, down: boolean) {
       // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
@@ -1153,9 +1153,19 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       } catch {}
     }
 
+    function startCountdown(now = performance.now()) {
+      if (countdownActive || raceLaunched) return;
+      countdownActive = true;
+      countdownStartedAt = now;
+      countdownDone = false;
+      setRaceStarted(false);
+      setCount("3");
+    }
+
     function launchRace(now = performance.now()) {
       if (raceLaunched) return;
       const launchPlayer = cars[0];
+      countdownActive = false;
       raceLaunched = true;
       countdownDone = true;
       raceStartedAt = now;
@@ -1167,7 +1177,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         cars[i].speed = Math.max(cars[i].speed, launchTop * 0.42);
       }
     }
-    forceStartRef.current = launchRace;
+    forceStartRef.current = startCountdown;
+    if (!showHint) startCountdown(performance.now());
 
     function tick(now: number) {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -1176,8 +1187,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const k = keysRef.current;
       const player = cars[0];
 
+      if (!countdownActive && !raceLaunched) {
+        player.speed = 0;
+        for (let i = 1; i < cars.length; i++) cars[i].speed = 0;
+        draw(now);
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
       const sinceCountdownStart = now - countdownStartedAt;
-      const racing = raceLaunched || sinceCountdownStart >= COUNTDOWN_MS;
+      const racing = raceLaunched || (countdownActive && sinceCountdownStart >= COUNTDOWN_MS);
       if (!racing) {
         const remain = COUNTDOWN_MS - sinceCountdownStart;
         let idx = 3;
