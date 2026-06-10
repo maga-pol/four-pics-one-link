@@ -60,6 +60,7 @@ function QuizScreen() {
   const [streak, setStreak] = useState(0);
   const [level, setLevel] = useState<Level | null>(null);
   const [aiSource, setAiSource] = useState<"loading" | "gemini" | "error">("loading");
+  const [aiReason, setAiReason] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
@@ -74,6 +75,7 @@ function QuizScreen() {
     const difficulty = qNum <= 7 ? "easy" : qNum <= 14 ? "medium" : "hard";
 
     setAiSource("loading");
+    setAiReason(null);
     setLevel(null);
     void generateQuizLevel({ data: { questionNumber: qNum, difficulty } })
       .then((result) => {
@@ -82,11 +84,14 @@ function QuizScreen() {
           setLevel(result.level);
           setAiSource("gemini");
         } else {
+          setAiReason(result.reason ?? "server_error");
           setAiSource("error");
         }
       })
       .catch(() => {
-        if (alive) setAiSource("error");
+        if (!alive) return;
+        setAiReason("server_error");
+        setAiSource("error");
       });
 
     return () => {
@@ -125,6 +130,12 @@ function QuizScreen() {
         : "bg-gradient-primary text-white";
   const baseReward = difficulty === "EASY" ? 100 : difficulty === "MEDIUM" ? 150 : 220;
   const progress = (qNum / QUIZ_LEN) * 100;
+  const aiErrorText =
+    aiReason === "missing_key"
+      ? "GEMINI_API_KEY is missing on the server."
+      : aiReason === "gemini_error"
+        ? "Gemini rejected the request. Check the API key and model."
+        : "The AI response was not usable. Try again.";
 
   return (
     <main className="relative min-h-screen overflow-hidden text-foreground">
@@ -208,9 +219,7 @@ function QuizScreen() {
           {aiSource === "error" && (
             <div className="col-span-2 rounded-3xl border border-destructive/50 bg-destructive/10 p-6 text-center shadow-card">
               <div className="text-lg font-extrabold text-white">AI quiz was not generated</div>
-              <div className="mt-2 text-sm font-bold text-white/60">
-                Check GEMINI_API_KEY or try again.
-              </div>
+              <div className="mt-2 text-sm font-bold text-white/60">{aiErrorText}</div>
               <button
                 type="button"
                 onClick={() => setRetryNonce((n) => n + 1)}

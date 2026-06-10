@@ -42,13 +42,18 @@ function seedsForQuestion(questionNumber: number, text: string) {
 }
 
 function getRandomTargetCountry() {
-  const regionCodes =
-    typeof Intl.supportedValuesOf === "function"
-      ? Intl.supportedValuesOf("region").filter((code) => /^[A-Z]{2}$/.test(code))
-      : [];
-  const codes = regionCodes.length > 0 ? regionCodes : ["BR", "CA", "EG", "FR", "IN", "JP"];
-  const code = codes[Math.floor(Math.random() * codes.length)] ?? "JP";
   const names = new Intl.DisplayNames(["en"], { type: "region" });
+  const codes: string[] = [];
+
+  for (let first = 65; first <= 90; first++) {
+    for (let second = 65; second <= 90; second++) {
+      const code = String.fromCharCode(first, second);
+      const name = names.of(code);
+      if (name && name !== code) codes.push(code);
+    }
+  }
+
+  const code = codes[Math.floor(Math.random() * codes.length)] ?? "JP";
   return {
     code,
     name: names.of(code) ?? code,
@@ -64,7 +69,9 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const config = getServerConfig();
-    if (!config.geminiApiKey) return { source: "fallback" as const, level: null };
+    if (!config.geminiApiKey) {
+      return { source: "fallback" as const, reason: "missing_key" as const, level: null };
+    }
     const targetCountry = getRandomTargetCountry();
 
     const prompt = [
@@ -97,21 +104,30 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
           }),
         },
       );
-      if (!res.ok) return { source: "fallback" as const, level: null };
+      if (!res.ok) {
+        return { source: "fallback" as const, reason: "gemini_error" as const, level: null };
+      }
 
       const json = await res.json();
       const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (typeof text !== "string") return { source: "fallback" as const, level: null };
+      if (typeof text !== "string") {
+        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+      }
 
       const parsed = extractJson(text);
       const quiz = generatedQuizSchema.safeParse(parsed);
-      if (!quiz.success) return { source: "fallback" as const, level: null };
+      if (!quiz.success) {
+        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+      }
 
       const photoQuery = cleanPhotoQuery(quiz.data.photoQuery);
-      if (!photoQuery) return { source: "fallback" as const, level: null };
+      if (!photoQuery) {
+        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+      }
 
       return {
         source: "gemini" as const,
+        reason: null,
         level: {
           id: 10_000 + data.questionNumber,
           name: quiz.data.name,
@@ -123,6 +139,6 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
         },
       };
     } catch {
-      return { source: "fallback" as const, level: null };
+      return { source: "fallback" as const, reason: "server_error" as const, level: null };
     }
   });
