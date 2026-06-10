@@ -7,6 +7,8 @@ import {
   MiniStat,
   STARTER_CAR_ID,
   defaultState,
+  defaultUpgrades,
+  getCarUpgrades,
   normalizeState,
   readGameState,
   writeGameState,
@@ -71,6 +73,10 @@ function GaragePage() {
         ...current,
         coins: (current.coins ?? 0) - car.cost,
         ownedCarIds: Array.from(new Set([...(current.ownedCarIds ?? []), car.id])),
+        carUpgrades: {
+          ...(current.carUpgrades ?? {}),
+          [car.id]: defaultUpgrades(),
+        },
         selectedCarId: car.id,
       }),
       "New vehicle unlocked",
@@ -78,7 +84,12 @@ function GaragePage() {
   }
 
   function buyUpgrade(key: UpgradeKey) {
-    const upgrades = game.upgrades ?? defaultState().upgrades!;
+    const selectedCarId = game.selectedCarId;
+    if (!selectedCarId || !(game.ownedCarIds ?? []).includes(selectedCarId)) {
+      showFeedback("Select a car first");
+      return;
+    }
+    const upgrades = getCarUpgrades(game, selectedCarId);
     const lvl = upgrades[key] ?? 0;
     if (lvl >= MAX_LEVEL) return;
     const cost = COSTS[lvl];
@@ -90,15 +101,22 @@ function GaragePage() {
       (current) => ({
         ...current,
         coins: (current.coins ?? 0) - cost,
-        upgrades: { ...(current.upgrades ?? defaultState().upgrades!), [key]: lvl + 1 },
+        carUpgrades: {
+          ...(current.carUpgrades ?? {}),
+          [selectedCarId]: {
+            ...defaultUpgrades(),
+            ...getCarUpgrades(current, selectedCarId),
+            [key]: lvl + 1,
+          },
+        },
       }),
-      "Upgrade successful",
+      "Car upgraded",
     );
   }
 
   const ownedCars = new Set(game.ownedCarIds ?? []);
   const selectedCar = CARS.find((car) => ownedCars.has(car.id) && car.id === game.selectedCarId);
-  const upgrades = game.upgrades ?? defaultState().upgrades!;
+  const upgrades = getCarUpgrades(game, selectedCar?.id);
 
   return (
     <RacingShell>
@@ -162,7 +180,9 @@ function GaragePage() {
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#da291c]">
               Upgrades
             </div>
-            <h2 className="font-display mt-1 text-2xl text-white">Tune performance</h2>
+            <h2 className="font-display mt-1 text-2xl text-white">
+              Tune {selectedCar?.name ?? "selected car"}
+            </h2>
           </div>
           <div className="grid gap-3">
             {UPGRADES.map((upgrade) => {

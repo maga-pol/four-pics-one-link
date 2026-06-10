@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { getAccountStorageKey } from "@/lib/account-storage";
 
 export type UpgradeKey = "speed" | "acceleration" | "nitro" | "control";
+export type UpgradeMap = Partial<Record<UpgradeKey, number>>;
 
 export type GameState = {
   coins?: number;
@@ -15,7 +16,8 @@ export type GameState = {
   unlockedTracks?: number;
   ownedTrackIds?: string[];
   podiumTrackIds?: string[];
-  upgrades?: Partial<Record<UpgradeKey, number>>;
+  upgrades?: UpgradeMap;
+  carUpgrades?: Record<string, UpgradeMap>;
   selectedDriverId?: string;
   unlockedDriverIds?: string[];
   selectedCarId?: string;
@@ -443,12 +445,17 @@ export function defaultState(): GameState {
     unlockedTracks: 0,
     ownedTrackIds: [],
     podiumTrackIds: [],
-    upgrades: { speed: 0, acceleration: 0, nitro: 0, control: 0 },
+    upgrades: defaultUpgrades(),
+    carUpgrades: {},
     selectedDriverId: undefined,
     unlockedDriverIds: [],
     selectedCarId: undefined,
     ownedCarIds: [],
   };
+}
+
+export function defaultUpgrades(): Record<UpgradeKey, number> {
+  return { speed: 0, acceleration: 0, nitro: 0, control: 0 };
 }
 
 export function getRankInfo(state: GameState) {
@@ -487,11 +494,20 @@ export function normalizeState(raw: GameState): GameState {
   const selectedDriverId = unlockedDrivers.has(raw.selectedDriverId ?? "")
     ? raw.selectedDriverId
     : Array.from(unlockedDrivers)[0];
+  const fallbackUpgrades = { ...defaultUpgrades(), ...raw.upgrades };
+  const carUpgrades = Array.from(owned).reduce<Record<string, UpgradeMap>>((acc, carId) => {
+    acc[carId] = {
+      ...defaultUpgrades(),
+      ...(raw.carUpgrades?.[carId] ?? fallbackUpgrades),
+    };
+    return acc;
+  }, {});
 
   return {
     ...base,
     ...raw,
-    upgrades: { ...base.upgrades, ...raw.upgrades },
+    upgrades: fallbackUpgrades,
+    carUpgrades,
     podiumTrackIds: Array.from(new Set(raw.podiumTrackIds ?? [])),
     ownedTrackIds: Array.from(new Set(raw.ownedTrackIds ?? [])),
     raceWinDates: Array.from(new Set(raw.raceWinDates ?? []))
@@ -502,6 +518,14 @@ export function normalizeState(raw: GameState): GameState {
     selectedCarId,
     ownedCarIds: Array.from(owned),
     bestWinStreak: Math.max(raw.bestWinStreak ?? 0, raw.winStreak ?? 0),
+  };
+}
+
+export function getCarUpgrades(state: GameState, carId?: string): Record<UpgradeKey, number> {
+  if (!carId) return defaultUpgrades();
+  return {
+    ...defaultUpgrades(),
+    ...(state.carUpgrades?.[carId] ?? state.upgrades),
   };
 }
 

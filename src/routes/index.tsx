@@ -19,9 +19,8 @@ import {
   DRIVERS,
   CarFigure,
   DriverFigure,
-  STARTER_CAR_ID,
-  STARTER_DRIVER_ID,
   defaultState as defaultGarageState,
+  getCarUpgrades,
   readGameState,
   writeGameState,
   type GameState,
@@ -90,29 +89,13 @@ function HomeHUD() {
 
   const tracks = TRACKS;
   const firstTrack = tracks[0];
-  const upgrades = state.upgrades ?? defaultState().upgrades!;
-  const hasOwnedCar = (state.ownedCarIds ?? []).length > 0;
-  const hasOwnedDriver = (state.unlockedDriverIds ?? []).length > 0;
-  const hasOwnedTrack = (state.ownedTrackIds ?? []).includes(firstTrack.id);
   const ownedCars = new Set(state.ownedCarIds ?? []);
   const ownedDrivers = new Set(state.unlockedDriverIds ?? []);
   const selectedCar = CARS.find((car) => ownedCars.has(car.id) && car.id === state.selectedCarId);
   const selectedDriver = DRIVERS.find(
     (driver) => ownedDrivers.has(driver.id) && driver.id === state.selectedDriverId,
   );
-  const starterCar = CARS.find((car) => car.id === STARTER_CAR_ID) ?? CARS[0];
-  const starterDriver = state.unlockedDriverIds?.includes(STARTER_DRIVER_ID);
-  const starterDriverPrice =
-    DRIVERS.find((driver) => driver.id === STARTER_DRIVER_ID)?.cost ?? 1800;
-  const missingStarterDriver = !hasOwnedDriver || !starterDriver;
-  const nextUnlock = !hasOwnedCar
-    ? { to: "/garage" as const, label: "Unlock Car", cost: starterCar.cost }
-    : missingStarterDriver
-      ? { to: "/drivers" as const, label: "Unlock Driver", cost: starterDriverPrice }
-      : !hasOwnedTrack
-        ? { to: "/tracks" as const, label: "Unlock Track", cost: firstTrack.cost }
-        : null;
-  const canUnlockNext = nextUnlock ? (state.coins ?? 0) >= nextUnlock.cost : true;
+  const upgrades = getCarUpgrades(state, selectedCar?.id);
   const coinBalance = (
     <div className="flex items-center border border-[#f5c518]/50 bg-[#2a1f08] text-[#f5c518] shadow-[0_0_22px_rgba(245,197,24,0.14)]">
       <div className="flex h-10 items-center gap-2 px-3 text-[11px] font-black uppercase tracking-[0.1em]">
@@ -180,25 +163,21 @@ function HomeHUD() {
             <p className="max-w-[520px] text-sm font-bold uppercase tracking-[0.1em] text-[#969696]">
               Answer quizzes, earn coins, tune your car, then win races.
             </p>
-            <div className="grid w-full max-w-[520px] grid-cols-1 gap-3">
-              {!nextUnlock ? (
-                <Link
-                  to={`/race/${firstTrack.id}`}
-                  className={`play-btn font-display z-20 h-[68px] w-full ${hydrated && state.wins === 0 ? "animate-hint-pulse" : ""}`}
-                  style={{ fontSize: 18, letterSpacing: "0.12em" }}
-                >
-                  <Play className="h-3.5 w-3.5 fill-current" /> Race Now
-                </Link>
-              ) : (
-                <Link
-                  to={canUnlockNext ? nextUnlock.to : "/quiz"}
-                  className={`play-btn font-display z-20 h-[68px] w-full ${hydrated ? "animate-hint-pulse" : ""}`}
-                  style={{ fontSize: 18, letterSpacing: "0.12em" }}
-                >
-                  <Play className="h-3.5 w-3.5 fill-current" />{" "}
-                  {canUnlockNext ? nextUnlock.label : "Play Quiz"}
-                </Link>
-              )}
+            <div className="grid w-full max-w-[520px] grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                to="/quiz"
+                className={`play-btn font-display z-20 h-[68px] w-full ${hydrated ? "animate-hint-pulse" : ""}`}
+                style={{ fontSize: 18, letterSpacing: "0.12em" }}
+              >
+                <Play className="h-3.5 w-3.5 fill-current" /> Play Quiz
+              </Link>
+              <Link
+                to={`/race/${firstTrack.id}`}
+                className="play-btn font-display z-20 h-[68px] w-full"
+                style={{ fontSize: 18, letterSpacing: "0.12em" }}
+              >
+                <Trophy className="h-3.5 w-3.5" /> Race Now
+              </Link>
             </div>
             <div className="grid w-full max-w-[520px] grid-cols-4 border border-[#303030] bg-[#111] text-center text-[10px] font-bold uppercase tracking-[0.08em] text-[#969696]">
               <LoopStep icon={<Brain className="h-3.5 w-3.5" />} label="Quiz" />

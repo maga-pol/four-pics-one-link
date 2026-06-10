@@ -30,6 +30,7 @@ import {
   CARS,
   DRIVERS,
   getAccountStorageKey,
+  getCarUpgrades,
   getSelectedCar,
   getSelectedDriver,
   normalizeState,
@@ -91,9 +92,8 @@ function recordRaceFinish(rank: number, trackId: string) {
 function readUpgrades() {
   if (typeof window === "undefined") return { speed: 0, acceleration: 0, nitro: 0, control: 0 };
   try {
-    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
-    const obj = raw ? JSON.parse(raw) : {};
-    return obj.upgrades ?? { speed: 0, acceleration: 0, nitro: 0, control: 0 };
+    const state = readGameState();
+    return getCarUpgrades(state, state.selectedCarId);
   } catch {
     return { speed: 0, acceleration: 0, nitro: 0, control: 0 };
   }
@@ -123,16 +123,22 @@ function RaceScreen() {
   const { trackId } = useParams({ from: "/race/$trackId" });
   const track = getTrack(trackId);
   const [raceAccess, setRaceAccess] = useState({
-    car: true,
-    driver: true,
-    track: true,
+    car: false,
+    driver: false,
+    track: false,
   });
 
   useEffect(() => {
     const state = readGameState();
+    const selectedCarOwned = Boolean(
+      state.selectedCarId && (state.ownedCarIds ?? []).includes(state.selectedCarId),
+    );
+    const selectedDriverOwned = Boolean(
+      state.selectedDriverId && (state.unlockedDriverIds ?? []).includes(state.selectedDriverId),
+    );
     setRaceAccess({
-      car: (state.ownedCarIds ?? []).length > 0,
-      driver: (state.unlockedDriverIds ?? []).length > 0,
+      car: selectedCarOwned,
+      driver: selectedDriverOwned,
       track: (state.ownedTrackIds ?? []).includes(trackId),
     });
   }, [trackId]);
@@ -152,9 +158,9 @@ function RaceScreen() {
 
   if (!raceAccess.car || !raceAccess.driver || !raceAccess.track) {
     const missing = !raceAccess.car
-      ? "first car"
+      ? "selected car"
       : !raceAccess.driver
-        ? "first driver"
+        ? "selected driver"
         : "this track";
     const target = !raceAccess.car ? "/garage" : !raceAccess.driver ? "/drivers" : "/tracks";
     return (
@@ -506,11 +512,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     } catch {}
     forceStartRef.current?.();
   }
-  function setControl(control: string, down: boolean) {
-    keysRef.current[control] = down;
-    if (down) forceStartRef.current?.();
-  }
-
   useEffect(() => {
     applyRaceLayout(trackId);
     const canvas = canvasRef.current!;
@@ -3644,43 +3645,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             );
           })()}
 
-        {!result && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-end justify-between gap-3">
-            <div className="pointer-events-auto grid grid-cols-2 gap-2">
-              <RaceControlButton
-                label="LEFT"
-                onDown={() => setControl("a", true)}
-                onUp={() => setControl("a", false)}
-              />
-              <RaceControlButton
-                label="RIGHT"
-                onDown={() => setControl("d", true)}
-                onUp={() => setControl("d", false)}
-              />
-            </div>
-            <div className="pointer-events-auto flex gap-2">
-              <RaceControlButton
-                label="GAS"
-                tone="green"
-                onDown={() => setControl("w", true)}
-                onUp={() => setControl("w", false)}
-              />
-              <RaceControlButton
-                label="DRIFT"
-                tone="dark"
-                onDown={() => setControl("e", true)}
-                onUp={() => setControl("e", false)}
-              />
-              <RaceControlButton
-                label="NITRO"
-                tone="gold"
-                onDown={() => setControl("shift", true)}
-                onUp={() => setControl("shift", false)}
-              />
-            </div>
-          </div>
-        )}
-
         {!raceStarted && !result && !showHint && !count && (
           <button
             type="button"
@@ -3735,50 +3699,6 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
       </kbd>
       <span className="text-muted-foreground">{desc}</span>
     </div>
-  );
-}
-
-function RaceControlButton({
-  label,
-  tone = "blue",
-  onDown,
-  onUp,
-}: {
-  label: string;
-  tone?: "blue" | "green" | "gold" | "dark";
-  onDown: () => void;
-  onUp: () => void;
-}) {
-  const toneClass =
-    tone === "green"
-      ? "border-emerald-300/70 bg-emerald-500/80 text-white"
-      : tone === "gold"
-        ? "border-amber-300/70 bg-amber-500/85 text-amber-950"
-        : tone === "dark"
-          ? "border-white/30 bg-background/80 text-white"
-          : "border-primary/60 bg-background/85 text-white";
-  return (
-    <button
-      type="button"
-      className={`h-14 min-w-20 select-none rounded-none border px-4 text-xs font-black uppercase tracking-[0.12em] shadow-[0_12px_28px_-18px_rgba(0,0,0,0.9)] backdrop-blur transition active:scale-95 ${toneClass}`}
-      onPointerDown={(event) => {
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        onDown();
-      }}
-      onPointerUp={(event) => {
-        event.preventDefault();
-        try {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        } catch {}
-        onUp();
-      }}
-      onPointerCancel={onUp}
-      onPointerLeave={onUp}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      {label}
-    </button>
   );
 }
 
