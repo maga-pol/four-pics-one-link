@@ -10,6 +10,7 @@ export type Track = {
   name: string;
   flag: string;
   description: string;
+  cost: number;
   laps: number;
   region: string;
   stages: TrackStage[];
@@ -20,7 +21,9 @@ export const TRACKS: Track[] = [
     id: "circuit",
     name: "Sakura Neon Circuit",
     flag: "JP",
-    description: "Race through a Japanese festival route with sakura, neon, bridges, boosts, and a tight hairpin.",
+    description:
+      "Race through a Japanese festival route with sakura, neon, bridges, boosts, and a tight hairpin.",
+    cost: 3500,
     laps: 3,
     region: "Japan Showcase",
     stages: [
@@ -35,7 +38,9 @@ export const TRACKS: Track[] = [
     id: "dubai-grand-circuit",
     name: "Dubai Grand Circuit",
     flag: "AE",
-    description: "Race a premium Dubai night circuit with long straights, neon towers, palm-lined roads, and flowing F1-inspired corners.",
+    description:
+      "Race a premium Dubai night circuit with long straights, neon towers, palm-lined roads, and flowing F1-inspired corners.",
+    cost: 16000,
     laps: 3,
     region: "Dubai Night GP",
     stages: [

@@ -1,3 +1,5 @@
+import { getAccountStorageKey } from "@/lib/account-storage";
+
 export type Level = {
   id: number;
   name: string;
@@ -118,7 +120,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 export function loadShuffledLevels(): Level[] {
   if (typeof window === "undefined") return LEVELS;
   try {
-    const raw = localStorage.getItem(SHUFFLE_KEY);
+    const raw = localStorage.getItem(getAccountStorageKey(SHUFFLE_KEY));
     if (raw) {
       const ids: number[] = JSON.parse(raw);
       if (ids.length === LEVELS.length) {
@@ -134,7 +136,10 @@ export function loadShuffledLevels(): Level[] {
 export function resetAndShuffleLevels(): Level[] {
   const shuffled = shuffleArray(LEVELS);
   if (typeof window !== "undefined") {
-    localStorage.setItem(SHUFFLE_KEY, JSON.stringify(shuffled.map((l) => l.id)));
+    localStorage.setItem(
+      getAccountStorageKey(SHUFFLE_KEY),
+      JSON.stringify(shuffled.map((l) => l.id)),
+    );
   }
   return shuffled;
 }
@@ -144,7 +149,10 @@ export function getPhotoUrl(query: string, seed: number, size = 640) {
 }
 
 export function normalize(s: string) {
-  return s.toLowerCase().trim().replace(/[^a-z0-9 ]/g, "");
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9 ]/g, "");
 }
 
 export function isCorrect(input: string, level: Level) {

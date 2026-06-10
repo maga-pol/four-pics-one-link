@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Trophy, RotateCcw, Home } from "lucide-react";
 import { resetAndShuffleLevels } from "@/lib/levels";
+import { getAccountStorageKey } from "@/lib/garage";
 
 const STORAGE_KEY = "gtc-progress";
 
@@ -19,7 +20,7 @@ function CompletePage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(getAccountStorageKey(STORAGE_KEY));
       if (raw) {
         const p = JSON.parse(raw);
         setScore(p.score ?? 0);
@@ -30,7 +31,10 @@ function CompletePage() {
 
   function restart() {
     resetAndShuffleLevels();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ score: 0, streak: 0 }));
+    localStorage.setItem(
+      getAccountStorageKey(STORAGE_KEY),
+      JSON.stringify({ score: 0, streak: 0 }),
+    );
     navigate({ to: "/game/$level", params: { level: "1" } });
   }
 
@@ -48,9 +52,7 @@ function CompletePage() {
         <h1 className="mt-6 text-4xl font-black sm:text-5xl">
           <span className="text-gradient-title">You did it!</span>
         </h1>
-        <p className="mt-3 text-muted-foreground">
-          All 10 places guessed. Mind = connected.
-        </p>
+        <p className="mt-3 text-muted-foreground">All 10 places guessed. Mind = connected.</p>
 
         <div className="mt-8 grid grid-cols-2 gap-3">
           <Stat label="Score" value={score} />

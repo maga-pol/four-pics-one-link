@@ -94,16 +94,6 @@ function CoinsPage() {
     );
   }
 
-  function buyPack(coins: number, name: string) {
-    save(
-      (state) => ({
-        ...state,
-        coins: (state.coins ?? 0) + coins,
-      }),
-      `${name} added`,
-    );
-  }
-
   const answered = game.totalQuizzesCompleted ?? 0;
   const quizProgress = Math.min(100, Math.round((answered / 50) * 100));
 
@@ -167,12 +157,16 @@ function CoinsPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => (pack.quiz ? claimQuizPack() : buyPack(pack.coins, pack.name))}
-                  disabled={claimed}
+                  onClick={() =>
+                    pack.quiz ? claimQuizPack() : showFeedback("Payments coming soon")
+                  }
+                  disabled={claimed || !pack.quiz}
                   className={`mt-5 flex h-12 w-full items-center justify-center gap-2 border px-4 text-xs font-black uppercase tracking-[0.12em] transition ${
                     claimed
                       ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-200"
-                      : "border-[#da291c] bg-[#da291c] text-white hover:bg-[#b91c1c]"
+                      : !pack.quiz
+                        ? "cursor-not-allowed border-[#303030] bg-[#1e1e1e] text-[#696969]"
+                        : "border-[#da291c] bg-[#da291c] text-white hover:bg-[#b91c1c]"
                   }`}
                 >
                   {pack.quiz ? (
@@ -185,7 +179,7 @@ function CoinsPage() {
                     )
                   ) : (
                     <>
-                      <CreditCard className="h-4 w-4" /> Buy
+                      <CreditCard className="h-4 w-4" /> Coming Soon
                     </>
                   )}
                 </button>

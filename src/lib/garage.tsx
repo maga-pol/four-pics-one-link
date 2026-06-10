@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { getAccountStorageKey } from "@/lib/account-storage";
 
 export type UpgradeKey = "speed" | "acceleration" | "nitro" | "control";
 
@@ -12,6 +13,7 @@ export type GameState = {
   bestWinStreak?: number;
   raceWinDates?: string[];
   unlockedTracks?: number;
+  ownedTrackIds?: string[];
   podiumTrackIds?: string[];
   upgrades?: Partial<Record<UpgradeKey, number>>;
   selectedDriverId?: string;
@@ -28,6 +30,7 @@ export type Driver = {
   color: string;
   accent: string;
   bonus: string;
+  cost: number;
   bonusKey: "speed" | "acceleration" | "nitro" | "control";
   bonusValue: number;
 };
@@ -46,6 +49,7 @@ export const STORAGE = "wqr-state";
 export const STARTER_CAR_ID = "red-bull-racing";
 export const STARTER_DRIVER_ID = "academy-rookie";
 export const DRIVER_UNLOCK_STEP = 3;
+export const STARTER_TRACK_ID = "circuit";
 
 export const DRIVERS: Driver[] = [
   {
@@ -56,6 +60,7 @@ export const DRIVERS: Driver[] = [
     color: "#da291c",
     accent: "#f5c518",
     bonus: "+2% Balance",
+    cost: 1800,
     bonusKey: "control",
     bonusValue: 2,
   },
@@ -67,6 +72,7 @@ export const DRIVERS: Driver[] = [
     color: "#1e41ff",
     accent: "#fcd116",
     bonus: "+5% Speed",
+    cost: 28000,
     bonusKey: "speed",
     bonusValue: 5,
   },
@@ -78,6 +84,7 @@ export const DRIVERS: Driver[] = [
     color: "#0b1f3a",
     accent: "#d4af37",
     bonus: "+4% Control",
+    cost: 14000,
     bonusKey: "control",
     bonusValue: 4,
   },
@@ -89,6 +96,7 @@ export const DRIVERS: Driver[] = [
     color: "#b6babd",
     accent: "#111111",
     bonus: "+3% Acceleration",
+    cost: 9000,
     bonusKey: "acceleration",
     bonusValue: 3,
   },
@@ -100,6 +108,7 @@ export const DRIVERS: Driver[] = [
     color: "#ff8700",
     accent: "#47c7fc",
     bonus: "+5% Nitro",
+    cost: 26000,
     bonusKey: "nitro",
     bonusValue: 5,
   },
@@ -111,6 +120,7 @@ export const DRIVERS: Driver[] = [
     color: "#006f62",
     accent: "#ffffff",
     bonus: "+3% Control",
+    cost: 8500,
     bonusKey: "control",
     bonusValue: 3,
   },
@@ -122,6 +132,7 @@ export const DRIVERS: Driver[] = [
     color: "#dc0000",
     accent: "#fff200",
     bonus: "+3% Acceleration",
+    cost: 23000,
     bonusKey: "acceleration",
     bonusValue: 3,
   },
@@ -133,6 +144,7 @@ export const DRIVERS: Driver[] = [
     color: "#00a3e0",
     accent: "#ffffff",
     bonus: "+4% Control",
+    cost: 13000,
     bonusKey: "control",
     bonusValue: 4,
   },
@@ -144,6 +156,7 @@ export const DRIVERS: Driver[] = [
     color: "#0b1f3a",
     accent: "#d4af37",
     bonus: "+4% Nitro",
+    cost: 16000,
     bonusKey: "nitro",
     bonusValue: 4,
   },
@@ -155,6 +168,7 @@ export const DRIVERS: Driver[] = [
     color: "#0090ff",
     accent: "#ffffff",
     bonus: "+3% Speed",
+    cost: 9000,
     bonusKey: "speed",
     bonusValue: 3,
   },
@@ -166,6 +180,7 @@ export const DRIVERS: Driver[] = [
     color: "#111111",
     accent: "#00ff5f",
     bonus: "+4% Control",
+    cost: 15000,
     bonusKey: "control",
     bonusValue: 4,
   },
@@ -177,6 +192,7 @@ export const DRIVERS: Driver[] = [
     color: "#00a19c",
     accent: "#111111",
     bonus: "+4% Acceleration",
+    cost: 24000,
     bonusKey: "acceleration",
     bonusValue: 4,
   },
@@ -188,6 +204,7 @@ export const DRIVERS: Driver[] = [
     color: "#111111",
     accent: "#00ff5f",
     bonus: "+3% Nitro",
+    cost: 9500,
     bonusKey: "nitro",
     bonusValue: 3,
   },
@@ -199,6 +216,7 @@ export const DRIVERS: Driver[] = [
     color: "#006f62",
     accent: "#cedc00",
     bonus: "+5% Control",
+    cost: 25000,
     bonusKey: "control",
     bonusValue: 5,
   },
@@ -210,6 +228,7 @@ export const DRIVERS: Driver[] = [
     color: "#b6babd",
     accent: "#e10600",
     bonus: "+3% Speed",
+    cost: 10000,
     bonusKey: "speed",
     bonusValue: 3,
   },
@@ -221,6 +240,7 @@ export const DRIVERS: Driver[] = [
     color: "#00a3e0",
     accent: "#0b1f3a",
     bonus: "+4% Speed",
+    cost: 15500,
     bonusKey: "speed",
     bonusValue: 4,
   },
@@ -232,6 +252,7 @@ export const DRIVERS: Driver[] = [
     color: "#0090ff",
     accent: "#ff87bc",
     bonus: "+4% Nitro",
+    cost: 14500,
     bonusKey: "nitro",
     bonusValue: 4,
   },
@@ -243,6 +264,7 @@ export const DRIVERS: Driver[] = [
     color: "#1434cb",
     accent: "#e10600",
     bonus: "+3% Acceleration",
+    cost: 8500,
     bonusKey: "acceleration",
     bonusValue: 3,
   },
@@ -254,6 +276,7 @@ export const DRIVERS: Driver[] = [
     color: "#1434cb",
     accent: "#ffffff",
     bonus: "+3% Control",
+    cost: 9000,
     bonusKey: "control",
     bonusValue: 3,
   },
@@ -265,6 +288,7 @@ export const DRIVERS: Driver[] = [
     color: "#ff8700",
     accent: "#111111",
     bonus: "+4% Nitro",
+    cost: 27000,
     bonusKey: "nitro",
     bonusValue: 4,
   },
@@ -276,6 +300,7 @@ export const DRIVERS: Driver[] = [
     color: "#1e41ff",
     accent: "#fcd116",
     bonus: "+4% Speed",
+    cost: 18000,
     bonusKey: "speed",
     bonusValue: 4,
   },
@@ -287,6 +312,7 @@ export const DRIVERS: Driver[] = [
     color: "#dc0000",
     accent: "#111111",
     bonus: "+5% Control",
+    cost: 30000,
     bonusKey: "control",
     bonusValue: 5,
   },
@@ -298,6 +324,7 @@ export const DRIVERS: Driver[] = [
     color: "#00a19c",
     accent: "#111111",
     bonus: "+4% Acceleration",
+    cost: 17500,
     bonusKey: "acceleration",
     bonusValue: 4,
   },
@@ -334,7 +361,7 @@ export const CARS: RaceCar[] = [
     id: STARTER_CAR_ID,
     name: "RB Starter",
     team: "Red Bull Racing",
-    cost: 0,
+    cost: 2500,
     speed: 72,
     grip: 68,
     colors: ["#1e41ff", "#101820", "#fcd116"],
@@ -343,7 +370,7 @@ export const CARS: RaceCar[] = [
     id: "ferrari-red",
     name: "Rosso Aero",
     team: "Ferrari",
-    cost: 450,
+    cost: 8500,
     speed: 78,
     grip: 70,
     colors: ["#dc0000", "#111111", "#fff200"],
@@ -352,7 +379,7 @@ export const CARS: RaceCar[] = [
     id: "mclaren-papaya",
     name: "Papaya Sprint",
     team: "McLaren",
-    cost: 650,
+    cost: 12000,
     speed: 80,
     grip: 72,
     colors: ["#ff8700", "#111111", "#47c7fc"],
@@ -361,7 +388,7 @@ export const CARS: RaceCar[] = [
     id: "mercedes-silver",
     name: "Silver Arrow",
     team: "Mercedes",
-    cost: 850,
+    cost: 16000,
     speed: 82,
     grip: 76,
     colors: ["#00a19c", "#c0c0c0", "#111111"],
@@ -370,7 +397,7 @@ export const CARS: RaceCar[] = [
     id: "aston-green",
     name: "Emerald Vantage",
     team: "Aston Martin",
-    cost: 1050,
+    cost: 19000,
     speed: 79,
     grip: 84,
     colors: ["#006f62", "#0b1f3a", "#cedc00"],
@@ -379,7 +406,7 @@ export const CARS: RaceCar[] = [
     id: "williams-blue",
     name: "Oxford Flash",
     team: "Williams",
-    cost: 1250,
+    cost: 23000,
     speed: 86,
     grip: 78,
     colors: ["#00a3e0", "#0b1f3a", "#ffffff"],
@@ -388,7 +415,7 @@ export const CARS: RaceCar[] = [
     id: "cadillac-gold",
     name: "Goldline GP",
     team: "Cadillac",
-    cost: 1500,
+    cost: 28000,
     speed: 88,
     grip: 82,
     colors: ["#0b1f3a", "#d4af37", "#ffffff"],
@@ -397,7 +424,7 @@ export const CARS: RaceCar[] = [
     id: "carbon-pro",
     name: "Carbon Prototype",
     team: "World Quiz Race",
-    cost: 1900,
+    cost: 36000,
     speed: 92,
     grip: 90,
     colors: ["#111111", "#da291c", "#f5c518"],
@@ -406,20 +433,21 @@ export const CARS: RaceCar[] = [
 
 export function defaultState(): GameState {
   return {
-    coins: 250,
+    coins: 0,
     wins: 0,
     totalRaces: 0,
     totalQuizzesCompleted: 0,
     winStreak: 0,
     bestWinStreak: 0,
     raceWinDates: [],
-    unlockedTracks: 1,
+    unlockedTracks: 0,
+    ownedTrackIds: [],
     podiumTrackIds: [],
-    upgrades: { speed: 1, acceleration: 1, nitro: 0, control: 0 },
-    selectedDriverId: STARTER_DRIVER_ID,
-    unlockedDriverIds: [STARTER_DRIVER_ID],
-    selectedCarId: STARTER_CAR_ID,
-    ownedCarIds: [STARTER_CAR_ID],
+    upgrades: { speed: 0, acceleration: 0, nitro: 0, control: 0 },
+    selectedDriverId: undefined,
+    unlockedDriverIds: [],
+    selectedCarId: undefined,
+    ownedCarIds: [],
   };
 }
 
@@ -451,18 +479,21 @@ export function getRankInfo(state: GameState) {
 
 export function normalizeState(raw: GameState): GameState {
   const base = defaultState();
-  const owned = new Set([STARTER_CAR_ID, ...(raw.ownedCarIds ?? [])]);
-  const unlockedDrivers = new Set([STARTER_DRIVER_ID, ...(raw.unlockedDriverIds ?? [])]);
-  const selectedCarId = owned.has(raw.selectedCarId ?? "") ? raw.selectedCarId : STARTER_CAR_ID;
+  const owned = new Set(raw.ownedCarIds ?? []);
+  const unlockedDrivers = new Set(raw.unlockedDriverIds ?? []);
+  const selectedCarId = owned.has(raw.selectedCarId ?? "")
+    ? raw.selectedCarId
+    : Array.from(owned)[0];
   const selectedDriverId = unlockedDrivers.has(raw.selectedDriverId ?? "")
     ? raw.selectedDriverId
-    : STARTER_DRIVER_ID;
+    : Array.from(unlockedDrivers)[0];
 
   return {
     ...base,
     ...raw,
     upgrades: { ...base.upgrades, ...raw.upgrades },
     podiumTrackIds: Array.from(new Set(raw.podiumTrackIds ?? [])),
+    ownedTrackIds: Array.from(new Set(raw.ownedTrackIds ?? [])),
     raceWinDates: Array.from(new Set(raw.raceWinDates ?? []))
       .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
       .slice(-28),
@@ -477,7 +508,7 @@ export function normalizeState(raw: GameState): GameState {
 export function readGameState(): GameState {
   if (typeof window === "undefined") return defaultState();
   try {
-    return normalizeState(JSON.parse(localStorage.getItem(STORAGE) ?? "{}"));
+    return normalizeState(JSON.parse(localStorage.getItem(getAccountStorageKey(STORAGE)) ?? "{}"));
   } catch {
     return defaultState();
   }
@@ -485,8 +516,10 @@ export function readGameState(): GameState {
 
 export function writeGameState(next: GameState) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE, JSON.stringify(normalizeState(next)));
+  localStorage.setItem(getAccountStorageKey(STORAGE), JSON.stringify(normalizeState(next)));
 }
+
+export { getAccountStorageKey } from "@/lib/account-storage";
 
 export function getUnlockedDriverIds(podiumTrackIds: string[] = []) {
   const unlockCount = Math.floor(new Set(podiumTrackIds).size / DRIVER_UNLOCK_STEP);

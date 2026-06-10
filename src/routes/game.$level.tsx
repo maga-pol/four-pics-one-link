@@ -1,7 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Lightbulb, Check, X, ArrowRight, Trophy, Flame } from "lucide-react";
-import { LEVELS, getPhotoUrl, isCorrect, loadShuffledLevels, resetAndShuffleLevels, type Level } from "@/lib/levels";
+import {
+  LEVELS,
+  getPhotoUrl,
+  isCorrect,
+  loadShuffledLevels,
+  resetAndShuffleLevels,
+  type Level,
+} from "@/lib/levels";
+import { getAccountStorageKey } from "@/lib/garage";
 
 type Progress = { score: number; streak: number };
 const STORAGE_KEY = "gtc-progress";
@@ -9,7 +17,7 @@ const STORAGE_KEY = "gtc-progress";
 function loadProgress(): Progress {
   if (typeof window === "undefined") return { score: 0, streak: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE_KEY));
     if (!raw) return { score: 0, streak: 0 };
     return JSON.parse(raw) as Progress;
   } catch {
@@ -18,7 +26,7 @@ function loadProgress(): Progress {
 }
 function saveProgress(p: Progress) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+  localStorage.setItem(getAccountStorageKey(STORAGE_KEY), JSON.stringify(p));
 }
 
 export const Route = createFileRoute("/game/$level")({
@@ -39,7 +47,7 @@ function GamePage() {
   // Generate fresh random seeds on every level load so images always change
   const seeds = useMemo(
     () => Array.from({ length: 4 }, () => Math.floor(Math.random() * 1_000_000) + 1),
-    [levelNum]
+    [levelNum],
   );
 
   const [input, setInput] = useState("");
@@ -121,7 +129,9 @@ function GamePage() {
         {/* Progress */}
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            <span>Level {levelNum} / {LEVELS.length}</span>
+            <span>
+              Level {levelNum} / {LEVELS.length}
+            </span>
             <span>{Math.round(progressPct)}%</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-card/60">
@@ -198,7 +208,14 @@ function GamePage() {
           </div>
         </form>
 
-        {result && <ResultPanel result={result} level={level} onNext={nextLevel} isLast={levelNum >= LEVELS.length} />}
+        {result && (
+          <ResultPanel
+            result={result}
+            level={level}
+            onNext={nextLevel}
+            isLast={levelNum >= LEVELS.length}
+          />
+        )}
 
         <div className="mt-auto pt-6 text-center text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60">
           Think · Connect · Solve
@@ -263,9 +280,7 @@ function ResultPanel({
           {ok ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
         </div>
         <div className="flex-1">
-          <div className="text-sm font-bold">
-            {ok ? "Correct!" : "Not quite."}
-          </div>
+          <div className="text-sm font-bold">{ok ? "Correct!" : "Not quite."}</div>
           <div className="mt-0.5 text-sm text-muted-foreground">
             Answer: <span className="text-foreground font-semibold">{level.name}</span>
           </div>

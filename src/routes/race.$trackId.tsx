@@ -1,18 +1,37 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Flag, Gauge, HeartPulse, Trophy, Zap, Volume2, VolumeX } from "lucide-react";
+import {
+  ArrowLeft,
+  Flag,
+  Gauge,
+  HeartPulse,
+  Lock,
+  Trophy,
+  Zap,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { getTrack } from "@/lib/tracks";
 import { getBotRacePlan } from "@/lib/api/bot-ai.functions";
 import {
-  startEngine, stopEngine, setEngine, playBeep, playNitroSwoosh,
-  playCrash, playFanfare, playCountdownBeep, playDriftScreech, setMuted, isMuted,
+  startEngine,
+  stopEngine,
+  setEngine,
+  playBeep,
+  playNitroSwoosh,
+  playCrash,
+  playFanfare,
+  playCountdownBeep,
+  playDriftScreech,
+  setMuted,
+  isMuted,
 } from "@/lib/audio";
 import {
   CARS,
   DRIVERS,
+  getAccountStorageKey,
   getSelectedCar,
   getSelectedDriver,
-  getUnlockedDriverIds,
   normalizeState,
   readGameState,
   writeGameState,
@@ -39,23 +58,25 @@ function localDateKey(date = new Date()) {
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     const obj = raw ? JSON.parse(raw) : {};
     obj.coins = (obj.coins ?? 0) + delta;
-    localStorage.setItem(STORAGE, JSON.stringify(obj));
+    localStorage.setItem(getAccountStorageKey(STORAGE), JSON.stringify(obj));
   } catch {}
 }
 function recordRaceFinish(rank: number, trackId: string) {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     const obj = normalizeState(raw ? JSON.parse(raw) : {});
     if (rank === 1) {
       const nextStreak = (obj.winStreak ?? 0) + 1;
       obj.wins = (obj.wins ?? 0) + 1;
       obj.winStreak = nextStreak;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, nextStreak);
-      obj.raceWinDates = Array.from(new Set([...(obj.raceWinDates ?? []), localDateKey()])).slice(-28);
+      obj.raceWinDates = Array.from(new Set([...(obj.raceWinDates ?? []), localDateKey()])).slice(
+        -28,
+      );
     } else {
       obj.winStreak = 0;
       obj.bestWinStreak = Math.max(obj.bestWinStreak ?? 0, 0);
@@ -63,50 +84,98 @@ function recordRaceFinish(rank: number, trackId: string) {
     obj.totalRaces = (obj.totalRaces ?? 0) + 1;
     if (rank <= 3) {
       obj.podiumTrackIds = Array.from(new Set([...(obj.podiumTrackIds ?? []), trackId]));
-      obj.unlockedDriverIds = getUnlockedDriverIds(obj.podiumTrackIds);
     }
     writeGameState(obj);
   } catch {}
 }
 function readUpgrades() {
-  if (typeof window === "undefined") return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
+  if (typeof window === "undefined") return { speed: 0, acceleration: 0, nitro: 0, control: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     const obj = raw ? JSON.parse(raw) : {};
-    return obj.upgrades ?? { speed: 1, acceleration: 1, nitro: 0, control: 0 };
+    return obj.upgrades ?? { speed: 0, acceleration: 0, nitro: 0, control: 0 };
   } catch {
-    return { speed: 1, acceleration: 1, nitro: 0, control: 0 };
+    return { speed: 0, acceleration: 0, nitro: 0, control: 0 };
   }
 }
 function readBestTime(trackId: string): number | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(BEST_KEY);
+    const raw = localStorage.getItem(getAccountStorageKey(BEST_KEY));
     if (!raw) return null;
     const obj = JSON.parse(raw);
     return typeof obj?.[trackId] === "number" ? obj[trackId] : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 function writeBestTime(trackId: string, t: number) {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(BEST_KEY);
+    const raw = localStorage.getItem(getAccountStorageKey(BEST_KEY));
     const obj = raw ? JSON.parse(raw) : {};
     obj[trackId] = t;
-    localStorage.setItem(BEST_KEY, JSON.stringify(obj));
+    localStorage.setItem(getAccountStorageKey(BEST_KEY), JSON.stringify(obj));
   } catch {}
 }
 
 function RaceScreen() {
   const { trackId } = useParams({ from: "/race/$trackId" });
   const track = getTrack(trackId);
+  const [raceAccess, setRaceAccess] = useState({
+    car: true,
+    driver: true,
+    track: true,
+  });
+
+  useEffect(() => {
+    const state = readGameState();
+    setRaceAccess({
+      car: (state.ownedCarIds ?? []).length > 0,
+      driver: (state.unlockedDriverIds ?? []).length > 0,
+      track: (state.ownedTrackIds ?? []).includes(trackId),
+    });
+  }, [trackId]);
 
   if (!track) {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
         <div className="rounded-2xl border border-border bg-card/60 p-6 text-center backdrop-blur-md">
           <p className="font-bold">Track not found</p>
-          <Link to="/" className="mt-3 inline-block text-primary underline">← Back to HUB</Link>
+          <Link to="/" className="mt-3 inline-block text-primary underline">
+            ← Back to HUB
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (!raceAccess.car || !raceAccess.driver || !raceAccess.track) {
+    const missing = !raceAccess.car
+      ? "first car"
+      : !raceAccess.driver
+        ? "first driver"
+        : "this track";
+    const target = !raceAccess.car ? "/garage" : !raceAccess.driver ? "/drivers" : "/tracks";
+    return (
+      <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
+        <div className="max-w-md border border-[#303030] bg-[#181818] p-6 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center border border-[#f5c518] bg-[#2a1f08] text-[#f5c518]">
+            <Lock className="h-7 w-7" />
+          </div>
+          <h1 className="font-display mt-4 text-3xl uppercase text-white">Race Locked</h1>
+          <p className="mt-2 text-sm font-bold uppercase tracking-[0.08em] text-[#969696]">
+            Earn coins in quiz mode, then buy your {missing}. Every car, driver, and track must be
+            purchased first.
+          </p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Link to="/quiz" className="arcade-btn h-12 px-4">
+              Play Quiz
+            </Link>
+            <Link to={target} className="arcade-btn arcade-btn-ghost h-12 px-4">
+              Unlock
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -119,7 +188,10 @@ function RaceScreen() {
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1200px] flex-col gap-3 p-3 sm:p-4">
         <header className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card/50 px-4 py-2.5 backdrop-blur-md">
-          <Link to="/" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1 text-xs font-bold transition hover:border-primary/60">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1 text-xs font-bold transition hover:border-primary/60"
+          >
             <ArrowLeft className="h-3.5 w-3.5" /> HUB
           </Link>
           <div className="flex items-center gap-2 text-sm font-black">
@@ -157,7 +229,7 @@ type Car = {
   angle: number;
   finishedAt?: number;
   // per-car balance
-  topT?: number;     // max track-progress per second for this car
+  topT?: number; // max track-progress per second for this car
   boostUntil?: number; // ms timestamp until +20% boost from pad
   baseTopT?: number;
   targetLane?: number;
@@ -198,7 +270,7 @@ const TRACK_CX = WORLD_W / 2;
 const TRACK_CY = WORLD_H / 2;
 const TRACK_RX = 3280;
 const TRACK_RY = 1840;
-const ROAD_W = 320;     // 6 clear lanes with consistent arcade-racer width
+const ROAD_W = 320; // 6 clear lanes with consistent arcade-racer width
 const LANE_COUNT = 6;
 const LANE_W = ROAD_W / LANE_COUNT;
 const SPEED_KMH_FACTOR = 940; // default top speed lands around 310 km/h
@@ -231,7 +303,7 @@ const TRACK_POINTS = [
 
 const TURN_GUIDES = [
   { t: 0.18, dir: 1, sharp: 0.55 },
-  { t: 0.30, dir: -1, sharp: 0.82 },
+  { t: 0.3, dir: -1, sharp: 0.82 },
   { t: 0.42, dir: -1, sharp: 0.9 },
   { t: 0.56, dir: 1, sharp: 0.62 },
   { t: 0.68, dir: 1, sharp: 0.78 },
@@ -305,14 +377,22 @@ function applyRaceLayout(trackId: string) {
 }
 
 function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
-  const preferredDriverIds = ["leclerc", "norris", "piastri", "hamilton", "russell", "alonso", "sainz"];
+  const preferredDriverIds = [
+    "leclerc",
+    "norris",
+    "piastri",
+    "hamilton",
+    "russell",
+    "alonso",
+    "sainz",
+  ];
   const drivers = preferredDriverIds
     .map((id) => DRIVERS.find((driver) => driver.id === id))
     .filter((driver): driver is Driver => !!driver && driver.id !== playerDriver.id)
     .slice(0, 5);
-  const fallbackDrivers = DRIVERS
-    .filter((driver) => driver.id !== playerDriver.id && !drivers.some((bot) => bot.id === driver.id))
-    .slice(0, 5 - drivers.length);
+  const fallbackDrivers = DRIVERS.filter(
+    (driver) => driver.id !== playerDriver.id && !drivers.some((bot) => bot.id === driver.id),
+  ).slice(0, 5 - drivers.length);
   const botDrivers = [...drivers, ...fallbackDrivers];
   const botCars = CARS.filter((car) => car.id !== playerCar.id);
 
@@ -337,7 +417,7 @@ function pickBotLineup(playerDriver: Driver, playerCar: RaceCar) {
 
 function legacyOvalPoint(t: number) {
   // Cleaner oval/circuit with gentle sweeping bends — feels like a real arcade circuit.
-  const a = ((t % 1) + 1) % 1 * Math.PI * 2;
+  const a = (((t % 1) + 1) % 1) * Math.PI * 2;
   const rx = TRACK_RX + Math.sin(a * 2) * 160 + Math.cos(a * 3) * 60;
   const ry = TRACK_RY + Math.cos(a * 2) * 120 + Math.sin(a * 3) * 50;
   return { x: TRACK_CX + Math.cos(a) * rx, y: TRACK_CY + Math.sin(a) * ry };
@@ -346,7 +426,9 @@ function legacyOvalPoint(t: number) {
 function catmull(a: number, b: number, c: number, d: number, t: number) {
   const t2 = t * t;
   const t3 = t2 * t;
-  return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  return (
+    0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3)
+  );
 }
 
 function rawPoint(t: number) {
@@ -373,28 +455,39 @@ function pathPoint(t: number) {
   let dx = p2.x - p.x;
   let dy = p2.y - p.y;
   const len = Math.hypot(dx, dy) || 1;
-  dx /= len; dy /= len;
+  dx /= len;
+  dy /= len;
   return { x: p.x, y: p.y, hx: dx, hy: dy };
 }
 
 function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
-    const sec = (s - m * 60);
+    const sec = s - m * 60;
     return `${m}:${sec.toFixed(2).padStart(5, "0")}`;
   };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const forceStartRef = useRef<(() => void) | null>(null);
-  const [hud, setHud] = useState({ speed: 0, lap: 1, pos: 1, total: 6, nitro: 1, health: 100, elapsed: 0, lapProgress: 0, drifting: false });
+  const [hud, setHud] = useState({
+    speed: 0,
+    lap: 1,
+    pos: 1,
+    total: 6,
+    nitro: 1,
+    health: 100,
+    elapsed: 0,
+    lapProgress: 0,
+    drifting: false,
+  });
   const [count, setCount] = useState<string | null>(null);
   const [raceStarted, setRaceStarted] = useState(true);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [showHint, setShowHint] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    return !localStorage.getItem(HINT_KEY);
+    return !localStorage.getItem(getAccountStorageKey(HINT_KEY));
   });
   const [bestTime] = useState<number | null>(() => readBestTime(trackId));
   const [nextTurn, setNextTurn] = useState<{ dir: number; sharp: number }>({ dir: 0, sharp: 0 });
@@ -408,7 +501,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
   }
   function dismissHint() {
     setShowHint(false);
-    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+    try {
+      localStorage.setItem(getAccountStorageKey(HINT_KEY), "1");
+    } catch {}
     forceStartRef.current?.();
   }
   function setControl(control: string, down: boolean) {
@@ -443,15 +538,17 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const carSpeedBonus = (playerCar.speed - 72) * 0.003;
     const carGripBonus = (playerCar.grip - 68) * 0.01;
     const driverSpeedBonus = playerDriver.bonusKey === "speed" ? playerDriver.bonusValue / 100 : 0;
-    const driverAccelBonus = playerDriver.bonusKey === "acceleration" ? playerDriver.bonusValue / 100 : 0;
+    const driverAccelBonus =
+      playerDriver.bonusKey === "acceleration" ? playerDriver.bonusValue / 100 : 0;
     const driverNitroBonus = playerDriver.bonusKey === "nitro" ? playerDriver.bonusValue / 100 : 0;
-    const driverControlBonus = playerDriver.bonusKey === "control" ? playerDriver.bonusValue / 100 : 0;
+    const driverControlBonus =
+      playerDriver.bonusKey === "control" ? playerDriver.bonusValue / 100 : 0;
     // Upgrades give a real, noticeable boost on every stat
-    const baseSpeed = (0.20 + up.speed * 0.035 + carSpeedBonus) * (1 + driverSpeedBonus);
+    const baseSpeed = (0.2 + up.speed * 0.035 + carSpeedBonus) * (1 + driverSpeedBonus);
     const accel = (0.18 + up.acceleration * 0.08) * (1 + driverAccelBonus);
     const grip = 0.55 + up.control * 0.15 + carGripBonus + driverControlBonus;
     const nitroCap = (1 + up.nitro * 0.5) * (1 + driverNitroBonus);
-    const nitroBoost = 1.4 + up.nitro * 0.12;           // (kept for compat — unused; +15km/h is fixed)
+    const nitroBoost = 1.4 + up.nitro * 0.12; // (kept for compat — unused; +15km/h is fixed)
 
     const startP = pathPoint(0);
     const startAngle = Math.atan2(startP.hy, startP.hx);
@@ -476,9 +573,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         carName: playerCar.name,
         teamName: playerCar.team,
         isPlayer: true,
-        t: 0, lap: 0, speed: 0, lane: playerLane,
-        x: startP.x + (-startP.hy) * playerOff,
-        y: startP.y + (startP.hx) * playerOff,
+        t: 0,
+        lap: 0,
+        speed: 0,
+        lane: playerLane,
+        x: startP.x + -startP.hy * playerOff,
+        y: startP.y + startP.hx * playerOff,
         angle: startAngle,
       },
       ...botLineup.map(({ driver, car }, i) => {
@@ -494,9 +594,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           carName: car.name,
           teamName: car.team,
           isPlayer: false,
-          t: 0, lap: 0, speed: 0, lane,
-          x: startP.x + (-startP.hy) * off,
-          y: startP.y + (startP.hx) * off,
+          t: 0,
+          lap: 0,
+          speed: 0,
+          lane,
+          x: startP.x + -startP.hy * off,
+          y: startP.y + startP.hx * off,
           angle: startAngle,
           // Filled below from this bot's pace profile.
           topT: 0, // filled in below once AI_TOP_T is known
@@ -514,14 +617,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const tt = hintT + (i / SAMPLES - 0.5) * 2 * RANGE;
         const p = rawPoint(tt);
         const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
-        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+        if (d < bestD) {
+          bestD = d;
+          bestT = ((tt % 1) + 1) % 1;
+        }
       }
       // fine refine
       for (let i = -8; i <= 8; i++) {
         const tt = bestT + (i / 8) * 0.005;
         const p = rawPoint(tt);
         const d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
-        if (d < bestD) { bestD = d; bestT = ((tt % 1) + 1) % 1; }
+        if (d < bestD) {
+          bestD = d;
+          bestT = ((tt % 1) + 1) % 1;
+        }
       }
       return { t: bestT, dist: Math.sqrt(bestD) };
     }
@@ -557,24 +666,49 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         trackName: getTrack(trackId)?.name ?? "Arcade Circuit",
         botIds: cars.slice(1).map((car) => car.driverCode),
       },
-    }).then((plan) => {
-      if (!running || plan.bots.length === 0) return;
-      for (const botPlan of plan.bots) {
-        const car = cars.find((candidate) => !candidate.isPlayer && candidate.driverCode === botPlan.id);
-        if (!car || !car.baseTopT) continue;
-        car.topT = car.baseTopT * botPlan.pace;
-        car.aiAggro = botPlan.aggression;
-        car.aiSkill = botPlan.skill;
-        car.aiDriftBias = botPlan.driftBias;
-        car.speed = Math.max(car.speed, car.topT * 0.46);
-      }
-    }).catch(() => {});
+    })
+      .then((plan) => {
+        if (!running || plan.bots.length === 0) return;
+        for (const botPlan of plan.bots) {
+          const car = cars.find(
+            (candidate) => !candidate.isPlayer && candidate.driverCode === botPlan.id,
+          );
+          if (!car || !car.baseTopT) continue;
+          car.topT = car.baseTopT * botPlan.pace;
+          car.aiAggro = botPlan.aggression;
+          car.aiSkill = botPlan.skill;
+          car.aiDriftBias = botPlan.driftBias;
+          car.speed = Math.max(car.speed, car.topT * 0.46);
+        }
+      })
+      .catch(() => {});
 
     // Japanese festival scenery placed off-road, deterministic and lightweight.
     type Decor = {
       x: number;
       y: number;
-      kind: "tree" | "palm" | "pole" | "sakura" | "pine" | "rock" | "flag" | "banner" | "billboard" | "lantern" | "torii" | "temple" | "house" | "hotel" | "grandstand" | "pit" | "spectator" | "drone" | "balloon" | "train" | "car";
+      kind:
+        | "tree"
+        | "palm"
+        | "pole"
+        | "sakura"
+        | "pine"
+        | "rock"
+        | "flag"
+        | "banner"
+        | "billboard"
+        | "lantern"
+        | "torii"
+        | "temple"
+        | "house"
+        | "hotel"
+        | "grandstand"
+        | "pit"
+        | "spectator"
+        | "drone"
+        | "balloon"
+        | "train"
+        | "car";
       size: number;
       angle?: number;
       phase?: number;
@@ -582,7 +716,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const decor: Decor[] = [];
     {
       let seed = 1337;
-      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      const rnd = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      };
       // Sample road points once for distance test
       const roadSamples: { x: number; y: number }[] = [];
       for (let i = 0; i < 400; i++) {
@@ -603,7 +740,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const x = TRACK_CX + Math.cos(a) * r;
         const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
         if (x < 40 || x > WORLD_W - 40 || y < 40 || y > WORLD_H - 40) continue;
-        const kind = activeTheme === "dubai" ? (rnd() > 0.35 ? "palm" : "rock") : (rnd() > 0.25 ? "tree" : "rock");
+        const kind =
+          activeTheme === "dubai"
+            ? rnd() > 0.35
+              ? "palm"
+              : "rock"
+            : rnd() > 0.25
+              ? "tree"
+              : "rock";
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
       // Inside the ring (infield)
@@ -612,7 +756,14 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const r = rnd() * (TRACK_RX - ROAD_W - 100);
         const x = TRACK_CX + Math.cos(a) * r;
         const y = TRACK_CY + Math.sin(a) * r * (TRACK_RY / TRACK_RX);
-        const kind = activeTheme === "dubai" ? (rnd() > 0.45 ? "palm" : "rock") : (rnd() > 0.4 ? "tree" : "rock");
+        const kind =
+          activeTheme === "dubai"
+            ? rnd() > 0.45
+              ? "palm"
+              : "rock"
+            : rnd() > 0.4
+              ? "tree"
+              : "rock";
         tryAdd(x, y, kind, 18 + rnd() * 26);
       }
       // Light poles every ~3% along both edges
@@ -622,9 +773,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 36) * side;
         decor.push({
-          x: p.x + (-p.hy) * off,
-          y: p.y + (p.hx) * off,
-          kind: "pole", size: 30, angle: Math.atan2(p.hy, p.hx),
+          x: p.x + -p.hy * off,
+          y: p.y + p.hx * off,
+          kind: "pole",
+          size: 30,
+          angle: Math.atan2(p.hy, p.hx),
         });
       }
       // Billboards on straights and corner exits
@@ -634,9 +787,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 90) * side;
         decor.push({
-          x: p.x + (-p.hy) * off,
-          y: p.y + (p.hx) * off,
-          kind: "billboard", size: 70, angle: Math.atan2(p.hy, p.hx),
+          x: p.x + -p.hy * off,
+          y: p.y + p.hx * off,
+          kind: "billboard",
+          size: 70,
+          angle: Math.atan2(p.hy, p.hx),
         });
       }
       // Festive flags between poles
@@ -646,14 +801,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 22) * side;
-        decor.push({ x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, kind: "flag", size: 18 });
+        decor.push({ x: p.x + -p.hy * off, y: p.y + p.hx * off, kind: "flag", size: 18 });
       }
-      const placeTrackside = (t: number, side: number, offset: number, kind: Decor["kind"], size: number) => {
+      const placeTrackside = (
+        t: number,
+        side: number,
+        offset: number,
+        kind: Decor["kind"],
+        size: number,
+      ) => {
         const p = pathPoint(t);
         const off = (ROAD_W / 2 + offset) * side;
         decor.push({
-          x: p.x + (-p.hy) * off,
-          y: p.y + (p.hx) * off,
+          x: p.x + -p.hy * off,
+          y: p.y + p.hx * off,
           kind,
           size,
           angle: Math.atan2(p.hy, p.hx),
@@ -662,60 +823,100 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       };
       for (let i = 0; i < 150; i++) {
         const t = (i / 150 + rnd() * 0.004) % 1;
-        placeTrackside(t, i % 2 === 0 ? 1 : -1, 42 + rnd() * 34, activeTheme === "dubai" ? "palm" : (i % 4 === 0 ? "pine" : "sakura"), 24 + rnd() * 22);
+        placeTrackside(
+          t,
+          i % 2 === 0 ? 1 : -1,
+          42 + rnd() * 34,
+          activeTheme === "dubai" ? "palm" : i % 4 === 0 ? "pine" : "sakura",
+          24 + rnd() * 22,
+        );
       }
       for (let i = 0; i < 72; i++) {
-        placeTrackside((i + 0.35) / 72, i % 2 === 0 ? 1 : -1, 22, i % 3 === 0 ? "banner" : "lantern", 20 + rnd() * 8);
+        placeTrackside(
+          (i + 0.35) / 72,
+          i % 2 === 0 ? 1 : -1,
+          22,
+          i % 3 === 0 ? "banner" : "lantern",
+          20 + rnd() * 8,
+        );
       }
       if (activeTheme === "sakura") {
         for (const t of [0.035, 0.245, 0.515, 0.825]) {
           const p = pathPoint(t);
-          decor.push({ x: p.x, y: p.y, kind: "torii", size: 92, angle: Math.atan2(p.hy, p.hx), phase: rnd() * Math.PI * 2 });
+          decor.push({
+            x: p.x,
+            y: p.y,
+            kind: "torii",
+            size: 92,
+            angle: Math.atan2(p.hy, p.hx),
+            phase: rnd() * Math.PI * 2,
+          });
         }
       }
-      const landmarkItems = activeTheme === "dubai" ? [
-        { x: 4380, y: 760, kind: "hotel" as const, size: 230 },
-        { x: 6120, y: 780, kind: "hotel" as const, size: 190 },
-        { x: 2500, y: 4370, kind: "grandstand" as const, size: 170 },
-        { x: 4700, y: 4380, kind: "grandstand" as const, size: 190 },
-        { x: 3570, y: 3820, kind: "pit" as const, size: 210 },
-        { x: 7200, y: 980, kind: "billboard" as const, size: 135 },
-        { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
-        { x: 1640, y: 4720, kind: "billboard" as const, size: 115 },
-        { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
-        { x: 6810, y: 980, kind: "drone" as const, size: 46 },
-        { x: 8100, y: 2520, kind: "car" as const, size: 70 },
-        { x: 7900, y: 2700, kind: "car" as const, size: 60 },
-      ] : [
-        { x: 1220, y: 1420, kind: "temple" as const, size: 150 },
-        { x: 7340, y: 1540, kind: "temple" as const, size: 130 },
-        { x: 7700, y: 4300, kind: "house" as const, size: 120 },
-        { x: 1140, y: 3450, kind: "house" as const, size: 110 },
-        { x: 4550, y: 690, kind: "train" as const, size: 170 },
-        { x: 6200, y: 690, kind: "train" as const, size: 170 },
-        { x: 7300, y: 760, kind: "billboard" as const, size: 110 },
-        { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
-        { x: 1640, y: 4720, kind: "billboard" as const, size: 105 },
-        { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
-        { x: 6810, y: 980, kind: "drone" as const, size: 46 },
-        { x: 2800, y: 860, kind: "drone" as const, size: 42 },
-        { x: 8100, y: 2520, kind: "car" as const, size: 70 },
-        { x: 7900, y: 2700, kind: "car" as const, size: 60 },
-      ];
+      const landmarkItems =
+        activeTheme === "dubai"
+          ? [
+              { x: 4380, y: 760, kind: "hotel" as const, size: 230 },
+              { x: 6120, y: 780, kind: "hotel" as const, size: 190 },
+              { x: 2500, y: 4370, kind: "grandstand" as const, size: 170 },
+              { x: 4700, y: 4380, kind: "grandstand" as const, size: 190 },
+              { x: 3570, y: 3820, kind: "pit" as const, size: 210 },
+              { x: 7200, y: 980, kind: "billboard" as const, size: 135 },
+              { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
+              { x: 1640, y: 4720, kind: "billboard" as const, size: 115 },
+              { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
+              { x: 6810, y: 980, kind: "drone" as const, size: 46 },
+              { x: 8100, y: 2520, kind: "car" as const, size: 70 },
+              { x: 7900, y: 2700, kind: "car" as const, size: 60 },
+            ]
+          : [
+              { x: 1220, y: 1420, kind: "temple" as const, size: 150 },
+              { x: 7340, y: 1540, kind: "temple" as const, size: 130 },
+              { x: 7700, y: 4300, kind: "house" as const, size: 120 },
+              { x: 1140, y: 3450, kind: "house" as const, size: 110 },
+              { x: 4550, y: 690, kind: "train" as const, size: 170 },
+              { x: 6200, y: 690, kind: "train" as const, size: 170 },
+              { x: 7300, y: 760, kind: "billboard" as const, size: 110 },
+              { x: 1120, y: 820, kind: "billboard" as const, size: 120 },
+              { x: 1640, y: 4720, kind: "billboard" as const, size: 105 },
+              { x: 5700, y: 4660, kind: "balloon" as const, size: 90 },
+              { x: 6810, y: 980, kind: "drone" as const, size: 46 },
+              { x: 2800, y: 860, kind: "drone" as const, size: 42 },
+              { x: 8100, y: 2520, kind: "car" as const, size: 70 },
+              { x: 7900, y: 2700, kind: "car" as const, size: 60 },
+            ];
       for (const item of landmarkItems) {
         decor.push({ ...item, angle: 0, phase: rnd() * Math.PI * 2 });
       }
       for (let i = 0; i < 96; i++) {
-        placeTrackside((i / 96 + 0.01) % 1, i % 2 === 0 ? 1 : -1, 76 + rnd() * 44, "spectator", 16 + rnd() * 8);
+        placeTrackside(
+          (i / 96 + 0.01) % 1,
+          i % 2 === 0 ? 1 : -1,
+          76 + rnd() * 44,
+          "spectator",
+          16 + rnd() * 8,
+        );
       }
-      for (const cluster of [0.01, 0.18, 0.30, 0.42, 0.68, 0.82]) {
+      for (const cluster of [0.01, 0.18, 0.3, 0.42, 0.68, 0.82]) {
         for (let i = 0; i < 22; i++) {
-          placeTrackside((cluster + (i - 11) * 0.0018 + 1) % 1, i % 2 === 0 ? 1 : -1, 88 + rnd() * 34, "spectator", 18 + rnd() * 8);
+          placeTrackside(
+            (cluster + (i - 11) * 0.0018 + 1) % 1,
+            i % 2 === 0 ? 1 : -1,
+            88 + rnd() * 34,
+            "spectator",
+            18 + rnd() * 8,
+          );
         }
       }
       for (const cluster of [0.946, 0.958, 0.974, 0.986]) {
         for (let i = 0; i < 18; i++) {
-          placeTrackside((cluster + (i - 9) * 0.0015 + 1) % 1, i % 2 === 0 ? 1 : -1, 94 + rnd() * 42, "spectator", 18 + rnd() * 9);
+          placeTrackside(
+            (cluster + (i - 9) * 0.0015 + 1) % 1,
+            i % 2 === 0 ? 1 : -1,
+            94 + rnd() * 42,
+            "spectator",
+            18 + rnd() * 9,
+          );
         }
       }
     }
@@ -736,16 +937,18 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const featurePos = features.map((f) => {
       const p = pathPoint(f.t);
       const off = f.lane * (ROAD_W / 2 - 14);
-      return { ...f, x: p.x + (-p.hy) * off, y: p.y + (p.hx) * off, angle: Math.atan2(p.hy, p.hx) };
+      return { ...f, x: p.x + -p.hy * off, y: p.y + p.hx * off, angle: Math.atan2(p.hy, p.hx) };
     });
-    let boostUntil = 0;     // player boost-pad active until (ms)
-    let airUntil = 0;       // ms timestamp until ramp jump lands
+    let boostUntil = 0; // player boost-pad active until (ms)
+    let airUntil = 0; // ms timestamp until ramp jump lands
 
     // ===== DANGER CORNERS — visual markers only; no speed-based spinout =====
-    const DANGER_CORNERS: number[] = activeTurnGuides.filter((turn) => turn.sharp > 0.75).map((turn) => turn.t);
+    const DANGER_CORNERS: number[] = activeTurnGuides
+      .filter((turn) => turn.sharp > 0.75)
+      .map((turn) => turn.t);
     const SPIN_THRESHOLD = 999; // effectively disabled
-    const CORNER_HIT_RADIUS = 0.012;     // t-distance for "in the corner"
-    const CORNER_WARN_AHEAD = 0.06;      // start warning ~1-2s ahead
+    const CORNER_HIT_RADIUS = 0.012; // t-distance for "in the corner"
+    const CORNER_WARN_AHEAD = 0.06; // start warning ~1-2s ahead
     const dangerPos = DANGER_CORNERS.map((t) => {
       const p = pathPoint(t);
       return { t, x: p.x, y: p.y, hx: p.hx, hy: p.hy };
@@ -756,9 +959,26 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let lastWarnState = false;
 
     // ===== Particle system (sparks, nitro trail, dust) =====
-    type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string };
+    type Particle = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      max: number;
+      size: number;
+      color: string;
+    };
     const particles: Particle[] = [];
-    function spawnParticle(x: number, y: number, vx: number, vy: number, color: string, life = 0.5, size = 3) {
+    function spawnParticle(
+      x: number,
+      y: number,
+      vx: number,
+      vy: number,
+      color: string,
+      life = 0.5,
+      size = 3,
+    ) {
       if (particles.length > 220) particles.shift();
       particles.push({ x, y, vx, vy, life, max: life, size, color });
     }
@@ -785,12 +1005,38 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Map both e.key (for arrow keys / shift / space) AND e.code (so Russian/other layouts still work for WASD)
       const k = e.key.toLowerCase();
       const codeMap: Record<string, string> = {
-        KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d",
-        ArrowUp: "arrowup", ArrowDown: "arrowdown", ArrowLeft: "arrowleft", ArrowRight: "arrowright",
-        Space: " ", ShiftLeft: "shift", ShiftRight: "shift", KeyE: "e", ControlLeft: "control", ControlRight: "control",
+        KeyW: "w",
+        KeyA: "a",
+        KeyS: "s",
+        KeyD: "d",
+        ArrowUp: "arrowup",
+        ArrowDown: "arrowdown",
+        ArrowLeft: "arrowleft",
+        ArrowRight: "arrowright",
+        Space: " ",
+        ShiftLeft: "shift",
+        ShiftRight: "shift",
+        KeyE: "e",
+        ControlLeft: "control",
+        ControlRight: "control",
       };
       const mapped = codeMap[e.code] ?? k;
-      if (["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"," ","shift","e","control"].includes(mapped)) {
+      if (
+        [
+          "w",
+          "a",
+          "s",
+          "d",
+          "arrowup",
+          "arrowdown",
+          "arrowleft",
+          "arrowright",
+          " ",
+          "shift",
+          "e",
+          "control",
+        ].includes(mapped)
+      ) {
         e.preventDefault();
       }
       keysRef.current[mapped] = down;
@@ -824,7 +1070,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     let lastDamageAt = 0;
     const carHitCooldowns: Record<string, number> = {};
 
-    function applyDamage(amount: number, hitX: number, hitY: number, color = "rgba(239,68,68,0.72)") {
+    function applyDamage(
+      amount: number,
+      hitX: number,
+      hitY: number,
+      color = "rgba(239,68,68,0.72)",
+    ) {
       if (amount <= 0 || cars[0].finishedAt) return;
       const nowMs = performance.now();
       if (nowMs - lastDamageAt < 180) return;
@@ -840,7 +1091,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           (Math.random() - 0.5) * 180,
           i % 2 ? color : "rgba(250,250,250,0.72)",
           0.35 + Math.random() * 0.2,
-          2.5 + Math.random() * 2
+          2.5 + Math.random() * 2,
         );
       }
     }
@@ -851,7 +1102,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const aDone = a.finishedAt ?? Infinity;
           const bDone = b.finishedAt ?? Infinity;
           if (aDone !== bDone) return aDone - bDone;
-          return (b.lap + b.t) - (a.lap + a.t);
+          return b.lap + b.t - (a.lap + a.t);
         })
         .map((car, index) => ({
           rank: index + 1,
@@ -865,7 +1116,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function forwardDelta(from: number, to: number) {
-      return ((to - from + 1) % 1);
+      return (to - from + 1) % 1;
     }
 
     function signedTrackDelta(from: number, to: number) {
@@ -901,7 +1152,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function safeSound(fn: () => void) {
-      try { fn(); } catch {}
+      try {
+        fn();
+      } catch {}
     }
 
     function launchRace(now = performance.now()) {
@@ -932,10 +1185,19 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       if (!racing) {
         const remain = COUNTDOWN_MS - sinceCountdownStart;
         let idx = 3;
-        if (remain > 2500) { setCount("3"); idx = 3; }
-        else if (remain > 1500) { setCount("2"); idx = 2; }
-        else if (remain > 500) { setCount("1"); idx = 1; }
-        else { setCount("GO"); idx = 0; }
+        if (remain > 2500) {
+          setCount("3");
+          idx = 3;
+        } else if (remain > 1500) {
+          setCount("2");
+          idx = 2;
+        } else if (remain > 500) {
+          setCount("1");
+          idx = 1;
+        } else {
+          setCount("GO");
+          idx = 0;
+        }
         if (idx !== lastCountdownBeep) {
           lastCountdownBeep = idx;
           safeSound(() => playCountdownBeep(idx === 0));
@@ -972,7 +1234,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const baseMax = baseSpeed * 1.4;
       const padActive = boostUntil > now;
       const driftBoosting = driftBoostUntil > now;
-      const boostMul = (boosting ? 1.20 : 1) * (padActive ? 1.20 : 1) * (driftBoosting ? 1.08 : 1);
+      const boostMul = (boosting ? 1.2 : 1) * (padActive ? 1.2 : 1) * (driftBoosting ? 1.08 : 1);
       const healthLimiter = playerHealth <= 0 ? 0.42 : 0.72 + (playerHealth / 100) * 0.28;
       const maxSpeed = baseMax * boostMul * healthLimiter;
       if (!isSpinning) {
@@ -1005,9 +1267,11 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const speedRatio = Math.min(1, speedAbs / Math.max(0.001, baseMax));
         const driftIntent = driftKey && steeringInput !== 0 && speedRatio > 0.32;
         const steerGrip = 1 - Math.min(0.22, speedRatio * 0.16);
-        const steerStrength = (1.55 + grip * 0.52) * Math.min(1, speedAbs * 8.8) * steerGrip * (driftIntent ? 1.36 : 1);
+        const steerStrength =
+          (1.55 + grip * 0.52) * Math.min(1, speedAbs * 8.8) * steerGrip * (driftIntent ? 1.36 : 1);
         player.angle += steeringInput * steerStrength * dt * (player.speed >= 0 ? 1 : -1);
-        lateralVelocity += steeringInput * player.speed * moveScale * (driftIntent ? 0.82 : 0.58) * dt;
+        lateralVelocity +=
+          steeringInput * player.speed * moveScale * (driftIntent ? 0.82 : 0.58) * dt;
         lateralVelocity *= Math.pow((driftIntent ? 0.2 : 0.12) + grip * 0.2, dt);
         if (Math.abs(steeringInput) > 0 && speedRatio > 0.5) {
           player.speed *= Math.pow(driftIntent ? 0.9 + grip * 0.03 : 0.8 + grip * 0.05, dt);
@@ -1026,7 +1290,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
               -Math.cos(player.angle) * 90 + (Math.random() - 0.5) * 120,
               -Math.sin(player.angle) * 90 + (Math.random() - 0.5) * 120,
               s % 2 ? "rgba(244,114,182,0.72)" : "rgba(34,211,238,0.7)",
-              0.42, 3.5
+              0.42,
+              3.5,
             );
           }
         }
@@ -1062,7 +1327,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                   (Math.random() - 0.5) * 260,
                   (Math.random() - 0.5) * 260,
                   s % 2 ? "rgba(40,40,40,0.9)" : "rgba(120,120,120,0.8)",
-                  0.9, 5
+                  0.9,
+                  5,
                 );
               }
               // Long skid trails
@@ -1085,7 +1351,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // ===== WARNING — flash "SLOW DOWN!" ahead of a danger corner =====
       let warnNow = false;
       for (const dc of dangerPos) {
-        const ahead = ((dc.t - player.t + 1) % 1);
+        const ahead = (dc.t - player.t + 1) % 1;
         if (ahead > 0 && ahead < CORNER_WARN_AHEAD && speedFracNow > SPIN_THRESHOLD - 0.05) {
           warnNow = true;
           break;
@@ -1101,7 +1367,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // ===== Drift detection + tire trails =====
       const speedFrac = Math.abs(player.speed) / Math.max(0.001, maxSpeed);
-      drifting = (driftKey && !!steeringInput && speedFrac > 0.34) || Math.abs(lateralVelocity) > 105;
+      drifting =
+        (driftKey && !!steeringInput && speedFrac > 0.34) || Math.abs(lateralVelocity) > 105;
       if (drifting || boosting) {
         // record trail segment
         const dxT = player.x - lastTrailX;
@@ -1137,7 +1404,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const ny = dist > 0.001 ? dy / dist : Math.cos(player.angle);
           player.x += nx * 5;
           player.y += ny * 5;
-          lateralVelocity += ((nx * -Math.sin(player.angle)) + (ny * Math.cos(player.angle))) * 42;
+          lateralVelocity += (nx * -Math.sin(player.angle) + ny * Math.cos(player.angle)) * 42;
           player.speed *= 0.82;
           shake = Math.max(shake, 5);
           if (canHit) {
@@ -1149,7 +1416,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // ===== Track feature interactions =====
       for (const f of featurePos) {
-        const dx = player.x - f.x, dy = player.y - f.y;
+        const dx = player.x - f.x,
+          dy = player.y - f.y;
         if (dx * dx + dy * dy < 38 * 38) {
           if (f.kind === "boost" && boostUntil < now) {
             boostUntil = now + 2000;
@@ -1176,11 +1444,13 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const bx = player.x - Math.cos(player.angle) * 22 + (Math.random() - 0.5) * 10;
           const by = player.y - Math.sin(player.angle) * 22 + (Math.random() - 0.5) * 10;
           spawnParticle(
-            bx, by,
+            bx,
+            by,
             -Math.cos(player.angle) * 180 + (Math.random() - 0.5) * 120,
             -Math.sin(player.angle) * 180 + (Math.random() - 0.5) * 120,
             s % 2 ? "#22d3ee" : "#f472b6",
-            0.45, 5
+            0.45,
+            5,
           );
           void back;
         }
@@ -1191,20 +1461,30 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           player.y - Math.sin(player.angle) * 18,
           (Math.random() - 0.5) * 60,
           (Math.random() - 0.5) * 60,
-          "rgba(255,255,255,0.6)", 0.35, 2.5
+          "rgba(255,255,255,0.6)",
+          0.35,
+          2.5,
         );
       }
       // Step particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.life -= dt;
-        if (p.life <= 0) { particles.splice(i, 1); continue; }
-        p.x += p.vx * dt; p.y += p.vy * dt;
-        p.vx *= 0.92; p.vy *= 0.92;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
       }
 
       // ===== Camera shake triggers =====
-      if (boosting && !prevBoosting) { shake = Math.max(shake, 5); safeSound(playNitroSwoosh); }
+      if (boosting && !prevBoosting) {
+        shake = Math.max(shake, 5);
+        safeSound(playNitroSwoosh);
+      }
       prevBoosting = boosting;
       shake *= Math.pow(0.001, dt); // decay fast
 
@@ -1251,7 +1531,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             player.y - normalY * side * 8,
             -normalX * side * 120 + (Math.random() - 0.5) * 80,
             -normalY * side * 120 + (Math.random() - 0.5) * 80,
-            "rgba(250,250,250,0.68)", 0.35, 3.2
+            "rgba(250,250,250,0.68)",
+            0.35,
+            3.2,
           );
         }
       }
@@ -1267,7 +1549,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             player.y - Math.sin(player.angle) * 20,
             (Math.random() - 0.5) * 70,
             (Math.random() - 0.5) * 70,
-            "rgba(244,114,182,0.55)", 0.45, 3
+            "rgba(244,114,182,0.55)",
+            0.45,
+            3,
           );
         }
       }
@@ -1291,7 +1575,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         // Bots automatically slow to 84% before sharp corners so they never spin out.
         const turn = upcomingTurn(c.t, 0.078);
         const driftBias = c.aiDriftBias ?? 0.45;
-        const inSharpTurn = turn.sharp > 0.52 - driftBias * 0.08 && turn.ahead < 0.052 + driftBias * 0.012;
+        const inSharpTurn =
+          turn.sharp > 0.52 - driftBias * 0.08 && turn.ahead < 0.052 + driftBias * 0.012;
         const driftingBot = inSharpTurn && c.speed > ownTop * 0.58;
         if (driftingBot) c.aiDriftUntil = Math.max(c.aiDriftUntil ?? 0, now + 420);
 
@@ -1322,7 +1607,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
               passScore = blocked ? -1.2 : (c.aiAggro ?? 0.75) * (1 - traffic.ahead / 0.09);
             }
             const rhythm = Math.sin(now / 850 + i * 1.7 + lane * 3) * 0.05;
-            const score = passScore + cornerScore + rhythm - laneChangeCost - edgeCost - trafficRisk;
+            const score =
+              passScore + cornerScore + rhythm - laneChangeCost - edgeCost - trafficRisk;
             if (score > bestScore) {
               bestScore = score;
               bestLane = lane;
@@ -1347,21 +1633,22 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           c.aiNitroUntil = Math.max(c.aiNitroUntil ?? 0, now + 520);
         }
         for (const dc of DANGER_CORNERS) {
-          const ahead = ((dc - c.t + 1) % 1);
+          const ahead = (dc - c.t + 1) % 1;
           if (ahead < CORNER_WARN_AHEAD || ahead > 1 - CORNER_HIT_RADIUS) {
             speedCap = Math.min(speedCap, ownTop * 0.84);
           }
         }
         // Boost pads — same +20% for 2s as the player.
         for (const f of featurePos) {
-          const dx = c.x - f.x, dy = c.y - f.y;
+          const dx = c.x - f.x,
+            dy = c.y - f.y;
           if (dx * dx + dy * dy < 38 * 38) {
             if (f.kind === "boost" && (c.boostUntil ?? 0) < now) {
               c.boostUntil = now + 2000;
             }
           }
         }
-        if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.20;
+        if ((c.boostUntil ?? 0) > now) speedCap = ownTop * 1.2;
         if ((c.aiNitroUntil ?? 0) > now) speedCap = Math.max(speedCap, ownTop * 1.12);
         const desired = speedCap;
         c.speed += Math.max(-accel * 0.9 * dt, Math.min(accel * 1.05 * dt, desired - c.speed));
@@ -1374,11 +1661,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         }
         const pp = pathPoint(c.t);
         const aoff = c.lane * (ROAD_W / 2 - 14);
-        c.x = pp.x + (-pp.hy) * aoff;
-        c.y = pp.y + (pp.hx) * aoff;
-        c.angle = Math.atan2(pp.hy, pp.hx) + (c.laneVel ?? 0) * 0.055 + (driftingBot ? turn.dir * 0.16 : 0);
+        c.x = pp.x + -pp.hy * aoff;
+        c.y = pp.y + pp.hx * aoff;
+        c.angle =
+          Math.atan2(pp.hy, pp.hx) + (c.laneVel ?? 0) * 0.055 + (driftingBot ? turn.dir * 0.16 : 0);
 
-        if ((driftingBot || (c.aiNitroUntil ?? 0) > now) && c.lastTrailX !== undefined && c.lastTrailY !== undefined) {
+        if (
+          (driftingBot || (c.aiNitroUntil ?? 0) > now) &&
+          c.lastTrailX !== undefined &&
+          c.lastTrailY !== undefined
+        ) {
           const dxT = c.x - c.lastTrailX;
           const dyT = c.y - c.lastTrailY;
           if (dxT * dxT + dyT * dyT > 26 * 26) {
@@ -1395,7 +1687,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
               -Math.sin(c.angle) * 80 + (Math.random() - 0.5) * 80,
               driftingBot ? "rgba(244,114,182,0.5)" : "rgba(34,211,238,0.5)",
               0.32,
-              2.5
+              2.5,
             );
           }
         } else {
@@ -1532,9 +1824,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const N = 360;
         for (let i = 0; i <= N; i++) {
           const p = pathPoint(i / N);
-          const x = p.x + (-p.hy) * off;
-          const y = p.y + (p.hx) * off;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          const x = p.x + -p.hy * off;
+          const y = p.y + p.hx * off;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
         ctx.closePath();
         ctx.stroke();
@@ -1552,10 +1845,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Danger corner warning signs (yellow/red triangles before each hairpin)
       for (const dc of dangerPos) {
         const before = pathPoint((dc.t - 0.022 + 1) % 1);
-        const side = ((dc.t * 7) % 1) > 0.5 ? 1 : -1;
+        const side = (dc.t * 7) % 1 > 0.5 ? 1 : -1;
         const off = (ROAD_W / 2 + 28) * side;
-        const sx = before.x + (-before.hy) * off;
-        const sy = before.y + (before.hx) * off;
+        const sx = before.x + -before.hy * off;
+        const sy = before.y + before.hx * off;
         const pulse = 0.85 + Math.sin(now / 220) * 0.15;
         ctx.save();
         ctx.translate(sx, sy);
@@ -1604,7 +1897,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       drawOverpasses(now);
 
       // Cars (sorted so leader on top)
-      const sorted = [...cars].sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
+      const sorted = [...cars].sort((a, b) => a.lap + a.t - (b.lap + b.t));
       for (const c of sorted) {
         if (isInLowerUnderpass(c.t)) continue;
         drawCar(c, now);
@@ -1682,7 +1975,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const x = 600 + ((now * 0.055 + i * 360) % 7700);
           const y = 1210 - (x - 500) * 0.028;
           ctx.fillStyle = i % 2 ? "#38bdf8" : "#facc15";
-          ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 8, 0, Math.PI * 2);
+          ctx.fill();
         }
         return;
       }
@@ -1737,7 +2032,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const x = 650 + ((now * 0.03 + i * 430) % 7600);
         const y = 1040 - (x - 560) * 0.015;
         ctx.fillStyle = i % 2 ? "#f5c518" : "#da291c";
-        ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // Birds and petals, screen-space-ish in world coordinates.
@@ -1752,10 +2049,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.stroke();
       }
       for (let i = 0; i < 80; i++) {
-        const x = ((i * 197 + now * (0.018 + (i % 5) * 0.006)) % WORLD_W);
-        const y = ((i * 113 + now * (0.012 + (i % 3) * 0.004)) % WORLD_H);
+        const x = (i * 197 + now * (0.018 + (i % 5) * 0.006)) % WORLD_W;
+        const y = (i * 113 + now * (0.012 + (i % 3) * 0.004)) % WORLD_H;
         ctx.fillStyle = i % 2 ? "rgba(255,183,213,0.65)" : "rgba(255,220,232,0.55)";
-        ctx.beginPath(); ctx.ellipse(x, y, 9, 4, Math.sin(now / 500 + i), 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(x, y, 9, 4, Math.sin(now / 500 + i), 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -1768,9 +2067,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         for (let i = 0; i <= 360; i++) {
           const p = pathPoint(i / 360);
           const off = lane * ROAD_W;
-          const x = p.x + (-p.hy) * off;
-          const y = p.y + (p.hx) * off;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          const x = p.x + -p.hy * off;
+          const y = p.y + p.hx * off;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
         ctx.stroke();
       }
@@ -1782,9 +2082,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 0; i <= 480; i++) {
         const p = pathPoint(i / 480);
         const racingOffset = Math.sin(i / 18) * 22;
-        const x = p.x + (-p.hy) * racingOffset;
-        const y = p.y + (p.hx) * racingOffset;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const x = p.x + -p.hy * racingOffset;
+        const y = p.y + p.hx * racingOffset;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.stroke();
       ctx.setLineDash([]);
@@ -1796,9 +2097,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         for (let i = 0; i < 50; i++) {
           const p = pathPoint(base + i * 0.0008);
           const off = Math.sin(i * 0.5 + now * 0.0001) * 34;
-          const x = p.x + (-p.hy) * off;
-          const y = p.y + (p.hx) * off;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          const x = p.x + -p.hy * off;
+          const y = p.y + p.hx * off;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
         ctx.stroke();
       }
@@ -1823,7 +2125,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath();
         for (let i = 0; i <= 520; i++) {
           const p = pathPoint(i / 520);
-          if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          if (i === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
         }
         ctx.closePath();
         ctx.stroke();
@@ -1836,7 +2139,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         for (let i = 0; i <= 140; i++) {
           const x = 160 + i * 62;
           const y = 1180 + row * 210 + Math.sin(i * 0.55 + row + now * 0.0004) * 28;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
         ctx.stroke();
       }
@@ -1846,11 +2150,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const p = pathPoint(t);
         const side = i % 2 === 0 ? 1 : -1;
         const off = (ROAD_W / 2 + 54 + ((i * 31) % 52)) * side;
-        const x = p.x + (-p.hy) * off;
-        const y = p.y + (p.hx) * off;
-        ctx.fillStyle = activeTheme === "dubai"
-          ? (i % 3 === 0 ? "rgba(190, 150, 82, 0.48)" : "rgba(85, 63, 38, 0.5)")
-          : (i % 3 === 0 ? "rgba(95, 66, 36, 0.55)" : "rgba(22, 101, 52, 0.55)");
+        const x = p.x + -p.hy * off;
+        const y = p.y + p.hx * off;
+        ctx.fillStyle =
+          activeTheme === "dubai"
+            ? i % 3 === 0
+              ? "rgba(190, 150, 82, 0.48)"
+              : "rgba(85, 63, 38, 0.5)"
+            : i % 3 === 0
+              ? "rgba(95, 66, 36, 0.55)"
+              : "rgba(22, 101, 52, 0.55)";
         ctx.beginPath();
         ctx.ellipse(x, y, 18 + (i % 7) * 3, 7 + (i % 5), Math.atan2(p.hy, p.hx), 0, Math.PI * 2);
         ctx.fill();
@@ -1868,7 +2177,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           ctx.save();
           ctx.translate(p.x, p.y);
           ctx.rotate(Math.atan2(p.hy, p.hx));
-          ctx.fillStyle = turn.sharp > 0.75 ? `rgba(250,204,21,${pulse})` : `rgba(34,211,238,${pulse})`;
+          ctx.fillStyle =
+            turn.sharp > 0.75 ? `rgba(250,204,21,${pulse})` : `rgba(34,211,238,${pulse})`;
           ctx.strokeStyle = "rgba(10,10,12,0.55)";
           ctx.lineWidth = 4;
           ctx.beginPath();
@@ -1898,7 +2208,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     function sortedLowerTunnelCars() {
       return [...cars]
         .filter((car) => isInLowerUnderpass(car.t))
-        .sort((a, b) => (a.lap + a.t) - (b.lap + b.t));
+        .sort((a, b) => a.lap + a.t - (b.lap + b.t));
     }
 
     function traceSegment(start: number, end: number, offset = 0, steps = 72) {
@@ -1907,13 +2217,21 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 0; i <= steps; i++) {
         const t = (start + span * (i / steps)) % 1;
         const p = pathPoint(t);
-        const x = p.x + (-p.hy) * offset;
-        const y = p.y + (p.hx) * offset;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const x = p.x + -p.hy * offset;
+        const y = p.y + p.hx * offset;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
     }
 
-    function strokeTrackSegment(start: number, end: number, offset: number, width: number, color: string, steps = 72) {
+    function strokeTrackSegment(
+      start: number,
+      end: number,
+      offset: number,
+      width: number,
+      color: string,
+      steps = 72,
+    ) {
       traceSegment(start, end, offset, steps);
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
@@ -1930,8 +2248,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         strokeTrackSegment(zone.lowerStart, zone.lowerEnd, 0, ROAD_W, "#202535");
 
         ctx.setLineDash([12, 10]);
-        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, ROAD_W / 2 + 9, 5, "rgba(56,189,248,0.95)");
-        strokeTrackSegment(zone.lowerStart, zone.lowerEnd, -ROAD_W / 2 - 9, 5, "rgba(56,189,248,0.95)");
+        strokeTrackSegment(
+          zone.lowerStart,
+          zone.lowerEnd,
+          ROAD_W / 2 + 9,
+          5,
+          "rgba(56,189,248,0.95)",
+        );
+        strokeTrackSegment(
+          zone.lowerStart,
+          zone.lowerEnd,
+          -ROAD_W / 2 - 9,
+          5,
+          "rgba(56,189,248,0.95)",
+        );
         ctx.setLineDash([]);
 
         for (let l = 1; l < LANE_COUNT; l++) {
@@ -1964,10 +2294,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.translate(p.x + 72, p.y + 66);
         ctx.rotate(Math.sin(now / 500) * 0.02);
         ctx.fillStyle = "rgba(5,12,22,0.82)";
-        roundRect(-62, -22, 124, 44, 8); ctx.fill();
+        roundRect(-62, -22, 124, 44, 8);
+        ctx.fill();
         ctx.strokeStyle = "rgba(56,189,248,0.85)";
         ctx.lineWidth = 2;
-        roundRect(-62, -22, 124, 44, 8); ctx.stroke();
+        roundRect(-62, -22, 124, 44, 8);
+        ctx.stroke();
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold 14px sans-serif";
         ctx.textAlign = "center";
@@ -2065,10 +2397,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.translate(label.x - 118, label.y - 88);
         ctx.rotate(Math.sin(now / 600) * 0.015);
         ctx.fillStyle = "rgba(12,12,8,0.86)";
-        roundRect(-60, -22, 120, 44, 8); ctx.fill();
+        roundRect(-60, -22, 120, 44, 8);
+        ctx.fill();
         ctx.strokeStyle = "rgba(250,204,21,0.9)";
         ctx.lineWidth = 2;
-        roundRect(-60, -22, 120, 44, 8); ctx.stroke();
+        roundRect(-60, -22, 120, 44, 8);
+        ctx.stroke();
         ctx.fillStyle = "#facc15";
         ctx.font = "bold 14px sans-serif";
         ctx.textAlign = "center";
@@ -2128,9 +2462,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function drawFestivalSections(now: number) {
-      drawTrackBand(0.50, 0.57, "#5b3421", "rgba(245,197,24,0.25)");
+      drawTrackBand(0.5, 0.57, "#5b3421", "rgba(245,197,24,0.25)");
       drawTrackBand(0.84, 0.91, "rgba(14,14,20,0.72)", "rgba(218,41,28,0.28)");
-      for (const t of [0.50, 0.57]) {
+      for (const t of [0.5, 0.57]) {
         const p = pathPoint(t);
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -2143,7 +2477,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const p = pathPoint(0.84 + i * 0.008);
         const pulse = 0.5 + Math.sin(now / 220 + i) * 0.18;
         ctx.fillStyle = `rgba(218,41,28,${pulse})`;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 34, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -2155,7 +2491,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.beginPath();
       for (let i = 0; i <= 80; i++) {
         const p = pathPoint(t0 + (t1 - t0) * (i / 80));
-        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
       }
       ctx.stroke();
       ctx.strokeStyle = fill;
@@ -2165,21 +2502,27 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     }
 
     function drawMiniMap(cssW: number, cssH: number) {
-      const mw = 190, mh = 112;
+      const mw = 190,
+        mh = 112;
       const pad = 12;
-      const x0 = pad, y0 = cssH - mh - pad;
+      const x0 = pad,
+        y0 = cssH - mh - pad;
       // bg
       ctx.save();
       ctx.fillStyle = "rgba(5,12,22,0.86)";
-      roundRectAbs(x0, y0, mw, mh, 8); ctx.fill();
+      roundRectAbs(x0, y0, mw, mh, 8);
+      ctx.fill();
       ctx.strokeStyle = "rgba(34,211,238,0.62)";
       ctx.lineWidth = 1.4;
-      roundRectAbs(x0, y0, mw, mh, 10); ctx.stroke();
+      roundRectAbs(x0, y0, mw, mh, 10);
+      ctx.stroke();
 
       // map world bounds to mini-map
       const margin = 10;
-      const ww = mw - margin * 2, hh = mh - margin * 2;
-      const sx = ww / WORLD_W, sy = hh / WORLD_H;
+      const ww = mw - margin * 2,
+        hh = mh - margin * 2;
+      const sx = ww / WORLD_W,
+        sy = hh / WORLD_H;
       const s = Math.min(sx, sy);
       const ox = x0 + margin + (mw - margin * 2 - WORLD_W * s) / 2;
       const oy = y0 + margin + (mh - margin * 2 - WORLD_H * s) / 2;
@@ -2191,8 +2534,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       const NM = 150;
       for (let i = 0; i <= NM; i++) {
         const p = rawPoint(i / NM);
-        const X = ox + p.x * s, Y = oy + p.y * s;
-        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+        const X = ox + p.x * s,
+          Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y);
+        else ctx.lineTo(X, Y);
       }
       ctx.closePath();
       ctx.stroke();
@@ -2201,13 +2546,21 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.beginPath();
       for (let i = 0; i <= NM; i++) {
         const p = rawPoint(i / NM);
-        const X = ox + p.x * s, Y = oy + p.y * s;
-        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+        const X = ox + p.x * s,
+          Y = oy + p.y * s;
+        if (i === 0) ctx.moveTo(X, Y);
+        else ctx.lineTo(X, Y);
       }
       ctx.closePath();
       ctx.stroke();
 
-      const drawMiniSegment = (start: number, end: number, color: string, width: number, dash: number[] = []) => {
+      const drawMiniSegment = (
+        start: number,
+        end: number,
+        color: string,
+        width: number,
+        dash: number[] = [],
+      ) => {
         const span = end >= start ? end - start : end + 1 - start;
         ctx.save();
         ctx.strokeStyle = color;
@@ -2216,8 +2569,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.beginPath();
         for (let i = 0; i <= 24; i++) {
           const p = rawPoint((start + span * (i / 24)) % 1);
-          const X = ox + p.x * s, Y = oy + p.y * s;
-          if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+          const X = ox + p.x * s,
+            Y = oy + p.y * s;
+          if (i === 0) ctx.moveTo(X, Y);
+          else ctx.lineTo(X, Y);
         }
         ctx.stroke();
         ctx.restore();
@@ -2244,7 +2599,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       // Danger corner markers on minimap
       for (const turn of activeTurnGuides) {
         const p = rawPoint(turn.t);
-        const X = ox + p.x * s, Y = oy + p.y * s;
+        const X = ox + p.x * s,
+          Y = oy + p.y * s;
         ctx.fillStyle = turn.sharp > 0.75 ? "#facc15" : "#22d3ee";
         ctx.strokeStyle = "rgba(0,0,0,0.75)";
         ctx.lineWidth = 1.2;
@@ -2284,9 +2640,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         const p = pathPoint(t);
-        const x = p.x + (-p.hy) * offset;
-        const y = p.y + (p.hx) * offset;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const x = p.x + -p.hy * offset;
+        const y = p.y + p.hx * offset;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.closePath();
       ctx.stroke();
@@ -2301,8 +2658,12 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       const zones = [
-        [0.0, 0.055], [0.155, 0.235], [0.285, 0.335],
-        [0.405, 0.455], [0.65, 0.72], [0.8, 0.86],
+        [0.0, 0.055],
+        [0.155, 0.235],
+        [0.285, 0.335],
+        [0.405, 0.455],
+        [0.65, 0.72],
+        [0.8, 0.86],
       ];
       for (const [start, end] of zones) {
         for (const side of [-1, 1]) {
@@ -2313,9 +2674,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             const t = start + (end - start) * (i / 28);
             const p = pathPoint(t);
             const off = (ROAD_W / 2 + 46) * side;
-            const x = p.x + (-p.hy) * off;
-            const y = p.y + (p.hx) * off;
-            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            const x = p.x + -p.hy * off;
+            const y = p.y + p.hx * off;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
           }
           ctx.stroke();
           ctx.strokeStyle = "rgba(218,41,28,0.92)";
@@ -2337,9 +2699,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         const p = pathPoint(t);
-        const x = p.x + (-p.hy) * offset;
-        const y = p.y + (p.hx) * offset;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const x = p.x + -p.hy * offset;
+        const y = p.y + p.hx * offset;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.closePath();
       ctx.stroke();
@@ -2350,10 +2713,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const t1 = (i + 1) / steps;
         const p0 = pathPoint(t0);
         const p1 = pathPoint(t1);
-        const ax = p0.x + (-p0.hy) * offset;
-        const ay = p0.y + (p0.hx) * offset;
-        const bx = p1.x + (-p1.hy) * offset;
-        const by = p1.y + (p1.hx) * offset;
+        const ax = p0.x + -p0.hy * offset;
+        const ay = p0.y + p0.hx * offset;
+        const bx = p1.x + -p1.hy * offset;
+        const by = p1.y + p1.hx * offset;
         ctx.strokeStyle = i % 2 === 0 ? "#fafafa" : "#dc2626";
         ctx.beginPath();
         ctx.moveTo(ax, ay);
@@ -2363,7 +2726,10 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.restore();
     }
 
-    function drawFeature(f: { x: number; y: number; angle: number; kind: "boost" | "ramp" }, now: number) {
+    function drawFeature(
+      f: { x: number; y: number; angle: number; kind: "boost" | "ramp" },
+      now: number,
+    ) {
       ctx.save();
       ctx.translate(f.x, f.y);
       ctx.rotate(f.angle);
@@ -2371,16 +2737,21 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const pulse = 0.6 + 0.4 * Math.sin(now / 120);
         // glow
         ctx.fillStyle = `rgba(34,211,238,${0.25 * pulse})`;
-        ctx.beginPath(); ctx.ellipse(0, 0, 44, 22, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 44, 22, 0, 0, Math.PI * 2);
+        ctx.fill();
         // pad
         const grad = ctx.createLinearGradient(-30, 0, 30, 0);
         grad.addColorStop(0, "#22d3ee");
         grad.addColorStop(0.5, "#ffffff");
         grad.addColorStop(1, "#22d3ee");
         ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-30, -16, 60, 32, 6) : (() => {
-          ctx.rect(-30, -16, 60, 32);
-        })();
+        ctx.beginPath();
+        ctx.roundRect
+          ? ctx.roundRect(-30, -16, 60, 32, 6)
+          : (() => {
+              ctx.rect(-30, -16, 60, 32);
+            })();
         ctx.fill();
         // arrows
         ctx.fillStyle = `rgba(255,255,255,${0.7 + 0.3 * pulse})`;
@@ -2395,7 +2766,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       } else {
         // ramp — yellow/orange wedge with stripes
         ctx.fillStyle = "#1f1f24";
-        ctx.beginPath(); ctx.ellipse(0, 6, 40, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, 6, 40, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#f59e0b";
         ctx.beginPath();
         ctx.moveTo(-32, 14);
@@ -2418,23 +2791,31 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       ctx.translate(d.x, d.y);
       if (d.kind === "tree") {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(2, 4, d.size * 0.9, d.size * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(2, 4, d.size * 0.9, d.size * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#5b3a1e";
         ctx.fillRect(-d.size * 0.12, -d.size * 0.1, d.size * 0.24, d.size * 0.5);
         ctx.fillStyle = "#166534";
-        ctx.beginPath(); ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -d.size * 0.2, d.size * 0.7, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#22c55e";
-        ctx.beginPath(); ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-d.size * 0.25, -d.size * 0.35, d.size * 0.4, 0, Math.PI * 2);
+        ctx.fill();
       } else if (d.kind === "palm") {
         const sway = Math.sin((d.phase ?? 0) + performance.now() / 850) * 0.12;
         ctx.fillStyle = "rgba(0,0,0,0.32)";
-        ctx.beginPath(); ctx.ellipse(4, 6, d.size * 0.7, d.size * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(4, 6, d.size * 0.7, d.size * 0.24, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.rotate(sway);
         ctx.fillStyle = "#8b5a2b";
         ctx.fillRect(-d.size * 0.08, -d.size * 0.08, d.size * 0.16, d.size * 0.92);
         ctx.translate(0, -d.size * 0.16);
         for (let i = 0; i < 7; i++) {
-          const a = -Math.PI * 0.95 + i * (Math.PI * 1.9 / 6);
+          const a = -Math.PI * 0.95 + i * ((Math.PI * 1.9) / 6);
           ctx.save();
           ctx.rotate(a);
           ctx.fillStyle = i % 2 ? "#22c55e" : "#16a34a";
@@ -2447,38 +2828,58 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const sway = Math.sin((d.phase ?? 0) + performance.now() / 900) * 3;
         ctx.rotate(sway * 0.01);
         ctx.fillStyle = "rgba(0,0,0,0.32)";
-        ctx.beginPath(); ctx.ellipse(3, 5, d.size * 0.8, d.size * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(3, 5, d.size * 0.8, d.size * 0.32, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#5b3a1e";
         ctx.fillRect(-d.size * 0.08, -d.size * 0.05, d.size * 0.16, d.size * 0.65);
         if (d.kind === "sakura") {
           ctx.fillStyle = "#ffb7d5";
           for (let i = 0; i < 5; i++) {
             const a = (i / 5) * Math.PI * 2;
-            ctx.beginPath(); ctx.arc(Math.cos(a) * d.size * 0.24, -d.size * 0.25 + Math.sin(a) * d.size * 0.16, d.size * 0.35, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.arc(
+              Math.cos(a) * d.size * 0.24,
+              -d.size * 0.25 + Math.sin(a) * d.size * 0.16,
+              d.size * 0.35,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
           }
           ctx.fillStyle = "#ffe3ee";
-          ctx.beginPath(); ctx.arc(0, -d.size * 0.3, d.size * 0.36, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.arc(0, -d.size * 0.3, d.size * 0.36, 0, Math.PI * 2);
+          ctx.fill();
         } else {
           ctx.fillStyle = "#0f5132";
           ctx.beginPath();
           ctx.moveTo(0, -d.size * 0.85);
           ctx.lineTo(d.size * 0.58, d.size * 0.24);
           ctx.lineTo(-d.size * 0.58, d.size * 0.24);
-          ctx.closePath(); ctx.fill();
+          ctx.closePath();
+          ctx.fill();
           ctx.fillStyle = "#1f7a45";
           ctx.beginPath();
           ctx.moveTo(0, -d.size * 0.6);
           ctx.lineTo(d.size * 0.46, d.size * 0.14);
           ctx.lineTo(-d.size * 0.46, d.size * 0.14);
-          ctx.closePath(); ctx.fill();
+          ctx.closePath();
+          ctx.fill();
         }
       } else if (d.kind === "rock") {
         ctx.fillStyle = "rgba(0,0,0,0.3)";
-        ctx.beginPath(); ctx.ellipse(2, 3, d.size * 0.7, d.size * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(2, 3, d.size * 0.7, d.size * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#6b7280";
-        ctx.beginPath(); ctx.arc(0, 0, d.size * 0.55, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, d.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#9ca3af";
-        ctx.beginPath(); ctx.arc(-d.size * 0.15, -d.size * 0.15, d.size * 0.25, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-d.size * 0.15, -d.size * 0.15, d.size * 0.25, 0, Math.PI * 2);
+        ctx.fill();
       } else if (d.kind === "flag") {
         // flag
         ctx.fillStyle = "#9ca3af";
@@ -2494,23 +2895,41 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         const wave = Math.sin((d.phase ?? 0) + performance.now() / 260) * 3;
         if (d.kind === "spectator") {
           ctx.fillStyle = "rgba(0,0,0,0.28)";
-          ctx.beginPath(); ctx.ellipse(0, 8, d.size * 0.8, d.size * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = ["#da291c", "#f5c518", "#ffffff", "#1e41ff"][Math.floor((d.phase ?? 0) * 10) % 4];
-          ctx.beginPath(); ctx.arc(0, -d.size * 0.4 + wave * 0.15, d.size * 0.28, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(0, 8, d.size * 0.8, d.size * 0.25, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = ["#da291c", "#f5c518", "#ffffff", "#1e41ff"][
+            Math.floor((d.phase ?? 0) * 10) % 4
+          ];
+          ctx.beginPath();
+          ctx.arc(0, -d.size * 0.4 + wave * 0.15, d.size * 0.28, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = "#f1c27d";
-          ctx.beginPath(); ctx.arc(0, -d.size * 0.78 + wave * 0.15, d.size * 0.18, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.arc(0, -d.size * 0.78 + wave * 0.15, d.size * 0.18, 0, Math.PI * 2);
+          ctx.fill();
           ctx.strokeStyle = "#ffffff";
           ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.moveTo(-d.size * 0.3, -d.size * 0.35); ctx.lineTo(-d.size * 0.58, -d.size * 0.75 + wave); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(d.size * 0.3, -d.size * 0.35); ctx.lineTo(d.size * 0.58, -d.size * 0.75 - wave); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-d.size * 0.3, -d.size * 0.35);
+          ctx.lineTo(-d.size * 0.58, -d.size * 0.75 + wave);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(d.size * 0.3, -d.size * 0.35);
+          ctx.lineTo(d.size * 0.58, -d.size * 0.75 - wave);
+          ctx.stroke();
         } else {
           ctx.fillStyle = "#2b1b1b";
           ctx.fillRect(-2, -d.size * 1.1, 4, d.size * 1.4);
           if (d.kind === "lantern") {
             ctx.fillStyle = "rgba(245,197,24,0.25)";
-            ctx.beginPath(); ctx.arc(0, -d.size * 0.68, d.size * 0.7, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, -d.size * 0.68, d.size * 0.7, 0, Math.PI * 2);
+            ctx.fill();
             ctx.fillStyle = "#da291c";
-            ctx.beginPath(); ctx.ellipse(0, -d.size * 0.65, d.size * 0.34, d.size * 0.48, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(0, -d.size * 0.65, d.size * 0.34, d.size * 0.48, 0, 0, Math.PI * 2);
+            ctx.fill();
             ctx.fillStyle = "#f5c518";
             ctx.fillRect(-d.size * 0.26, -d.size * 0.68, d.size * 0.52, d.size * 0.08);
           } else {
@@ -2520,7 +2939,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             ctx.lineTo(d.size * 0.85, -d.size * 0.86 + wave);
             ctx.lineTo(d.size * 0.85, -d.size * 0.42 + wave);
             ctx.lineTo(0, -d.size * 0.56);
-            ctx.closePath(); ctx.fill();
+            ctx.closePath();
+            ctx.fill();
             ctx.fillStyle = "#ffffff";
             ctx.font = `bold ${Math.max(9, d.size * 0.28)}px sans-serif`;
             ctx.textAlign = "center";
@@ -2530,17 +2950,25 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
       } else if (d.kind === "pole") {
         // light pole — vertical post + warm bulb
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(3, 4, d.size * 0.35, d.size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(3, 4, d.size * 0.35, d.size * 0.14, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#cbd5e1";
         ctx.fillRect(-1.5, -d.size, 3, d.size);
         ctx.fillStyle = "#fde047";
-        ctx.beginPath(); ctx.arc(0, -d.size, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -d.size, 5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "rgba(253,224,71,0.35)";
-        ctx.beginPath(); ctx.arc(0, -d.size, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -d.size, 10, 0, Math.PI * 2);
+        ctx.fill();
       } else if (d.kind === "torii") {
         if (d.angle !== undefined) ctx.rotate(d.angle + Math.PI / 2);
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(0, d.size * 0.4, d.size * 0.9, d.size * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, d.size * 0.4, d.size * 0.9, d.size * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#b01e0a";
         ctx.fillRect(-d.size * 0.62, -d.size * 0.75, d.size * 0.14, d.size * 1.4);
         ctx.fillRect(d.size * 0.48, -d.size * 0.75, d.size * 0.14, d.size * 1.4);
@@ -2548,12 +2976,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         ctx.fillRect(-d.size * 0.72, -d.size * 0.64, d.size * 1.44, d.size * 0.12);
         ctx.fillStyle = "#111111";
         ctx.fillRect(-d.size, -d.size, d.size * 2, d.size * 0.12);
-      } else if (d.kind === "temple" || d.kind === "house" || d.kind === "hotel" || d.kind === "grandstand" || d.kind === "pit") {
+      } else if (
+        d.kind === "temple" ||
+        d.kind === "house" ||
+        d.kind === "hotel" ||
+        d.kind === "grandstand" ||
+        d.kind === "pit"
+      ) {
         if (d.kind === "grandstand") {
           const w = d.size * 1.8;
           const h = d.size * 0.7;
           ctx.fillStyle = "rgba(0,0,0,0.35)";
-          ctx.beginPath(); ctx.ellipse(0, h * 0.48, w * 0.55, h * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(0, h * 0.48, w * 0.55, h * 0.16, 0, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = "#111827";
           ctx.fillRect(-w / 2, -h * 0.36, w, h * 0.72);
           ctx.fillStyle = "#38bdf8";
@@ -2569,62 +3005,94 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           const w = d.size * 2.0;
           const h = d.size * 0.55;
           ctx.fillStyle = "rgba(0,0,0,0.36)";
-          ctx.beginPath(); ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.18, 0, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = "#202838";
           ctx.fillRect(-w / 2, -h * 0.45, w, h * 0.9);
           ctx.fillStyle = "#facc15";
           ctx.fillRect(-w / 2, -h * 0.56, w, h * 0.12);
           ctx.fillStyle = "#38bdf8";
-          for (let i = 0; i < 8; i++) ctx.fillRect(-w * 0.42 + i * w * 0.12, -h * 0.18, w * 0.07, h * 0.26);
+          for (let i = 0; i < 8; i++)
+            ctx.fillRect(-w * 0.42 + i * w * 0.12, -h * 0.18, w * 0.07, h * 0.26);
           ctx.restore();
           return;
         }
         const w = d.size * (d.kind === "temple" ? 1.4 : 1.15);
         const h = d.size * 0.78;
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = d.kind === "hotel" ? "#101827" : d.kind === "temple" ? "#4b2a1d" : "#2b2b34";
+        ctx.beginPath();
+        ctx.ellipse(0, h * 0.62, w * 0.55, h * 0.16, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle =
+          d.kind === "hotel" ? "#101827" : d.kind === "temple" ? "#4b2a1d" : "#2b2b34";
         ctx.fillRect(-w * 0.42, -h * 0.15, w * 0.84, h * 0.62);
-        ctx.fillStyle = d.kind === "hotel" ? "#38bdf8" : d.kind === "temple" ? "#da291c" : "#f5c518";
+        ctx.fillStyle =
+          d.kind === "hotel" ? "#38bdf8" : d.kind === "temple" ? "#da291c" : "#f5c518";
         ctx.beginPath();
         ctx.moveTo(-w * 0.58, -h * 0.18);
         ctx.lineTo(0, -h * 0.72);
         ctx.lineTo(w * 0.58, -h * 0.18);
-        ctx.closePath(); ctx.fill();
+        ctx.closePath();
+        ctx.fill();
         ctx.fillStyle = "#111111";
         ctx.fillRect(-w * 0.62, -h * 0.2, w * 1.24, h * 0.08);
         ctx.fillStyle = "rgba(245,197,24,0.85)";
         ctx.fillRect(-w * 0.12, h * 0.05, w * 0.24, h * 0.42);
       } else if (d.kind === "train" || d.kind === "car") {
-        const shift = d.kind === "train" ? ((performance.now() * 0.045 + (d.phase ?? 0) * 80) % 900) - 450 : Math.sin(performance.now() / 600 + (d.phase ?? 0)) * 70;
+        const shift =
+          d.kind === "train"
+            ? ((performance.now() * 0.045 + (d.phase ?? 0) * 80) % 900) - 450
+            : Math.sin(performance.now() / 600 + (d.phase ?? 0)) * 70;
         ctx.translate(shift, 0);
         const w = d.size * (d.kind === "train" ? 1.8 : 1.1);
         const h = d.size * 0.34;
         ctx.fillStyle = d.kind === "train" ? "#e5e7eb" : "#1e41ff";
-        roundRect(-w / 2, -h / 2, w, h, 8); ctx.fill();
+        roundRect(-w / 2, -h / 2, w, h, 8);
+        ctx.fill();
         ctx.fillStyle = d.kind === "train" ? "#da291c" : "#f5c518";
         ctx.fillRect(-w * 0.34, -h * 0.1, w * 0.68, h * 0.18);
         ctx.fillStyle = "#111";
-        ctx.beginPath(); ctx.arc(-w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(w * 0.32, h * 0.5, h * 0.2, 0, Math.PI * 2);
+        ctx.fill();
       } else if (d.kind === "drone" || d.kind === "balloon") {
         const bob = Math.sin(performance.now() / 700 + (d.phase ?? 0)) * 16;
         ctx.translate(0, bob);
         if (d.kind === "balloon") {
           ctx.fillStyle = "rgba(245,197,24,0.8)";
-          ctx.beginPath(); ctx.ellipse(0, -d.size * 0.55, d.size * 0.42, d.size * 0.58, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(0, -d.size * 0.55, d.size * 0.42, d.size * 0.58, 0, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = "#da291c";
           ctx.fillRect(-d.size * 0.12, d.size * 0.02, d.size * 0.24, d.size * 0.18);
         } else {
           ctx.strokeStyle = "#e5e7eb";
           ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.moveTo(-d.size * 0.55, 0); ctx.lineTo(d.size * 0.55, 0); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(0, -d.size * 0.35); ctx.lineTo(0, d.size * 0.35); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(-d.size * 0.55, 0);
+          ctx.lineTo(d.size * 0.55, 0);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, -d.size * 0.35);
+          ctx.lineTo(0, d.size * 0.35);
+          ctx.stroke();
           ctx.fillStyle = "#111827";
-          roundRect(-d.size * 0.22, -d.size * 0.14, d.size * 0.44, d.size * 0.28, 4); ctx.fill();
+          roundRect(-d.size * 0.22, -d.size * 0.14, d.size * 0.44, d.size * 0.28, 4);
+          ctx.fill();
           ctx.fillStyle = "#22d3ee";
-          for (const [x, y] of [[-0.55, 0], [0.55, 0], [0, -0.35], [0, 0.35]]) {
-            ctx.beginPath(); ctx.arc(d.size * x, d.size * y, d.size * 0.12, 0, Math.PI * 2); ctx.fill();
+          for (const [x, y] of [
+            [-0.55, 0],
+            [0.55, 0],
+            [0, -0.35],
+            [0, 0.35],
+          ]) {
+            ctx.beginPath();
+            ctx.arc(d.size * x, d.size * y, d.size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
       } else if (d.kind === "billboard") {
@@ -2632,13 +3100,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         if (d.angle !== undefined) ctx.rotate(d.angle);
         // shadow
         ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.beginPath(); ctx.ellipse(3, 6, d.size * 0.6, d.size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(3, 6, d.size * 0.6, d.size * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
         // legs
         ctx.fillStyle = "#475569";
         ctx.fillRect(-d.size * 0.5, 0, 4, d.size * 0.45);
-        ctx.fillRect( d.size * 0.5 - 4, 0, 4, d.size * 0.45);
+        ctx.fillRect(d.size * 0.5 - 4, 0, 4, d.size * 0.45);
         // panel
-        const w = d.size * 1.1, h = d.size * 0.55;
+        const w = d.size * 1.1,
+          h = d.size * 0.55;
         ctx.fillStyle = "#0f172a";
         ctx.fillRect(-w / 2 - 2, -h - 4, w + 4, h + 6);
         const grad = ctx.createLinearGradient(-w / 2, -h, w / 2, 0);
@@ -2647,7 +3118,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         grad.addColorStop(1, "#ff4fa3");
         ctx.fillStyle = grad;
         ctx.fillRect(-w / 2, -h, w, h);
-        ctx.fillStyle = performance.now() % 700 < 350 ? "rgba(255,255,255,0.95)" : "rgba(245,197,24,0.95)";
+        ctx.fillStyle =
+          performance.now() % 700 < 350 ? "rgba(255,255,255,0.95)" : "rgba(245,197,24,0.95)";
         ctx.font = "bold 13px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -2690,7 +3162,8 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       // shadow (stays lower while jumping)
       ctx.fillStyle = `rgba(0,0,0,${0.35 - jump * 0.2})`;
-      roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6); ctx.fill();
+      roundRect(-22 + jump * 8, -13 + jump * 6, 46, 28, 6);
+      ctx.fill();
 
       if (botBoosting) {
         const glow = ctx.createLinearGradient(-46, 0, -14, 0);
@@ -2716,28 +3189,38 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
 
       const [body, dark, accent] = c.colors;
       ctx.fillStyle = dark;
-      roundRect(-26, -16, 9, 32, 3); ctx.fill();
-      roundRect(18, -16, 9, 32, 3); ctx.fill();
+      roundRect(-26, -16, 9, 32, 3);
+      ctx.fill();
+      roundRect(18, -16, 9, 32, 3);
+      ctx.fill();
 
       ctx.fillStyle = body;
-      roundRect(-21, -10, 42, 20, 7); ctx.fill();
+      roundRect(-21, -10, 42, 20, 7);
+      ctx.fill();
 
       ctx.fillStyle = accent;
-      roundRect(-12, -6, 19, 12, 5); ctx.fill();
+      roundRect(-12, -6, 19, 12, 5);
+      ctx.fill();
       ctx.fillRect(12, -11, 11, 22);
 
       ctx.fillStyle = dark;
-      roundRect(-2, -7, 12, 14, 4); ctx.fill();
+      roundRect(-2, -7, 12, 14, 4);
+      ctx.fill();
 
       ctx.fillStyle = "#050505";
-      roundRect(-18, -18, 9, 6, 3); ctx.fill();
-      roundRect(8, -18, 9, 6, 3); ctx.fill();
-      roundRect(-18, 12, 9, 6, 3); ctx.fill();
-      roundRect(8, 12, 9, 6, 3); ctx.fill();
+      roundRect(-18, -18, 9, 6, 3);
+      ctx.fill();
+      roundRect(8, -18, 9, 6, 3);
+      ctx.fill();
+      roundRect(-18, 12, 9, 6, 3);
+      ctx.fill();
+      roundRect(8, 12, 9, 6, 3);
+      ctx.fill();
 
       ctx.strokeStyle = c.isPlayer ? "#fff" : "rgba(0,0,0,0.5)";
       ctx.lineWidth = c.isPlayer ? 2.5 : 1.5;
-      roundRect(-21, -10, 42, 20, 7); ctx.stroke();
+      roundRect(-21, -10, 42, 20, 7);
+      ctx.stroke();
 
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = "#ffffff";
@@ -2792,23 +3275,37 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2">
           <div className="w-44 rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur shadow-[0_0_24px_-12px_rgba(98,159,248,0.6)]">
             <div className="flex items-center justify-between">
-              <span className="ps-chip ps-chip-solid" style={{ padding: "2px 8px", fontSize: 9 }}>LAP {hud.lap}/{laps}</span>
-              <span className="tabular-nums text-muted-foreground">{Math.round(hud.lapProgress * 100)}%</span>
+              <span className="ps-chip ps-chip-solid" style={{ padding: "2px 8px", fontSize: 9 }}>
+                LAP {hud.lap}/{laps}
+              </span>
+              <span className="tabular-nums text-muted-foreground">
+                {Math.round(hud.lapProgress * 100)}%
+              </span>
             </div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full bg-gradient-to-r from-primary-glow to-primary transition-[width] duration-150" style={{ width: `${Math.round(hud.lapProgress * 100)}%` }} />
+              <div
+                className="h-full bg-gradient-to-r from-primary-glow to-primary transition-[width] duration-150"
+                style={{ width: `${Math.round(hud.lapProgress * 100)}%` }}
+              />
             </div>
           </div>
           <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur tabular-nums">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Time</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Time
+            </span>
             <div className="text-foreground">{formatTime(hud.elapsed)}</div>
             {bestTime !== null && (
               <div className="text-[10px] text-primary-glow">Best {formatTime(bestTime)}</div>
             )}
           </div>
           <div className="rounded-xl border border-primary/30 bg-background/70 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Position</span>
-            <div className="text-foreground">P{hud.pos}<span className="text-muted-foreground">/{hud.total}</span></div>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Position
+            </span>
+            <div className="text-foreground">
+              P{hud.pos}
+              <span className="text-muted-foreground">/{hud.total}</span>
+            </div>
           </div>
         </div>
 
@@ -2818,30 +3315,42 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
             // Green safe / Yellow caution / Red = above 85% (corner-spinout danger)
             const color = frac < 0.7 ? "#22c55e" : frac < 0.85 ? "#facc15" : "#ef4444";
             return (
-              <div className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
-                   style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}>
+              <div
+                className="rounded-xl border bg-background/70 px-3 py-1.5 text-right font-bold backdrop-blur transition-all"
+                style={{ borderColor: color, boxShadow: `0 0 24px -8px ${color}` }}
+              >
                 <div className="flex items-center justify-end gap-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                   <Gauge className="h-3 w-3" style={{ color }} /> Speed
                 </div>
                 <div className="font-display text-2xl tabular-nums leading-none" style={{ color }}>
-                  {hud.speed}<span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
+                  {hud.speed}
+                  <span className="ml-1 text-[10px] text-muted-foreground">km/h</span>
                 </div>
                 <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full transition-[width] duration-150" style={{ width: `${frac * 100}%`, background: color }} />
+                  <div
+                    className="h-full transition-[width] duration-150"
+                    style={{ width: `${frac * 100}%`, background: color }}
+                  />
                 </div>
               </div>
             );
           })()}
-          <div className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}>
+          <div
+            className={`w-36 rounded-xl border bg-background/70 px-2 py-1.5 backdrop-blur transition-all ${hud.nitro < 0.99 ? "border-amber-400/60 shadow-[0_0_20px_-6px_rgba(251,191,36,0.7)]" : "border-amber-400/30"}`}
+          >
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
               <Zap className="h-3 w-3" /> Nitro
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150" style={{ width: `${Math.round(hud.nitro * 100)}%` }} />
+              <div
+                className="h-full bg-gradient-to-r from-amber-300 to-orange-500 transition-[width] duration-150"
+                style={{ width: `${Math.round(hud.nitro * 100)}%` }}
+              />
             </div>
           </div>
           {(() => {
-            const healthColor = hud.health > 60 ? "#22c55e" : hud.health > 30 ? "#facc15" : "#ef4444";
+            const healthColor =
+              hud.health > 60 ? "#22c55e" : hud.health > 30 ? "#facc15" : "#ef4444";
             return (
               <div
                 className="w-36 rounded-xl border bg-background/70 px-2 py-1.5 text-xs font-bold backdrop-blur transition-all"
@@ -2851,10 +3360,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                   <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                     <HeartPulse className="h-3 w-3" style={{ color: healthColor }} /> Health
                   </span>
-                  <span className="tabular-nums" style={{ color: healthColor }}>{hud.health}%</span>
+                  <span className="tabular-nums" style={{ color: healthColor }}>
+                    {hud.health}%
+                  </span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full transition-[width] duration-150" style={{ width: `${hud.health}%`, background: healthColor }} />
+                  <div
+                    className="h-full transition-[width] duration-150"
+                    style={{ width: `${hud.health}%`, background: healthColor }}
+                  />
                 </div>
               </div>
             );
@@ -2872,7 +3386,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         {/* Next-turn predictor */}
         {nextTurn.dir !== 0 && nextTurn.sharp > 0.1 && !result && !count && (
           <div className="pointer-events-none absolute bottom-20 right-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-background/70 px-3 py-2 backdrop-blur">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Next</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Next
+            </span>
             <span
               className="text-2xl leading-none"
               style={{
@@ -2889,14 +3405,16 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         {/* DANGER CORNER WARNING */}
         {warning && !result && !count && (
           <div className="pointer-events-none absolute inset-x-0 top-[18%] z-20 grid place-items-center animate-in fade-in zoom-in-95 duration-200">
-            <div className="font-display select-none text-center"
-                 style={{
-                   fontSize: "clamp(3rem, 8vw, 6rem)",
-                   color: "#ef4444",
-                   letterSpacing: "0.06em",
-                   textShadow: "0 0 30px rgba(239,68,68,0.9), 0 4px 0 rgba(0,0,0,0.6)",
-                   animation: "warn-shake 0.18s ease-in-out infinite",
-                 }}>
+            <div
+              className="font-display select-none text-center"
+              style={{
+                fontSize: "clamp(3rem, 8vw, 6rem)",
+                color: "#ef4444",
+                letterSpacing: "0.06em",
+                textShadow: "0 0 30px rgba(239,68,68,0.9), 0 4px 0 rgba(0,0,0,0.6)",
+                animation: "warn-shake 0.18s ease-in-out infinite",
+              }}
+            >
               ⚠ SLOW DOWN!
             </div>
           </div>
@@ -2905,13 +3423,15 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         {/* SPINOUT label */}
         {spinning && !result && (
           <div className="pointer-events-none absolute inset-x-0 top-[44%] z-20 grid place-items-center">
-            <div className="font-display select-none text-center"
-                 style={{
-                   fontSize: "clamp(2.4rem, 6vw, 4.5rem)",
-                   color: "#facc15",
-                   letterSpacing: "0.08em",
-                   textShadow: "0 0 30px rgba(250,204,21,0.9)",
-                 }}>
+            <div
+              className="font-display select-none text-center"
+              style={{
+                fontSize: "clamp(2.4rem, 6vw, 4.5rem)",
+                color: "#facc15",
+                letterSpacing: "0.08em",
+                textShadow: "0 0 30px rgba(250,204,21,0.9)",
+              }}
+            >
               SPIN OUT!
             </div>
           </div>
@@ -2920,13 +3440,23 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
         {count && !result && (
           <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-background/40 backdrop-blur-[3px]">
             {/* echo rings */}
-            <div key={count + "-ring"} className="absolute h-40 w-40 rounded-full border-2 border-primary/60 animate-ping" />
+            <div
+              key={count + "-ring"}
+              className="absolute h-40 w-40 rounded-full border-2 border-primary/60 animate-ping"
+            />
             <div
               key={count}
               className="select-none font-black leading-none animate-in zoom-in-50 duration-300"
               style={{
                 fontSize: count === "GO" ? "10rem" : "13rem",
-                color: count === "3" ? "#ef4444" : count === "2" ? "#f59e0b" : count === "1" ? "#22c55e" : "#629ff8",
+                color:
+                  count === "3"
+                    ? "#ef4444"
+                    : count === "2"
+                      ? "#f59e0b"
+                      : count === "1"
+                        ? "#22c55e"
+                        : "#629ff8",
                 textShadow: `0 0 80px ${count === "GO" ? "rgba(98,159,248,0.9)" : "rgba(255,255,255,0.5)"}, 0 0 30px currentColor`,
                 letterSpacing: "-0.05em",
               }}
@@ -2942,112 +3472,211 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
           </div>
         )}
 
-        {result && (() => {
-          const medal = result.failed ? "💥" : result.rank === 1 ? "🥇" : result.rank === 2 ? "🥈" : result.rank === 3 ? "🥉" : "🏁";
-          const place = result.failed ? "DNF" : result.rank === 1 ? "1ST PLACE" : result.rank === 2 ? "2ND PLACE" : result.rank === 3 ? "3RD PLACE" : `P${result.rank}`;
-          const tone = result.failed ? "bg-red-500/90 text-white" : result.rank === 1 ? "bg-gradient-coin text-amber-950" : result.rank === 2 ? "bg-gradient-cyan text-cyan-950" : result.rank === 3 ? "bg-gradient-primary text-white" : "bg-white/10 text-white";
-          return (
-            <div className="absolute inset-0 z-30 overflow-y-auto bg-background/85 px-3 py-10 backdrop-blur-md animate-fade-up overscroll-contain">
-              <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vmin] w-[80vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-40" />
-              <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/40 blur-[120px]" />
-              <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-secondary/40 blur-[120px]" />
-              <Link
-                to="/"
-                className="sticky left-full top-3 z-40 ml-auto mb-3 flex h-10 w-fit items-center gap-2 rounded-lg border border-white/15 bg-background/90 px-4 text-xs font-black uppercase tracking-[0.14em] text-white shadow-button backdrop-blur transition hover:border-primary/70"
-              >
-                Exit
-              </Link>
-              <div className="relative mx-auto w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
-                {/* Medal */}
-                <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2">
-                  <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-coin text-6xl shadow-button animate-pop-in">
-                    <span className="animate-wobble">{medal}</span>
-                  </div>
-                </div>
-                <div className="mt-16 text-4xl font-extrabold leading-none sm:text-5xl">
-                  <span className="text-gradient-title">{place}</span>
-                </div>
-                <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full ${tone} px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-button`}>
-                  {result.failed ? "Car Destroyed" : "Race Finished"}
-                </div>
-
-                <div className="mt-6 grid grid-cols-3 items-end gap-2">
-                  {[result.standings[1], result.standings[0], result.standings[2]].map((standing, index) => {
-                    if (!standing) return <div key={index} />;
-                    const podiumHeight = standing.rank === 1 ? "h-24" : standing.rank === 2 ? "h-20" : "h-16";
-                    return (
-                      <div key={standing.driverCode} className="flex flex-col items-center gap-2">
-                        <div className={`w-full rounded-xl border ${standing.isPlayer ? "border-primary/80" : "border-white/10"} bg-white/[0.06] p-2`}>
-                          <div className="mx-auto flex h-8 w-16 items-center justify-center rounded-full border border-white/20" style={{ background: standing.colors[0] }}>
-                            <span className="text-[11px] font-black text-white">{standing.driverCode}</span>
-                          </div>
-                          <div className="mt-1 truncate text-[10px] font-black uppercase text-white">{standing.driverName}</div>
-                          <div className="truncate text-[9px] font-bold uppercase text-muted-foreground">{standing.carName}</div>
-                        </div>
-                        <div className={`grid w-full place-items-center rounded-t-xl ${podiumHeight} border border-white/10 bg-gradient-to-t from-white/10 to-white/[0.22]`}>
-                          <span className="font-display text-2xl text-white">P{standing.rank}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 grid grid-cols-3 gap-2">
-                  <ResultStat label="Time"   value={formatTime(result.time)} tone="bg-white/[0.06]" valueClass="text-white" />
-                  <ResultStat label="Coins"  value={`+${result.reward}`}      tone={result.failed ? "bg-red-500/15" : "bg-gradient-coin"} valueClass={result.failed ? "text-red-200" : "text-amber-950"} />
-                  <ResultStat label="Best"   value={formatTime(result.isNewBest ? result.time : (result.best ?? result.time))} tone="bg-gradient-cyan" valueClass="text-cyan-950" />
-                </div>
-
-                <div className="mt-4 grid gap-1.5 text-left">
-                  {result.standings.map((standing) => (
-                    <div
-                      key={`${standing.rank}-${standing.driverCode}`}
-                      className={`grid grid-cols-[38px_1fr_auto] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${standing.isPlayer ? "border-primary/70 bg-primary/10" : "border-white/10 bg-white/[0.04]"}`}
-                    >
-                      <span className="font-black text-white">P{standing.rank}</span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-black text-white">{standing.driverName}</span>
-                        <span className="block truncate text-[10px] font-bold uppercase text-muted-foreground">{standing.teamName}</span>
-                      </span>
-                      <span className="rounded-full px-2 py-1 text-[10px] font-black text-white" style={{ background: standing.colors[0] }}>
-                        {standing.carName}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {result.isNewBest && (
-                  <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-primary px-4 py-2 text-xs font-extrabold text-white shadow-button animate-pop-in">
-                    🏆 NEW BEST TIME!
-                  </div>
-                )}
-
-                <button
-                  onClick={() => window.location.reload()}
-                  className="arcade-btn mt-6 h-14 w-full text-base"
+        {result &&
+          (() => {
+            const medal = result.failed
+              ? "💥"
+              : result.rank === 1
+                ? "🥇"
+                : result.rank === 2
+                  ? "🥈"
+                  : result.rank === 3
+                    ? "🥉"
+                    : "🏁";
+            const place = result.failed
+              ? "DNF"
+              : result.rank === 1
+                ? "1ST PLACE"
+                : result.rank === 2
+                  ? "2ND PLACE"
+                  : result.rank === 3
+                    ? "3RD PLACE"
+                    : `P${result.rank}`;
+            const tone = result.failed
+              ? "bg-red-500/90 text-white"
+              : result.rank === 1
+                ? "bg-gradient-coin text-amber-950"
+                : result.rank === 2
+                  ? "bg-gradient-cyan text-cyan-950"
+                  : result.rank === 3
+                    ? "bg-gradient-primary text-white"
+                    : "bg-white/10 text-white";
+            return (
+              <div className="absolute inset-0 z-30 overflow-y-auto bg-background/85 px-3 py-10 backdrop-blur-md animate-fade-up overscroll-contain">
+                <div className="pointer-events-none absolute inset-0 ps-grid-bg opacity-50" />
+                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vmin] w-[80vmin] -translate-x-1/2 -translate-y-1/2 arcade-rays opacity-40" />
+                <div className="pointer-events-none absolute -left-32 top-1/4 h-80 w-80 rounded-full bg-primary/40 blur-[120px]" />
+                <div className="pointer-events-none absolute -right-32 bottom-1/4 h-80 w-80 rounded-full bg-secondary/40 blur-[120px]" />
+                <Link
+                  to="/"
+                  className="sticky left-full top-3 z-40 ml-auto mb-3 flex h-10 w-fit items-center gap-2 rounded-lg border border-white/15 bg-background/90 px-4 text-xs font-black uppercase tracking-[0.14em] text-white shadow-button backdrop-blur transition hover:border-primary/70"
                 >
-                  {result.failed ? "TRY AGAIN" : "CONTINUE"} <Trophy className="h-5 w-5" />
-                </button>
-                <div className="mt-2 flex justify-center gap-2">
-                  <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">Quiz</Link>
-                  <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">Exit</Link>
+                  Exit
+                </Link>
+                <div className="relative mx-auto w-[min(94%,520px)] arcade-card p-8 text-center animate-pop-in">
+                  {/* Medal */}
+                  <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2">
+                    <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-coin text-6xl shadow-button animate-pop-in">
+                      <span className="animate-wobble">{medal}</span>
+                    </div>
+                  </div>
+                  <div className="mt-16 text-4xl font-extrabold leading-none sm:text-5xl">
+                    <span className="text-gradient-title">{place}</span>
+                  </div>
+                  <div
+                    className={`mt-3 inline-flex items-center gap-1.5 rounded-full ${tone} px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] shadow-button`}
+                  >
+                    {result.failed ? "Car Destroyed" : "Race Finished"}
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-3 items-end gap-2">
+                    {[result.standings[1], result.standings[0], result.standings[2]].map(
+                      (standing, index) => {
+                        if (!standing) return <div key={index} />;
+                        const podiumHeight =
+                          standing.rank === 1 ? "h-24" : standing.rank === 2 ? "h-20" : "h-16";
+                        return (
+                          <div
+                            key={standing.driverCode}
+                            className="flex flex-col items-center gap-2"
+                          >
+                            <div
+                              className={`w-full rounded-xl border ${standing.isPlayer ? "border-primary/80" : "border-white/10"} bg-white/[0.06] p-2`}
+                            >
+                              <div
+                                className="mx-auto flex h-8 w-16 items-center justify-center rounded-full border border-white/20"
+                                style={{ background: standing.colors[0] }}
+                              >
+                                <span className="text-[11px] font-black text-white">
+                                  {standing.driverCode}
+                                </span>
+                              </div>
+                              <div className="mt-1 truncate text-[10px] font-black uppercase text-white">
+                                {standing.driverName}
+                              </div>
+                              <div className="truncate text-[9px] font-bold uppercase text-muted-foreground">
+                                {standing.carName}
+                              </div>
+                            </div>
+                            <div
+                              className={`grid w-full place-items-center rounded-t-xl ${podiumHeight} border border-white/10 bg-gradient-to-t from-white/10 to-white/[0.22]`}
+                            >
+                              <span className="font-display text-2xl text-white">
+                                P{standing.rank}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-3 gap-2">
+                    <ResultStat
+                      label="Time"
+                      value={formatTime(result.time)}
+                      tone="bg-white/[0.06]"
+                      valueClass="text-white"
+                    />
+                    <ResultStat
+                      label="Coins"
+                      value={`+${result.reward}`}
+                      tone={result.failed ? "bg-red-500/15" : "bg-gradient-coin"}
+                      valueClass={result.failed ? "text-red-200" : "text-amber-950"}
+                    />
+                    <ResultStat
+                      label="Best"
+                      value={formatTime(
+                        result.isNewBest ? result.time : (result.best ?? result.time),
+                      )}
+                      tone="bg-gradient-cyan"
+                      valueClass="text-cyan-950"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-1.5 text-left">
+                    {result.standings.map((standing) => (
+                      <div
+                        key={`${standing.rank}-${standing.driverCode}`}
+                        className={`grid grid-cols-[38px_1fr_auto] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${standing.isPlayer ? "border-primary/70 bg-primary/10" : "border-white/10 bg-white/[0.04]"}`}
+                      >
+                        <span className="font-black text-white">P{standing.rank}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-black text-white">
+                            {standing.driverName}
+                          </span>
+                          <span className="block truncate text-[10px] font-bold uppercase text-muted-foreground">
+                            {standing.teamName}
+                          </span>
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-1 text-[10px] font-black text-white"
+                          style={{ background: standing.colors[0] }}
+                        >
+                          {standing.carName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {result.isNewBest && (
+                    <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-primary px-4 py-2 text-xs font-extrabold text-white shadow-button animate-pop-in">
+                      🏆 NEW BEST TIME!
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="arcade-btn mt-6 h-14 w-full text-base"
+                  >
+                    {result.failed ? "TRY AGAIN" : "CONTINUE"} <Trophy className="h-5 w-5" />
+                  </button>
+                  <div className="mt-2 flex justify-center gap-2">
+                    <Link to="/quiz" className="arcade-btn arcade-btn-cyan h-10 px-5 text-xs">
+                      Quiz
+                    </Link>
+                    <Link to="/" className="arcade-btn arcade-btn-ghost h-10 px-5 text-xs">
+                      Exit
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {!result && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-end justify-between gap-3">
             <div className="pointer-events-auto grid grid-cols-2 gap-2">
-              <RaceControlButton label="LEFT" onDown={() => setControl("a", true)} onUp={() => setControl("a", false)} />
-              <RaceControlButton label="RIGHT" onDown={() => setControl("d", true)} onUp={() => setControl("d", false)} />
+              <RaceControlButton
+                label="LEFT"
+                onDown={() => setControl("a", true)}
+                onUp={() => setControl("a", false)}
+              />
+              <RaceControlButton
+                label="RIGHT"
+                onDown={() => setControl("d", true)}
+                onUp={() => setControl("d", false)}
+              />
             </div>
             <div className="pointer-events-auto flex gap-2">
-              <RaceControlButton label="GAS" tone="green" onDown={() => setControl("w", true)} onUp={() => setControl("w", false)} />
-              <RaceControlButton label="DRIFT" tone="dark" onDown={() => setControl("e", true)} onUp={() => setControl("e", false)} />
-              <RaceControlButton label="NITRO" tone="gold" onDown={() => setControl("shift", true)} onUp={() => setControl("shift", false)} />
+              <RaceControlButton
+                label="GAS"
+                tone="green"
+                onDown={() => setControl("w", true)}
+                onUp={() => setControl("w", false)}
+              />
+              <RaceControlButton
+                label="DRIFT"
+                tone="dark"
+                onDown={() => setControl("e", true)}
+                onUp={() => setControl("e", false)}
+              />
+              <RaceControlButton
+                label="NITRO"
+                tone="gold"
+                onDown={() => setControl("shift", true)}
+                onUp={() => setControl("shift", false)}
+              />
             </div>
           </div>
         )}
@@ -3079,15 +3708,20 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
                 <Kbd label="E / Ctrl" desc="Hold to drift through turns" />
                 <Kbd label="🎮 △○✕□" desc="Look for next-turn arrow" />
               </div>
-              <button onClick={dismissHint} className="ps-pill mt-6">Start Racing</button>
-              <div className="mt-2 text-[10px] text-muted-foreground">Click anywhere to dismiss</div>
+              <button onClick={dismissHint} className="ps-pill mt-6">
+                Start Racing
+              </button>
+              <div className="mt-2 text-[10px] text-muted-foreground">
+                Click anywhere to dismiss
+              </div>
             </div>
           </div>
         )}
       </div>
 
       <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground backdrop-blur-md">
-        <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake · A/D ←/→ steer · E/Ctrl drift · Space/Shift nitro
+        <span className="font-bold text-foreground">Controls:</span> W/↑ accelerate · S/↓ brake ·
+        A/D ←/→ steer · E/Ctrl drift · Space/Shift nitro
       </div>
     </section>
   );
@@ -3104,7 +3738,17 @@ function Kbd({ label, desc }: { label: string; desc: string }) {
   );
 }
 
-function RaceControlButton({ label, tone = "blue", onDown, onUp }: { label: string; tone?: "blue" | "green" | "gold" | "dark"; onDown: () => void; onUp: () => void }) {
+function RaceControlButton({
+  label,
+  tone = "blue",
+  onDown,
+  onUp,
+}: {
+  label: string;
+  tone?: "blue" | "green" | "gold" | "dark";
+  onDown: () => void;
+  onUp: () => void;
+}) {
   const toneClass =
     tone === "green"
       ? "border-emerald-300/70 bg-emerald-500/80 text-white"
@@ -3124,7 +3768,9 @@ function RaceControlButton({ label, tone = "blue", onDown, onUp }: { label: stri
       }}
       onPointerUp={(event) => {
         event.preventDefault();
-        try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+        try {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {}
         onUp();
       }}
       onPointerCancel={onUp}
@@ -3136,10 +3782,24 @@ function RaceControlButton({ label, tone = "blue", onDown, onUp }: { label: stri
   );
 }
 
-function ResultStat({ label, value, tone, valueClass }: { label: string; value: string; tone: string; valueClass: string }) {
+function ResultStat({
+  label,
+  value,
+  tone,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+  valueClass: string;
+}) {
   return (
     <div className={`rounded-2xl ${tone} p-3 shadow-button`}>
-      <div className={`text-[10px] font-extrabold uppercase tracking-[0.18em] opacity-70 ${valueClass}`}>{label}</div>
+      <div
+        className={`text-[10px] font-extrabold uppercase tracking-[0.18em] opacity-70 ${valueClass}`}
+      >
+        {label}
+      </div>
       <div className={`mt-0.5 text-lg font-extrabold tabular-nums ${valueClass}`}>{value}</div>
     </div>
   );

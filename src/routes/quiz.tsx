@@ -1,8 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
-import { ArrowLeft, Check, X, Lightbulb, ChevronRight, Coins, Trophy, Sparkles, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  X,
+  Lightbulb,
+  ChevronRight,
+  Coins,
+  Trophy,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { LEVELS, getPhotoUrl, isCorrect, type Level } from "@/lib/levels";
-import { normalizeState, writeGameState } from "@/lib/garage";
+import { getAccountStorageKey, normalizeState, writeGameState } from "@/lib/garage";
 
 export const Route = createFileRoute("/quiz")({
   head: () => ({
@@ -17,7 +27,7 @@ const QUIZ_LEN = 20;
 function readCoins(): number {
   if (typeof window === "undefined") return 0;
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     if (!raw) return 0;
     return JSON.parse(raw).coins ?? 0;
   } catch {
@@ -27,7 +37,7 @@ function readCoins(): number {
 function addCoins(delta: number) {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     const obj = normalizeState(raw ? JSON.parse(raw) : {});
     obj.coins = (obj.coins ?? 0) + delta;
     obj.totalQuizzesCompleted = (obj.totalQuizzesCompleted ?? 0) + 1;
@@ -37,7 +47,7 @@ function addCoins(delta: number) {
 function recordQuizAttempt() {
   if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(STORAGE);
+    const raw = localStorage.getItem(getAccountStorageKey(STORAGE));
     const obj = normalizeState(raw ? JSON.parse(raw) : {});
     obj.totalQuizzesCompleted = (obj.totalQuizzesCompleted ?? 0) + 1;
     writeGameState(obj);
@@ -51,7 +61,7 @@ function QuizScreen() {
   const level: Level = LEVELS[idx];
   const seeds = useMemo(
     () => Array.from({ length: 4 }, () => Math.floor(Math.random() * 1_000_000) + 1),
-    [idx]
+    [idx],
   );
   const [input, setInput] = useState("");
   const [result, setResult] = useState<null | "correct" | "wrong">(null);
@@ -86,9 +96,11 @@ function QuizScreen() {
 
   const difficulty = qNum <= 7 ? "EASY" : qNum <= 14 ? "MEDIUM" : "HARD";
   const difficultyTone =
-    difficulty === "EASY" ? "bg-gradient-mint text-emerald-950" :
-    difficulty === "MEDIUM" ? "bg-gradient-coin text-amber-950" :
-    "bg-gradient-primary text-white";
+    difficulty === "EASY"
+      ? "bg-gradient-mint text-emerald-950"
+      : difficulty === "MEDIUM"
+        ? "bg-gradient-coin text-amber-950"
+        : "bg-gradient-primary text-white";
   const baseReward = difficulty === "EASY" ? 100 : difficulty === "MEDIUM" ? 150 : 220;
   const progress = (qNum / QUIZ_LEN) * 100;
 
@@ -126,13 +138,17 @@ function QuizScreen() {
         <div className="arcade-card p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-secondary">Quiz · Guess the Country</div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-secondary">
+                Quiz · Guess the Country
+              </div>
               <div className="mt-0.5 text-2xl font-extrabold leading-none">
                 LEVEL <span className="text-gradient-title">{qNum}</span>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className={`rounded-full ${difficultyTone} px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] shadow-button`}>
+              <span
+                className={`rounded-full ${difficultyTone} px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] shadow-button`}
+              >
                 {difficulty}
               </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-extrabold text-neon">
@@ -192,7 +208,13 @@ function QuizScreen() {
         </div>
 
         {/* ANSWER */}
-        <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="flex gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+          className="flex gap-2"
+        >
           <input
             autoFocus
             value={input}
@@ -246,10 +268,10 @@ function QuizScreen() {
                     </div>
                   </div>
                   <div className="mt-10 text-3xl font-extrabold text-white">Not quite!</div>
-                  <div className="mt-2 text-sm font-bold text-white/70">
-                    The answer was
+                  <div className="mt-2 text-sm font-bold text-white/70">The answer was</div>
+                  <div className="mt-1 text-2xl font-extrabold text-gradient-title">
+                    {level.answer}
                   </div>
-                  <div className="mt-1 text-2xl font-extrabold text-gradient-title">{level.answer}</div>
                 </>
               )}
               <button
