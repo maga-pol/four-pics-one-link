@@ -536,8 +536,6 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const playerDriver = getSelectedDriver(garage);
     const playerCar = getSelectedCar(garage);
     const botLineup = pickBotLineup(playerDriver, playerCar);
-    const carSpeedBonus = (playerCar.speed - 72) * 0.003;
-    const carGripBonus = (playerCar.grip - 68) * 0.01;
     const driverSpeedBonus = playerDriver.bonusKey === "speed" ? playerDriver.bonusValue / 100 : 0;
     const driverAccelBonus =
       playerDriver.bonusKey === "acceleration" ? playerDriver.bonusValue / 100 : 0;
@@ -545,9 +543,9 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const driverControlBonus =
       playerDriver.bonusKey === "control" ? playerDriver.bonusValue / 100 : 0;
     // Upgrades give a real, noticeable boost on every stat
-    const baseSpeed = (0.2 + up.speed * 0.035 + carSpeedBonus) * (1 + driverSpeedBonus);
+    const baseSpeed = (0.2 + up.speed * 0.035) * (1 + driverSpeedBonus);
     const accel = (0.18 + up.acceleration * 0.08) * (1 + driverAccelBonus);
-    const grip = 0.55 + up.control * 0.15 + carGripBonus + driverControlBonus;
+    const grip = 0.55 + up.control * 0.15 + driverControlBonus;
     const nitroCap = (1 + up.nitro * 0.5) * (1 + driverNitroBonus);
     const nitroBoost = 1.4 + up.nitro * 0.12; // (kept for compat — unused; +15km/h is fixed)
 
@@ -560,9 +558,7 @@ function CircuitRace({ laps, trackId }: { laps: number; trackId: string }) {
     const aiLanes = gridLanes.filter((_, i) => i !== 2);
     const startLatOff = (lane: number) => lane * (ROAD_W / 2 - 14);
     const playerOff = startLatOff(playerLane);
-    // Bots have different pace profiles. Most are slower than a focused player,
-    // and nitro/boost pads make clean overtakes possible.
-    const AI_PACE = [0.92, 0.99, 1.06, 0.96, 1.1];
+    const AI_PACE = [1, 1, 1, 1, 1];
     const cars: Car[] = [
       {
         id: "p",
