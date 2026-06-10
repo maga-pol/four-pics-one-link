@@ -132,7 +132,7 @@ function QuizScreen() {
     setLevel(null);
 
     if (cached) {
-      if (cached.source === "gemini" && cached.level) {
+      if (cached.level) {
         setLevel(cached.level);
         setAiSource("gemini");
       } else {
@@ -150,7 +150,7 @@ function QuizScreen() {
     })
       .then((result) => {
         if (!alive) return;
-        if (result.source === "gemini" && result.level) {
+        if (result.level) {
           setLevel(result.level);
           setAiSource("gemini");
         } else {

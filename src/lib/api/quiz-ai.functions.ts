@@ -141,6 +141,63 @@ const PHOTO_FRIENDLY_COUNTRY_CODES = [
   "ZA",
 ];
 
+const COUNTRY_CONTINENTS: Record<string, string> = {
+  AE: "Asia",
+  AR: "South America",
+  AT: "Europe",
+  AU: "Oceania",
+  BE: "Europe",
+  BR: "South America",
+  CA: "North America",
+  CH: "Europe",
+  CL: "South America",
+  CN: "Asia",
+  CZ: "Europe",
+  DE: "Europe",
+  DK: "Europe",
+  EG: "Africa",
+  ES: "Europe",
+  FI: "Europe",
+  FR: "Europe",
+  GB: "Europe",
+  GR: "Europe",
+  HR: "Europe",
+  HU: "Europe",
+  ID: "Asia",
+  IE: "Europe",
+  IN: "Asia",
+  IS: "Europe",
+  IT: "Europe",
+  JP: "Asia",
+  KR: "Asia",
+  MA: "Africa",
+  MX: "North America",
+  MY: "Asia",
+  NL: "Europe",
+  NO: "Europe",
+  NZ: "Oceania",
+  PE: "South America",
+  PH: "Asia",
+  PL: "Europe",
+  PT: "Europe",
+  QA: "Asia",
+  SA: "Asia",
+  SE: "Europe",
+  SG: "Asia",
+  TH: "Asia",
+  TR: "Asia",
+  US: "North America",
+  VN: "Asia",
+  ZA: "Africa",
+};
+
+const COUNTRY_ALIASES: Record<string, string[]> = {
+  AE: ["uae", "united arab emirates", "emirates"],
+  GB: ["uk", "united kingdom", "great britain", "britain", "england"],
+  KR: ["south korea", "korea", "republic of korea"],
+  US: ["usa", "us", "united states", "united states of america", "america"],
+};
+
 function getRandomTargetCountry() {
   const names = new Intl.DisplayNames(["en"], { type: "region" });
   const code =
@@ -149,6 +206,32 @@ function getRandomTargetCountry() {
   return {
     code,
     name: names.of(code) ?? code,
+  };
+}
+
+async function buildFallbackLevel(questionNumber: number) {
+  const country = getRandomTargetCountry();
+  const photoQuery = cleanPhotoQuery(`landmark,${country.name}`);
+  const photoSeeds = seedsForQuestion(questionNumber, `${country.name}:${photoQuery}`);
+  const photoUrls = await fetchWikimediaPhotoUrls(photoQuery, photoSeeds);
+  const acceptedAnswers = Array.from(
+    new Set([
+      country.name,
+      country.name.toLowerCase(),
+      country.code.toLowerCase(),
+      ...(COUNTRY_ALIASES[country.code] ?? []),
+    ]),
+  );
+
+  return {
+    id: 20_000 + questionNumber,
+    name: `Landmarks of ${country.name}`,
+    answer: country.name,
+    acceptedAnswers,
+    continent: COUNTRY_CONTINENTS[country.code] ?? "World",
+    photoQuery,
+    photoSeeds,
+    photoUrls,
   };
 }
 
@@ -162,7 +245,11 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const config = getServerConfig();
     if (!config.geminiApiKey) {
-      return { source: "fallback" as const, reason: "missing_key" as const, level: null };
+      return {
+        source: "fallback" as const,
+        reason: "missing_key" as const,
+        level: await buildFallbackLevel(data.questionNumber),
+      };
     }
     const targetCountry = getRandomTargetCountry();
 
@@ -198,24 +285,46 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
         },
       );
       if (!res.ok) {
-        return { source: "fallback" as const, reason: "gemini_error" as const, level: null };
+        const errorText = await res.text().catch(() => "");
+        console.error("Gemini quiz generation failed", {
+          status: res.status,
+          statusText: res.statusText,
+          body: errorText.slice(0, 500),
+        });
+        return {
+          source: "fallback" as const,
+          reason: "gemini_error" as const,
+          level: await buildFallbackLevel(data.questionNumber),
+        };
       }
 
       const json = await res.json();
       const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (typeof text !== "string") {
-        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+        return {
+          source: "fallback" as const,
+          reason: "bad_response" as const,
+          level: await buildFallbackLevel(data.questionNumber),
+        };
       }
 
       const parsed = extractJson(text);
       const quiz = generatedQuizSchema.safeParse(parsed);
       if (!quiz.success) {
-        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+        return {
+          source: "fallback" as const,
+          reason: "bad_response" as const,
+          level: await buildFallbackLevel(data.questionNumber),
+        };
       }
 
       const photoQuery = cleanPhotoQuery(quiz.data.photoQuery);
       if (!photoQuery) {
-        return { source: "fallback" as const, reason: "bad_response" as const, level: null };
+        return {
+          source: "fallback" as const,
+          reason: "bad_response" as const,
+          level: await buildFallbackLevel(data.questionNumber),
+        };
       }
 
       const photoSeeds = seedsForQuestion(data.questionNumber, `${quiz.data.name}:${photoQuery}`);
@@ -235,7 +344,12 @@ export const generateQuizLevel = createServerFn({ method: "POST" })
           photoUrls,
         },
       };
-    } catch {
-      return { source: "fallback" as const, reason: "server_error" as const, level: null };
+    } catch (error) {
+      console.error("Quiz generation failed", error);
+      return {
+        source: "fallback" as const,
+        reason: "server_error" as const,
+        level: await buildFallbackLevel(data.questionNumber),
+      };
     }
   });

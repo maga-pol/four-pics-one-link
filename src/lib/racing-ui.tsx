@@ -88,19 +88,20 @@ function DevCoinChat() {
   const [message, setMessage] = useState("");
   const [feedback, setFeedback] = useState("");
 
-  if (!import.meta.env.DEV) return null;
-
   function grantCoins() {
-    const amount = Math.min(1_000_000, Math.max(0, Math.floor(Number(message.match(/\d+/)?.[0]))));
+    const amount = Math.min(
+      1_000_000,
+      Math.max(0, Math.floor(Number(message.replace(/\s/g, "")))),
+    );
     if (!amount) {
-      setFeedback("Type an amount");
+      setFeedback("Enter amount");
       return;
     }
 
     const state = readGameState();
     writeGameState({ ...state, coins: (state.coins ?? 0) + amount });
     window.dispatchEvent(new Event("wqr-state-updated"));
-    setFeedback(`+${amount} coins`);
+    setFeedback(`+${amount.toLocaleString()} coins`);
     setMessage("");
   }
 
@@ -110,8 +111,8 @@ function DevCoinChat() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="grid h-[54px] w-11 place-items-center border border-[#303030] bg-[#111] text-[#696969] transition hover:border-[#f5c518]/60 hover:text-[#f5c518]"
-        aria-label="Open dev coin chat"
-        title="DEV coin chat"
+        aria-label="Open cheat coin chat"
+        title="Cheat coin chat"
       >
         <MessageCircle className="h-4 w-4" />
       </button>
@@ -119,7 +120,7 @@ function DevCoinChat() {
         <div className="absolute right-0 top-14 z-50 w-64 border border-[#303030] bg-[#111] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
           <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#f5c518]">
             <Coins className="h-3.5 w-3.5" />
-            Dev Coins
+            Cheat Chat
           </div>
           <form
             onSubmit={(event) => {
@@ -131,7 +132,9 @@ function DevCoinChat() {
             <input
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="write amount..."
+              inputMode="numeric"
+              pattern="[0-9 ]*"
+              placeholder="enter amount..."
               className="min-w-0 flex-1 border border-[#303030] bg-[#181818] px-3 py-2 text-xs font-bold text-white outline-none placeholder:text-[#696969] focus:border-[#f5c518]/70"
             />
             <button
